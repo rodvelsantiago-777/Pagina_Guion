@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#fefefd">
+  <meta name="description" content="PLANO, tu espacio de trabajo para llevar una historia del guion al rodaje.">
+  <title>PLANO — Estudio de guion</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='5' fill='%23262930'/%3E%3Cpath d='M10 29V11h6v14m5-3V11h6v7' fill='none' stroke='%23d0aa8e' stroke-width='4'/%3E%3C/svg%3E">
+  <script src="appearance.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="editor.css">
+  <link rel="stylesheet" href="appearance.css">
+  <script src="compact-popovers.js" defer></script>
+  <script src="vendor/pdf.js" defer></script>
+  <script src="vendor/pdf-assets.js" defer></script>
+  <script src="scene-analysis.js" defer></script>
+  <script src="shot-names.js" defer></script>
+  <script src="shot-values.js" defer></script>
+  <script src="shot-order.js" defer></script>
+  <script src="shot-colors.js" defer></script>
+  <script src="technical-script.js" defer></script>
+  <script src="label-layout.js" defer></script>
+  <script src="document-labels.js" defer></script>
+  <script src="pdf-export.js" defer></script>
+  <script src="excel-export.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-script" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></symbol>
+    <symbol id="i-clapper" viewBox="0 0 24 24"><path d="m3 8 17-5 2 6-17 5zM8 7l4 4M14 5l4 4M5 14v6a1 1 0 0 0 1 1h15V9M9 17h8"/></symbol>
+    <symbol id="i-coverage" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v10M12 7v7M16 7v10"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7M21 3 10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M6 9h0M6 13h0"/></symbol>
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="m5 3 14 10-7 1-3 7z"/></symbol>
+    <symbol id="i-highlight" viewBox="0 0 24 24"><path d="m9 15 8-11 4 3-8 11zM9 15l-3 5h6l1-2M3 22h18"/></symbol>
+    <symbol id="i-line" viewBox="0 0 24 24"><path d="m5 19 14-14"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="m8 4-5 5 5 5M3 9h10a7 7 0 0 1 0 14"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m16 4 5 5-5 5M21 9H11a7 7 0 0 0 0 14"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l1-6L16 3a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L10 19z"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 3h14v12l-6 6H5zM13 21v-6h6M8 7h8M8 11h6"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+    <symbol id="i-drag" viewBox="0 0 24 24"><path d="M8 5h1M15 5h1M8 12h1M15 12h1M8 19h1M15 19h1"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 .8-2.8H17a4 4 0 0 0 4-4C21 6.4 16.9 3 12 3Z"/><circle cx="7" cy="10" r="1"/><circle cx="10" cy="6.8" r="1"/><circle cx="14.6" cy="7.2" r="1"/><circle cx="17.3" cy="10.5" r="1"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.6 13A8.7 8.7 0 0 1 11 3.4 8.7 8.7 0 1 0 20.6 13Z"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h4M12 7h8M4 17h8M16 17h4"/><circle cx="10" cy="7" r="2"/><circle cx="14" cy="17" r="2"/></symbol>
+  </svg>
+
+  <a class="skip-link" href="#main-content">Ir al contenido</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Espacio de trabajo">
+      <a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>PLANO<span class="brand-dot">®</span></a>
+      <div class="studio-label">DE LA IDEA AL RODAJE</div>
+      <div class="project-label">ESPACIO DE TRABAJO</div>
+      <div class="project-card"><span class="project-avatar">P</span><div><strong>Mi proyecto</strong><span>Producción audiovisual</span></div><span class="project-indicator" title="Proyecto local"></span></div>
+
+      <nav class="navigation" aria-label="Herramientas de producción">
+        <button class="nav-item active" id="nav-import" type="button" aria-current="page"><svg><use href="#i-upload"/></svg><span>Importar guion</span></button>
+        <button class="nav-item" id="nav-editor" type="button" disabled><svg><use href="#i-coverage"/></svg><span>Guion técnico / cobertura</span></button>
+        <div class="nav-section">PREPRODUCCIÓN <span>PRÓXIMAMENTE</span></div>
+        <button class="nav-item" disabled><svg><use href="#i-people"/></svg><span>Personajes</span><svg class="lock"><use href="#i-lock"/></svg></button>
+        <button class="nav-item" disabled><svg><use href="#i-script"/></svg><span>Editor literario</span><svg class="lock"><use href="#i-lock"/></svg></button>
+      </nav>
+
+      <div class="sidebar-note"><span class="tiny-cross">+</span><p>Cada plano comienza<br>con una buena historia.</p><div class="frame-line"></div><span>ESCRIBE. IMAGINA. RUEDA.</span></div>
+      <div class="sidebar-footer"><span class="version-dot"></span> Estudio local <span class="version">v0.2</span></div>
+    </aside>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <button id="toggle-annotations" class="header-icon editor-only panel-toggle" type="button" aria-label="Mostrar u ocultar escenas y anotaciones" aria-controls="annotations-panel" aria-expanded="true" title="Escenas y anotaciones"><svg><use href="#i-panel"/></svg></button>
+        <button id="editor-home" class="editor-home editor-only" type="button" aria-label="Volver al inicio" title="Volver al inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>PLANO</span></button>
+        <div class="breadcrumb">Mi proyecto <span>/</span> <strong id="breadcrumb-current">Importar guion</strong></div>
+        <div class="editor-file editor-only"><strong id="file-name"></strong><span id="file-size"></span></div>
+        <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" disabled aria-selected="false" title="Escribir el guion · Próximamente"><svg><use href="#i-lock"/></svg><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
+        <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
+        <div class="appearance-actions"><button id="toggle-theme" class="header-icon" type="button" aria-label="Activar modo oscuro" aria-pressed="false" title="Activar modo oscuro"><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" class="header-icon" type="button" aria-label="Elegir tema" title="Elegir tema"><svg><use href="#i-sliders"/></svg></button></div>
+        <div class="editor-actions editor-only">
+          
+          <div class="view-mode-control" title="Vista del guion"><button id="view-mode-button" class="header-icon" type="button" aria-label="Vista del guion" aria-haspopup="menu" aria-controls="view-mode-menu" aria-expanded="false"><svg aria-hidden="true"><use href="#i-grid"/></svg></button><select id="scene-select" hidden aria-label="Vista del guion"><option value="all">Guion completo</option><option value="editing">Vista de edición</option><option value="print">Vista de impresión</option></select></div>
+          <details id="project-menu" class="project-menu"><summary class="header-icon" aria-label="Menú del proyecto" title="Menú del proyecto"><svg><use href="#i-menu"/></svg></summary><div class="project-menu-content"><span class="menu-caption">PROYECTO</span><button id="menu-home" type="button">Volver al inicio</button><button id="replace-button" type="button">Cambiar PDF</button><a id="open-document" target="_blank" rel="noopener">Abrir PDF original <svg><use href="#i-external"/></svg></a><hr><button id="export-pdf" type="button">Exportar PDF con cobertura</button><button id="export-excel" type="button" disabled>Exportar guion técnico a Excel</button><button id="save-backup" type="button">Exportar notas</button><button id="restore-backup" type="button">Importar notas</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></details>
+        </div>
+      </header>
+      <main id="main-content">
+        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">EL ESPACIO DE TU PRÓXIMA HISTORIA</p><h1 id="page-title">De la página al plano.</h1><p class="page-description" id="page-description">Tu guion, tu mirada. Todo listo para preparar el rodaje.</p></div><div class="edition-stamp" aria-hidden="true"><span>ESTUDIO DE GUION</span><strong>01 <span>/</span></strong><span>LA HISTORIA PRIMERO</span></div></section>
+
+        <section class="script-workspace" aria-labelledby="workspace-title">
+          <div class="workspace-toolbar"><div class="workspace-tab"><svg><use href="#i-script"/></svg><h2 id="workspace-title">Importar guion</h2></div><span class="workspace-status" id="workspace-status"><span></span>Sin documento</span></div>
+
+          <div id="upload-view" class="upload-view">
+            <div class="upload-area" id="drop-zone">
+              <span class="corner top-left" aria-hidden="true"></span><span class="corner top-right" aria-hidden="true"></span><span class="corner bottom-left" aria-hidden="true"></span><span class="corner bottom-right" aria-hidden="true"></span>
+              <div class="paper-illustration" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span>PLANO / ESTUDIO DE GUION</span><b>INT. UNA NUEVA HISTORIA — DÍA</b><i></i><i></i><i></i><em>Todo empieza con una mirada.</em><div class="sample-coverage"><span>01</span></div><small>01 / COBERTURA</small></div><div class="upload-bubble"><svg><use href="#i-coverage"/></svg></div></div>
+              <p class="eyebrow upload-eyebrow">01 / EMPIEZA AQUÍ</p>
+              <h3>Tu guion, en primer plano.</h3>
+              <p class="upload-description">Sube tu PDF para detectar sus escenas y trabajar la cobertura.<br> Resalta el texto, traza líneas y prepara cada plano.</p>
+              <button class="button button-primary" id="upload-button" type="button"><svg><use href="#i-upload"/></svg><span>Subir guion PDF</span><svg class="button-arrow"><use href="#i-arrow"/></svg></button>
+              <button class="button button-secondary return-editor" id="return-editor" type="button" hidden>Volver al guion abierto</button>
+              <p class="file-hint">Formato PDF <span>·</span> Hasta 100 MB</p>
+            </div>
+            <p class="privacy-note"><svg><use href="#i-lock"/></svg>Tu historia se queda contigo. El archivo se abre en tu navegador y no se envía a ningún servidor.</p>
+          </div>
+
+          <div id="document-view" class="document-view" hidden>
+            <div id="coverage-view" class="editor-layout">
+              <aside class="annotations-panel" id="annotations-panel" aria-labelledby="annotations-title">
+                <div class="annotations-heading"><h2 id="annotations-title">Anotaciones <span id="annotation-count">0</span></h2><span id="scene-summary"></span></div>
+                <div class="annotation-stats"><span><b id="highlight-count">0</b> resaltes</span><span><b id="line-count">0</b> líneas</span></div>
+                <div class="annotations-list" id="annotations-list"></div>
+                <p id="save-status" class="save-status" aria-live="polite">Las notas se guardan en este navegador.</p>
+              </aside>
+              <div class="viewer-column">
+                <div class="annotation-toolbar" role="toolbar" aria-label="Herramientas de anotación">
+                  <div class="tool-group"><button class="tool active" data-tool="select" type="button" aria-pressed="true" aria-label="Seleccionar texto" title="Seleccionar texto (V)"><svg><use href="#i-pointer"/></svg><span>Seleccionar</span></button><button class="tool" data-tool="highlight" type="button" aria-pressed="false" aria-label="Resaltar texto" title="Resaltar texto (H)"><svg><use href="#i-highlight"/></svg><span>Resaltar</span></button><button class="tool" data-tool="line" type="button" aria-pressed="false" aria-label="Dibujar línea recta" title="Dibujar una línea recta (L)"><svg><use href="#i-line"/></svg><span>Línea</span></button></div>
+                  <div class="color-picker"><input id="annotation-color" type="color" value="#e8b83f" hidden><button class="color-launch" data-color-target="annotation-color" type="button" aria-label="Elegir color de las anotaciones"><span></span></button></div>
+                  <button id="apply-highlight" class="tool" type="button" hidden>Resaltar selección</button>
+                  <button id="undo-button" class="tool" type="button" disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><svg><use href="#i-undo"/></svg></button><button id="redo-button" class="tool" type="button" disabled aria-label="Rehacer" title="Rehacer (Ctrl+Mayús+Z)"><svg><use href="#i-redo"/></svg></button>
+                  <div class="zoom-controls"><span id="page-label" aria-live="polite"></span><button id="zoom-out" class="icon-button" type="button" aria-label="Reducir zoom">−</button><output id="zoom-label">100%</output><button id="zoom-in" class="icon-button" type="button" aria-label="Aumentar zoom">+</button><button id="fit-width" class="tool" type="button" title="Ajustar al ancho">Ajustar</button></div>
+                </div>
+                <div id="highlight-correction-bar" class="highlight-correction-bar" hidden><span>Selecciona el texto para corregir el resalte.</span><button id="apply-highlight-correction" type="button" disabled>Aplicar corrección</button><button id="cancel-highlight-correction" type="button">Cancelar</button></div>
+                <div class="pdf-stage" id="pdf-stage" tabindex="0" aria-label="Visor del guion"><div id="pdf-container" class="page-host"></div><p class="render-status" id="render-status" role="status" hidden>Preparando página…</p></div>
+              </div>
+            </div>
+          </div>
+          <section id="technical-view" class="technical-view" aria-labelledby="technical-title" hidden>
+            <header class="technical-heading"><div class="technical-heading-title"><h2 id="technical-title">Guion técnico</h2><p id="technical-summary"></p></div><div class="technical-actions"><button id="technical-export-excel" class="technical-export" type="button" disabled title="Descargar todo el guion técnico en Excel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg><span>Exportar Excel</span></button><span id="technical-edit-status" aria-live="polite">Haz clic en una celda para editar</span><button id="technical-undo" class="tool" type="button" aria-label="Deshacer" disabled><svg><use href="#i-undo"/></svg></button><button id="technical-redo" class="tool" type="button" aria-label="Rehacer" disabled><svg><use href="#i-redo"/></svg></button></div></header>
+            <div class="technical-table-scroll" tabindex="0" aria-label="Guion técnico editable"><table id="technical-table"><caption class="sr-only">Guion técnico editable, agrupado y ordenado por escena. Enter para editar; Escape para cancelar; Tab para guardar y avanzar.</caption><colgroup><col class="col-name"><col class="col-value"><col class="col-angle"><col class="col-lens"><col class="col-movement"><col class="col-description"><col class="col-grip"><col class="col-sound"><col class="col-notes"></colgroup><thead><tr><th scope="col">Plano</th><th scope="col">Valor</th><th scope="col">Angulación</th><th scope="col">Óptica</th><th scope="col">Movimiento</th><th scope="col">Descripción</th><th scope="col">Grip</th><th scope="col">Sonido</th><th scope="col">Notas</th></tr></thead><tbody id="technical-table-body"></tbody></table><div id="technical-empty" class="technical-empty" hidden><svg><use href="#i-clapper"/></svg><h3>Tu guion técnico empieza con un plano</h3><p>Los planos que definas en las líneas de cubrimiento aparecerán aquí.</p><button id="back-to-coverage" class="button button-primary" type="button">Ir a líneas de cubrimiento</button></div></div>
+          </section>
+          <div class="message" id="feedback" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+          <input id="file-input" type="file" accept=".pdf,application/pdf" aria-label="Seleccionar guion en PDF" hidden>
+          <input id="backup-input" type="file" accept=".json,application/json" aria-label="Importar una copia de anotaciones" hidden>
+        </section>
+
+        <section class="coming-next" aria-labelledby="next-title"><div class="section-heading"><h2 id="next-title">Del papel a la pantalla</h2><span>LO QUE VIENE DESPUÉS</span></div><div class="feature-grid">
+          <article class="feature-card"><div class="feature-top"><svg><use href="#i-people"/></svg><span>PRÓXIMAMENTE</span></div><h3>Descubre a tus personajes</h3><p>Identifica quién da vida a tu historia y organiza sus intervenciones.</p><span class="feature-number">01 / DESGLOSE</span></article>
+          <article class="feature-card"><div class="feature-top"><svg><use href="#i-clapper"/></svg><span>DISPONIBLE</span></div><h3>Recorre cada escena</h3><p>Detecta los encabezados del guion y concéntrate en una escena a la vez.</p><span class="feature-number">02 / ESCENAS</span></article>
+          <article class="feature-card"><div class="feature-top"><svg><use href="#i-coverage"/></svg><span>DISPONIBLE</span></div><h3>Imagina el siguiente plano</h3><p>Resalta fragmentos, traza líneas rectas y añade tus notas de cobertura.</p><span class="feature-number">03 / PLANIFICACIÓN</span></article>
+        </div></section>
+        <footer class="page-footer"><span>PLANO <span class="footer-divider">/</span> Un espacio para crear.</span><span>HECHO PARA CONTAR HISTORIAS</span></footer>
+      </main>
+    </div>
+  </div>
+  <button class="panel-backdrop" id="panel-backdrop" type="button" aria-label="Cerrar el panel de anotaciones" hidden></button>
+  <dialog id="shot-name-dialog" class="shot-name-dialog" aria-labelledby="shot-name-title" aria-describedby="shot-name-description">
+    <form id="shot-name-form">
+      <p class="dialog-eyebrow">NUEVO PLANO</p>
+      <h2 id="shot-name-title">Ponle nombre a este plano</h2>
+      <p id="shot-name-description">El nombre aparecerá junto a tu anotación.</p>
+      <div class="shot-identity-fields">
+        <div><label for="shot-name-input">Nombre del plano</label><input id="shot-name-input" name="shotName" type="text" maxlength="120" autocomplete="off" placeholder="1" aria-describedby="shot-name-hint" autofocus></div>
+        <div><label for="shot-value-input">Valor de plano</label><select id="shot-value-input" name="shotValue"><option value="">Sin definir</option></select></div>
+      </div>
+      <div class="shot-technical-fields">
+        <div><label for="shot-angle-input">Angulación</label><select id="shot-angle-input"><option value="">Sin definir</option></select></div>
+        <div><label for="shot-lens-input">Óptica</label><select id="shot-lens-input"><option value="">Sin definir</option></select></div>
+        <div class="shotMovement"><label for="shot-movement-input">Movimiento</label><select id="shot-movement-input"><option value="">Sin definir</option></select></div>
+      </div>
+      <p id="shot-name-hint" class="shot-name-hint"></p>
+      <details class="shot-writing-section"><summary>Descripción y producción <span>Grip, sonido y notas</span></summary><div class="shot-writing-fields" data-shot-writing="input"></div></details>
+      <div class="dialog-actions"><button id="cancel-shot-name" class="button button-secondary" type="button">Cancelar</button><button class="button button-primary" type="submit">Guardar plano</button></div>
+    </form>
+  </dialog>
+  <dialog id="edit-shot-dialog" class="shot-name-dialog edit-shot-dialog" aria-labelledby="edit-shot-title">
+    <form id="edit-shot-form">
+      <p class="dialog-eyebrow">CONFIGURACIÓN DEL PLANO</p>
+      <h2 id="edit-shot-title">Editar plano</h2>
+      <p id="edit-shot-meta" class="edit-shot-meta"></p>
+      <div class="shot-identity-fields">
+        <div><label for="edit-shot-name">Nombre del plano</label><input id="edit-shot-name" type="text" maxlength="120" required autocomplete="off"></div>
+        <div><label for="edit-shot-value">Valor de plano</label><select id="edit-shot-value"><option value="">Sin definir</option></select></div>
+      </div>
+      <div class="shot-technical-fields">
+        <div><label for="edit-shot-angle">Angulación</label><select id="edit-shot-angle"><option value="">Sin definir</option></select></div>
+        <div><label for="edit-shot-lens">Óptica</label><select id="edit-shot-lens"><option value="">Sin definir</option></select></div>
+        <div class="shotMovement"><label for="edit-shot-movement">Movimiento</label><select id="edit-shot-movement"><option value="">Sin definir</option></select></div>
+      </div>
+      <div class="edit-color-field"><label for="edit-color-launch">Color</label><input id="edit-shot-color" type="color" hidden><button id="edit-color-launch" class="color-launch" data-color-target="edit-shot-color" type="button" aria-label="Elegir color del plano"><span></span></button><output id="edit-color-value"></output></div>
+      <div class="shot-writing-fields" data-shot-writing="edit"></div>
+      <details id="edit-shot-excerpt"><summary>Fragmento del guion</summary><blockquote id="edit-shot-text"></blockquote></details>
+      <div class="dialog-actions"><button id="cancel-edit-shot" class="button button-secondary" type="button">Cancelar</button><button class="button button-primary" type="submit">Guardar cambios</button></div>
+    </form>
+  </dialog>
+  <dialog id="shot-details-dialog" class="shot-name-dialog shot-details-dialog" aria-labelledby="shot-details-title">
+    <header class="shot-details-header"><div><p class="dialog-eyebrow">FICHA DEL PLANO</p><h2 id="shot-details-title"></h2><p id="shot-details-meta" class="edit-shot-meta"></p></div><button id="close-shot-details" class="shot-close" type="button" aria-label="Cerrar ficha"><svg><use href="#i-close"/></svg></button></header>
+    <dl id="shot-details-technical" class="shot-details-technical"></dl>
+    <section class="shot-details-description"><h3>Descripción</h3><p id="shot-details-description"></p></section>
+    <div class="shot-details-production"><section><h3>Grip</h3><p id="shot-details-grip"></p></section><section><h3>Sonido</h3><p id="shot-details-sound"></p></section></div>
+    <section class="shot-details-notes"><h3><svg><use href="#i-note"/></svg> Notas</h3><p id="shot-details-note"></p></section>
+    <details id="shot-details-excerpt"><summary>Fragmento del guion</summary><blockquote id="shot-details-text"></blockquote></details>
+    <div class="dialog-actions"><button id="locate-shot-details" class="button button-secondary" type="button">Ver en el guion</button><button id="edit-shot-details" class="button button-primary" type="button">Editar plano</button></div>
+  </dialog>
+  <div id="view-mode-menu" class="compact-popover view-mode-menu" popover="auto" role="menu" aria-label="Vista del guion"></div>
+  <div id="appearance-dialog" class="appearance-dialog compact-popover" popover="auto" role="dialog" aria-labelledby="appearance-title">
+    <header class="compact-popover-heading"><h2 id="appearance-title">Tema de la página</h2><button id="close-appearance" class="shot-close" type="button" aria-label="Cerrar temas"><svg><use href="#i-close"/></svg></button></header>
+    <div class="appearance-modes" role="group" aria-label="Modo de visualización"><button data-appearance-mode="light" type="button" aria-pressed="true"><svg><use href="#i-sun"/></svg>Claro</button><button data-appearance-mode="dark" type="button" aria-pressed="false"><svg><use href="#i-moon"/></svg>Oscuro</button></div>
+    <div class="appearance-presets" role="group" aria-label="Temas predeterminados"></div>
+  </div>
+  <div id="title-position-menu" class="highlight-action" popover="manual" role="menu" aria-label="Posición del título"><button id="toggle-title-pin" type="button" role="menuitem">Fijar posición</button></div>
+  <div id="highlight-action" class="highlight-action" popover="manual" role="toolbar" aria-label="Acciones del resalte"><button id="correct-highlight" type="button"><svg><use href="#i-highlight"/></svg>Corregir resalte</button></div>
+  <div id="color-picker-dialog" popover="auto" role="dialog" class="shot-name-dialog color-picker-dialog compact-popover" aria-labelledby="color-picker-title">
+    <form id="color-editor-form">
+      <header class="shot-details-header"><div><p class="dialog-eyebrow">PALETA DE COLORES</p><h2 id="color-picker-title">Elige un color</h2></div><button id="close-color-picker" class="shot-close" type="button" aria-label="Cerrar paleta"><svg><use href="#i-close"/></svg></button></header>
+      <fieldset id="custom-color-fields" hidden disabled>
+        <legend class="sr-only">Editor de color personalizado</legend>
+        <div class="paint-color-editor"><div id="color-spectrum" class="color-spectrum" tabindex="0" role="slider" aria-label="Tono y saturación; flechas izquierda y derecha para el tono, arriba y abajo para la saturación" aria-valuemin="0" aria-valuemax="360" aria-valuenow="0"><span id="spectrum-cursor"></span></div><div class="color-brightness"><label class="sr-only" for="color-brightness">Brillo</label><input id="color-brightness" type="range" min="0" max="100" value="100" orient="vertical"></div><div class="paint-color-values"><span id="custom-color-preview" aria-label="Vista previa del color"></span><div><label for="custom-color-hex">Hexadecimal</label><input id="custom-color-hex" type="text" maxlength="7" pattern="#?[0-9a-fA-F]{6}" required spellcheck="false" autocomplete="off"></div><div class="custom-color-rgb"><div><label for="custom-color-red">Rojo · R</label><input id="custom-color-red" type="number" min="0" max="255" step="1" required></div><div><label for="custom-color-green">Verde · G</label><input id="custom-color-green" type="number" min="0" max="255" step="1" required></div><div><label for="custom-color-blue">Azul · B</label><input id="custom-color-blue" type="number" min="0" max="255" step="1" required></div></div></div></div>
+      </fieldset>
+      <div class="palette-primary"><div id="preset-colors" class="palette-colors" role="group" aria-label="Ocho colores predeterminados"></div><button id="choose-custom-color" class="custom-color-button" type="button" aria-label="Color personalizado" title="Color personalizado" aria-expanded="false" aria-controls="custom-color-fields"><svg><use href="#i-palette"/></svg></button></div>
+      <section id="recent-color-section" class="recent-color-section" hidden><h3>Últimos colores creados</h3><div id="recent-colors" class="palette-colors" role="group" aria-label="Ocho colores personalizados recientes"></div><p id="recent-colors-empty">Tus colores personalizados aparecerán aquí.</p></section>
+      <div class="dialog-actions"><button id="cancel-color-picker" class="button button-secondary" type="button">Cancelar</button><button id="save-custom-color" class="button button-primary" type="submit" hidden>Usar color</button></div>
+    </form>
+  </div>
+</body>
+</html>
