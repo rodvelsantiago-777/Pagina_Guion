@@ -26,15 +26,15 @@
   function showField(name,visible){const box=$(`[data-account-field="${name}"]`);box.hidden=!visible;for(const input of box.querySelectorAll('input')){input.disabled=!visible;input.required=visible;input.setCustomValidity('');}}
   function syncGate(){
     const unlocked=Boolean(current?.emailVerified)&&workspaceConnected;
-    const dialog=$('#account-dialog'),shell=$('.app-shell');
-    document.body.classList.toggle('auth-locked',!unlocked);$('#auth-entry').hidden=unlocked;shell.inert=!unlocked;shell.setAttribute('aria-hidden',String(!unlocked));
+    const dialog=$('#account-dialog'),card=$('#account-card'),shell=$('.app-shell');
+    const mount=unlocked?dialog:$('#auth-card-mount');
+    // El acceso es una sección normal. El dialog solo aloja el perfil al abrir «Mi cuenta».
+    // No se recrea ni se cambia de padre el formulario mientras se escribe.
+    if(card.parentElement!==mount){if(dialog.open)dialog.close();mount.append(card);}
+    document.body.classList.toggle('auth-locked',!unlocked);$('#auth-entry').hidden=unlocked;
+    if(shell.inert!==!unlocked)shell.inert=!unlocked;
+    shell.setAttribute('aria-hidden',String(!unlocked));
     $('#close-account').hidden=!unlocked;$('#account-continue').hidden=!unlocked;
-    if(!unlocked){
-      if(dialog.parentElement!==$('#auth-card-mount')){if(dialog.open)dialog.close();$('#auth-card-mount').append(dialog);}
-      if(!dialog.open)dialog.show();
-    }else if(dialog.parentElement===$('#auth-card-mount')){
-      if(dialog.open)dialog.close();document.body.append(dialog);
-    }
     const pendingEditor=Boolean(current?.emailVerified)&&!workspaceConnected;
     $('#auth-loading').hidden=!connecting&&!pendingEditor;
     $('#auth-loading').textContent=pendingEditor?'Preparando tu espacio de trabajo…':'Conectando con el servicio de cuentas…';
@@ -62,15 +62,15 @@
     $('#open-account').setAttribute('aria-label',active?`Abrir cuenta de ${name}`:current?'Verificar correo':'Abrir mi cuenta');
     $('#open-account').title=active?`Mi cuenta · ${current.email}`:current?'Verificar correo':'Mi cuenta';
     $('#account-profile-name').textContent=name;$('#account-profile-email').textContent=current?.email||'';$('#account-avatar').textContent=Array.from(name)[0]?.toUpperCase()||'P';$('#account-verify-email').textContent=current?.email||'';
-    for(const button of $('#account-dialog').querySelectorAll('button'))button.disabled=working;
+    for(const button of $('#account-card').querySelectorAll('button'))button.disabled=working;
     $('#account-submit').disabled=working||connecting||!client;
-    $('#account-dialog').setAttribute('aria-busy',String(working));
+    $('#account-card').setAttribute('aria-busy',String(working));
     updateResend();
   }
   function setView(next,clear=true){view=next;if(clear)message();$('#account-password').value='';$('#account-confirm').value='';$('#account-password').type='password';$('#account-show-password').textContent='Mostrar';$('#account-show-password').setAttribute('aria-pressed','false');render();}
   function open(next){
     setView(next|| (current?current.emailVerified?'profile':'verify':'signup'));
-    if(!$('#account-dialog').open)$('#account-dialog').showModal();
+    if(!document.body.classList.contains('auth-locked')&&!$('#account-dialog').open)$('#account-dialog').showModal();
     (configured&&!unavailable&&!current?(view==='signup'?$('#account-name'):$('#account-email')):document.body.classList.contains('auth-locked')?$('#account-title'):$('#close-account')).focus();
   }
   function close(){if(working||document.body.classList.contains('auth-locked'))return;$('#account-dialog').close();$('#account-password').value='';$('#account-confirm').value='';$('#open-account').focus({preventScroll:true});clearTimeout(resendTimer);}
@@ -78,7 +78,7 @@
     clearTimeout(resendTimer);
     const seconds=Math.max(0,Math.ceil((resendAt-Date.now())/1000));
     $('#account-resend').textContent=seconds?`Reenviar en ${seconds} s`:'Reenviar enlace';$('#account-resend').disabled=working||seconds>0;
-    if(seconds&&$('#account-dialog').open&&view==='verify')resendTimer=setTimeout(updateResend,1000);
+    if(seconds&&view==='verify')resendTimer=setTimeout(updateResend,1000);
   }
   function acceptUser(next){
     queue=queue.catch(()=>{}).then(async()=>{
@@ -126,9 +126,18 @@
     for(const button of document.querySelectorAll('[data-account-view]'))button.addEventListener('click',()=>setView(button.dataset.accountView));
     $('#account-forgot').addEventListener('click',()=>setView('forgot'));$('#account-back').addEventListener('click',()=>{resetCode='';setView('login');});
     $('#account-show-password').addEventListener('click',()=>{const visible=$('#account-password').type==='password';$('#account-password').type=visible?'text':'password';$('#account-show-password').textContent=visible?'Ocultar':'Mostrar';$('#account-show-password').setAttribute('aria-label',visible?'Ocultar contraseña':'Mostrar contraseña');$('#account-show-password').setAttribute('aria-pressed',String(visible));});
-    for(const input of $('#account-form').querySelectorAll('input'))input.addEventListener('input',()=>{input.setCustomValidity('');if(['account-password','account-confirm'].includes(input.id))$('#account-confirm').setCustomValidity('');});
+    for(const input of $('#account-form').querySelectorAll('input'))input.addEventListener('input',()=>{
+      if(input.validity.customError)input.setCustomValidity('');
+      if(['account-password','account-confirm'].includes(input.id)&&$('#account-confirm').validity.customError)$('#account-confirm').setCustomValidity('');
+    });
     $('#account-form').addEventListener('submit',event=>{
       event.preventDefault();const mode=view,email=$('#account-email').value.trim(),password=$('#account-password').value,name=$('#account-name').value.trim();
+      // Evitar las sugerencias de direcciones en el campo visible (compatibilidad con Brave).
+      // Conservamos la validación HTML de email en un control separado, nunca insertado en el DOM.
+      if(!$('#account-email').disabled){
+        const validator=document.createElement('input');validator.type='email';validator.required=true;validator.value=email;
+        $('#account-email').setCustomValidity(validator.checkValidity()?'':'Escribe un correo electrónico válido.');
+      }
       if(mode==='signup'&&name.length<2)$('#account-name').setCustomValidity('Escribe tu nombre.');
       if(['signup','reset'].includes(mode)&&password!==$('#account-confirm').value)$('#account-confirm').setCustomValidity('Las contraseñas no coinciden.');
       if(!$('#account-form').reportValidity())return;

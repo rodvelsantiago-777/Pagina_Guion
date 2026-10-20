@@ -12,9 +12,9 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="appearance.css">
-  <link rel="stylesheet" href="accounts.css?v=20261020-required-account-1">
+  <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
-  <script src="accounts.js?v=20261020-required-account-1" defer></script>
+  <script src="accounts.js?v=20261020-email-compat-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="vendor/pdf.js" defer></script>
   <script src="vendor/pdf-assets.js" defer></script>
@@ -63,7 +63,28 @@
   <a class="skip-link" href="#main-content">Ir al contenido</a>
   <section id="auth-entry" class="auth-entry" aria-label="Acceso a PLANO">
     <header class="auth-entry-header"><a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>PLANO</a><button id="auth-theme" class="header-icon" type="button" aria-label="Cambiar entre modo claro y oscuro" title="Cambiar entre modo claro y oscuro"><svg><use href="#i-moon"/></svg></button></header>
-    <div class="auth-entry-layout"><div class="auth-entry-copy"><p class="eyebrow">ESTUDIO DE GUION</p><h1>Tu próxima historia empieza aquí.</h1><p>Crea tu cuenta o inicia sesión para trabajar la cobertura y preparar tu guion técnico.</p><span class="auth-entry-rule" aria-hidden="true"></span><p class="auth-entry-local">Tus PDF y anotaciones permanecen en este navegador.</p></div><div class="auth-entry-access"><p id="auth-loading" class="auth-loading" role="status">Preparando el acceso…</p><div id="auth-card-mount"></div><noscript><p>Activa JavaScript para crear tu cuenta o iniciar sesión.</p></noscript></div></div>
+    <div class="auth-entry-layout"><div class="auth-entry-copy"><p class="eyebrow">ESTUDIO DE GUION</p><h1>Tu próxima historia empieza aquí.</h1><p>Crea tu cuenta o inicia sesión para trabajar la cobertura y preparar tu guion técnico.</p><span class="auth-entry-rule" aria-hidden="true"></span><p class="auth-entry-local">Tus PDF y anotaciones permanecen en este navegador.</p></div><div class="auth-entry-access"><p id="auth-loading" class="auth-loading" role="status">Preparando el acceso…</p><div id="auth-card-mount">
+  <section id="account-card" class="account-dialog" aria-labelledby="account-title">
+    <header><div><p class="account-eyebrow">PLANO / TU CUENTA</p><h2 id="account-title" tabindex="-1">Crea tu cuenta</h2></div><button id="close-account" class="shot-close" type="button" aria-label="Cerrar cuenta"><svg><use href="#i-close"/></svg></button></header>
+    <div id="account-tabs" class="account-tabs" role="group" aria-label="Acceso a la cuenta"><button type="button" data-account-view="signup" aria-pressed="true">Crear cuenta</button><button type="button" data-account-view="login" aria-pressed="false">Iniciar sesión</button></div>
+    <p id="account-message" class="account-message" role="status" aria-live="polite" hidden></p>
+    <div id="account-unavailable" class="account-unavailable" hidden><p>No se pudo preparar el acceso.</p><p>Es necesario iniciar sesión para entrar al estudio.</p><button id="account-retry" class="account-link" type="button">Reintentar conexión</button></div>
+    <form id="account-form">
+      <p id="account-form-intro" class="account-text" hidden></p>
+      <div class="account-field" data-account-field="name" hidden><label for="account-name">Tu nombre</label><input id="account-name" name="display-name" type="text" autocomplete="off" minlength="2" maxlength="80"></div>
+      <div class="account-field" data-account-field="email"><label for="account-email">Correo electrónico</label><input id="account-email" name="account-identifier" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required></div>
+      <div class="account-field" data-account-field="password"><label for="account-password">Contraseña</label><div class="account-password-wrap"><input id="account-password" name="password" type="password" autocomplete="current-password" maxlength="128" required><button id="account-show-password" type="button" aria-pressed="false" aria-label="Mostrar contraseña">Mostrar</button></div><small id="account-password-hint" hidden>Utiliza al menos 12 caracteres.</small></div>
+      <div class="account-field" data-account-field="confirm" hidden><label for="account-confirm">Repite la contraseña</label><input id="account-confirm" name="password-confirmation" type="password" autocomplete="new-password" maxlength="128"></div>
+      <label id="account-remember-row" class="account-remember"><input id="account-remember" type="checkbox">Mantener la sesión iniciada en este dispositivo</label>
+      <button id="account-submit" class="button button-primary account-submit" type="submit" disabled>Conectando…</button>
+      <button id="account-forgot" class="account-link account-forgot" type="button">He olvidado mi contraseña</button>
+      <button id="account-back" class="account-link account-forgot" type="button" hidden>Volver a iniciar sesión</button>
+    </form>
+    <section id="account-verify" hidden><p class="account-text">Para activar la cuenta, verifica el correo <strong id="account-verify-email"></strong>. Abre el enlace recibido y vuelve aquí.</p><div class="account-stack"><button id="account-check-email" type="button" class="button button-primary">Ya he verificado mi correo</button><button id="account-resend" type="button" class="button button-secondary">Reenviar enlace</button><button id="account-other-email" type="button" class="account-link">Usar otro correo</button></div></section>
+    <section id="account-profile" hidden><div class="account-identity"><span id="account-avatar" class="account-avatar" aria-hidden="true"></span><div><strong id="account-profile-name"></strong><p id="account-profile-email"></p><span class="account-verified">Correo verificado</span></div></div><p class="account-text">Las anotaciones de tu cuenta se guardan por separado en este navegador. Los PDF permanecen en tu dispositivo.</p><div class="account-stack"><button id="account-change-password" type="button" class="button button-secondary">Cambiar contraseña</button><button id="account-signout" type="button" class="account-link account-signout">Cerrar sesión</button></div></section>
+    <footer class="account-footer"><p id="account-local-note">Verifica tu correo para activar la cuenta. Tus documentos no se suben a la nube.</p><button id="account-continue" type="button" hidden>Volver al guion</button></footer>
+  </section>
+      </div><noscript><p>Activa JavaScript para crear tu cuenta o iniciar sesión.</p></noscript></div></div>
   </section>
   <div class="app-shell" inert aria-hidden="true">
     <aside class="sidebar" aria-label="Espacio de trabajo">
@@ -227,25 +248,8 @@
       <div class="dialog-actions"><button id="cancel-color-picker" class="button button-secondary" type="button">Cancelar</button><button id="save-custom-color" class="button button-primary" type="submit" hidden>Usar color</button></div>
     </form>
   </div>
-  <dialog id="account-dialog" class="account-dialog" aria-labelledby="account-title">
-    <header><div><p class="account-eyebrow">PLANO / TU CUENTA</p><h2 id="account-title">Bienvenido de nuevo</h2></div><button id="close-account" class="shot-close" type="button" aria-label="Cerrar cuenta"><svg><use href="#i-close"/></svg></button></header>
-    <div id="account-tabs" class="account-tabs" role="group" aria-label="Acceso a la cuenta"><button type="button" data-account-view="signup" aria-pressed="true">Crear cuenta</button><button type="button" data-account-view="login" aria-pressed="false">Iniciar sesión</button></div>
-    <p id="account-message" class="account-message" role="status" aria-live="polite" hidden></p>
-    <div id="account-unavailable" class="account-unavailable" hidden><p>No se pudo preparar el acceso.</p><p>Es necesario iniciar sesión para entrar al estudio.</p><button id="account-retry" class="account-link" type="button">Reintentar conexión</button></div>
-    <form id="account-form">
-      <p id="account-form-intro" class="account-text" hidden></p>
-      <div class="account-field" data-account-field="name" hidden><label for="account-name">Tu nombre</label><input id="account-name" type="text" autocomplete="name" minlength="2" maxlength="80"></div>
-      <div class="account-field" data-account-field="email"><label for="account-email">Correo electrónico</label><input id="account-email" type="email" autocomplete="email" maxlength="254" required></div>
-      <div class="account-field" data-account-field="password"><label for="account-password">Contraseña</label><div class="account-password-wrap"><input id="account-password" type="password" autocomplete="current-password" maxlength="128" required><button id="account-show-password" type="button" aria-pressed="false" aria-label="Mostrar contraseña">Mostrar</button></div><small id="account-password-hint" hidden>Utiliza al menos 12 caracteres.</small></div>
-      <div class="account-field" data-account-field="confirm" hidden><label for="account-confirm">Repite la contraseña</label><input id="account-confirm" type="password" autocomplete="new-password" maxlength="128"></div>
-      <label id="account-remember-row" class="account-remember"><input id="account-remember" type="checkbox">Mantener la sesión iniciada en este dispositivo</label>
-      <button id="account-submit" class="button button-primary account-submit" type="submit">Iniciar sesión</button>
-      <button id="account-forgot" class="account-link account-forgot" type="button">He olvidado mi contraseña</button>
-      <button id="account-back" class="account-link account-forgot" type="button" hidden>Volver a iniciar sesión</button>
-    </form>
-    <section id="account-verify" hidden><p class="account-text">Para activar la cuenta, verifica el correo <strong id="account-verify-email"></strong>. Abre el enlace recibido y vuelve aquí.</p><div class="account-stack"><button id="account-check-email" type="button" class="button button-primary">Ya he verificado mi correo</button><button id="account-resend" type="button" class="button button-secondary">Reenviar enlace</button><button id="account-other-email" type="button" class="account-link">Usar otro correo</button></div></section>
-    <section id="account-profile" hidden><div class="account-identity"><span id="account-avatar" class="account-avatar" aria-hidden="true"></span><div><strong id="account-profile-name"></strong><p id="account-profile-email"></p><span class="account-verified">Correo verificado</span></div></div><p class="account-text">Las anotaciones de tu cuenta se guardan por separado en este navegador. Los PDF permanecen en tu dispositivo.</p><div class="account-stack"><button id="account-change-password" type="button" class="button button-secondary">Cambiar contraseña</button><button id="account-signout" type="button" class="account-link account-signout">Cerrar sesión</button></div></section>
-    <footer class="account-footer"><p id="account-local-note">Verifica tu correo para activar la cuenta. Tus documentos no se suben a la nube.</p><button id="account-continue" type="button" hidden>Volver al guion</button></footer>
+  <dialog id="account-dialog" class="account-modal" aria-labelledby="account-title">
+
   </dialog>
 </body>
 </html>
