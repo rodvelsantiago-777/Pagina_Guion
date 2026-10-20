@@ -128,6 +128,7 @@ class LocalBinaryFactory {
 
 async function upload(file) {
   await PlanoAccounts.ready;
+  if (!PlanoAccounts.getUser()) { $("#file-input").value = ""; PlanoAccounts.open("signup"); return; }
   if (!file || state.busy || state.pending || state.editing) return;
   const id = ++state.loadId;
   let candidate = null;
@@ -1406,9 +1407,9 @@ window.addEventListener("blur", () => { clearDrag(); cancelLineGesture(); }); wi
 window.addEventListener("beforeunload", () => { if (state.url) URL.revokeObjectURL(state.url); });
 
 // Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
-PlanoAccounts.init({
+PlanoAccounts.connectWorkspace({
   canChange: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && PlanoTechnicalScript.finishEditing(),
-  change: async () => {
+  change: async nextOwner => {
     const shell = $(".app-shell"); shell.inert = true;
     try {
       // Las exportaciones ya capturaron sus datos; terminan antes de destruir el PDF.
@@ -1418,6 +1419,6 @@ PlanoAccounts.init({
       closeDocument();
       $("#annotations-list").replaceChildren();
       $("#technical-table-body").replaceChildren();
-    } finally { shell.inert = false; }
+    } finally { shell.inert = !nextOwner; }
   }
 });

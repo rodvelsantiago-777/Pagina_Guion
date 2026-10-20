@@ -2,7 +2,7 @@
 
 La web continúa en GitHub Pages. Firebase Authentication gestiona usuarios, contraseñas, sesiones, confirmación de correo y recuperación. El código ya está conectado a la app web **planos-15624** con los datos públicos proporcionados. Authentication debe tener habilitado Email/Password y autorizado el dominio de GitHub Pages. `node tools/check-accounts.cjs` permite comprobar esos dos ajustes sin crear usuarios ni enviar correos.
 
-Si en otro despliegue `auth-config.js` está vacío, la página informa de que las cuentas no están disponibles y permite seguir trabajando sin cuenta. No crea usuarios ficticios ni guarda contraseñas en el navegador.
+La primera pantalla es el acceso al estudio, con **Crear cuenta** e **Iniciar sesión**. El editor no se muestra hasta tener una sesión con el correo verificado. No hay acceso como invitado ni una opción de continuar sin cuenta. Si la configuración o la conexión falla, la pantalla mantiene el editor cerrado y ofrece reintentar. No crea usuarios ficticios ni guarda contraseñas en el navegador.
 
 ## 1. Crear el proyecto y registrar la web
 
@@ -38,8 +38,8 @@ Documentación: https://firebase.google.com/docs/auth/web/password-auth y https:
 
 1. En GitHub Desktop revisa los cambios, crea un commit y pulsa **Push origin**. Conserva la carpeta `vendor`: contiene los dos SDK de Firebase que usa la aplicación. Los archivos nuevos `auth-config.js`, `accounts.js` y `accounts.css` deben publicarse junto a `index.html`.
 2. Espera a que termine el despliegue de Pages y recarga https://rodvelsantiago-777.github.io/Pagina_Guion/.
-3. Pulsa **Mi cuenta → Crear cuenta**, escribe nombre, correo y contraseña, y abre el enlace de verificación recibido. Firebase ofrece su propio manejador de enlaces de correo; esta integración lo utiliza por defecto.
-4. Vuelve a la web y pulsa **Ya he verificado mi correo**, o inicia sesión desde la pestaña a la que te lleve el enlace. Hasta verificar el correo, el editor sigue funcionando como invitado.
+3. Al entrar verás directamente **Crear cuenta**. Escribe nombre, correo y contraseña y abre el enlace de verificación recibido. Si ya tienes una cuenta, usa la pestaña **Iniciar sesión**. Firebase ofrece su propio manejador de enlaces de correo; esta integración lo utiliza por defecto.
+4. Vuelve a la web y pulsa **Ya he verificado mi correo**, o inicia sesión desde la pestaña a la que te lleve el enlace. Hasta verificar el correo, permanecerás en la pantalla de acceso. Una sesión verificada ya guardada permite entrar directamente al estudio al recargar.
 5. Prueba cerrar sesión, volver a entrar y **He olvidado mi contraseña**. Comprueba la bandeja de entrada y spam. Los enlaces de correo incluyen una URL de retorno con la ruta completa del proyecto, de modo que funcionan bajo `/Pagina_Guion/`.
 6. Los usuarios registrados aparecen en **Authentication → Users / Usuarios**. La consola permite gestionar cuentas y consultar la configuración del proveedor.
 
@@ -58,7 +58,7 @@ La configuración pública recibida ya se ha incorporado. La comprobación contr
 
 Las cuentas están en Firebase; **los PDF y las anotaciones siguen en este navegador**. No se ha activado Cloud Storage, Firestore ni sincronización. No se necesita una base de datos adicional para esta versión.
 
-Cada usuario verificado tiene un espacio local de notas identificado por su UID de Firebase. El modo invitado conserva las notas anteriores con su clave original `plano-notes-v1:`. No se trasladan automáticamente esas notas a una cuenta. Para copiarlas, exporta las notas JSON como invitado e impórtalas después de entrar en tu cuenta y abrir el mismo PDF.
+Cada usuario verificado tiene un espacio local de notas identificado por su UID de Firebase. Las notas de la versión antigua sin cuentas permanecen intactas bajo la clave `plano-notes-v1:`; no se trasladan automáticamente a otra identidad. Si tienes una copia JSON anterior, inicia sesión, abre el mismo PDF e importa la copia desde el menú del proyecto.
 
 Al cambiar de identidad se cierra el documento y se vacía su historial de edición antes de activar el nuevo espacio. Las notas guardadas permanecen disponibles cuando vuelvas a entrar y abras ese PDF. Una exportación ya iniciada termina antes de cerrar el documento; los cambios voluntarios de cuenta se bloquean mientras se está editando un plano o exportando. Los cambios de sesión notificados por Firebase se procesan también sin mezclar los espacios.
 
@@ -66,8 +66,12 @@ La separación local organiza los datos entre cuentas; no cifra el almacenamient
 
 ## Desarrollo y dependencias
 
-`auth-config.js` contiene únicamente configuración pública. `accounts.js` carga los SDK oficiales Firebase **12.19.0** desde `vendor/` solo cuando hay configuración y la página está servida por HTTP/HTTPS. El editor sin cuentas sigue abriéndose directamente con `file://`. La autenticación real requiere conexión con los servicios de Firebase.
+`auth-config.js` contiene únicamente configuración pública. `accounts.js` carga los SDK oficiales Firebase **12.19.0** desde `vendor/` solo cuando hay configuración y la página está servida por HTTP/HTTPS. La autenticación real requiere conexión con los servicios de Firebase; abrir `index.html` con `file://` muestra la indicación de utilizar la web publicada o un servidor local y mantiene cerrado el editor.
+
+El módulo de cuentas arranca por sí mismo, separado del editor. El editor registra sus funciones de cambio de usuario mediante `connectWorkspace`. Así, un error o una demora en `app.js` no deja sin respuesta los formularios de acceso. Los botones de envío muestran el estado de conexión y se habilitan cuando Firebase está preparado. Se mantiene oculta e inerte la interfaz del editor desde el HTML inicial; `upload()` comprueba también que exista un usuario verificado. Los recursos de cuentas y el controlador del editor llevan una versión en su URL para evitar mezclar archivos de distintos despliegues en la caché de GitHub Pages.
 
 Para probar localmente, sirve esta carpeta por HTTP, por ejemplo con `python -m http.server 8765 --bind 127.0.0.1`, y abre `http://127.0.0.1:8765/`. Autoriza ese dominio en Firebase. No guardes credenciales de administración en esta carpeta pública.
 
-`node tools/copy-firebase.cjs` vuelve a descargar los dos SDK desde el CDN oficial y su licencia. `node tests/accounts.cjs` ejecuta la prueba automatizada, con Node.js, Playwright, pdf-lib y Microsoft Edge; `PLANO_RUNTIME_MODULES` indica dónde están esas dependencias. No necesita un proyecto Firebase real. Prueba el SDK contra una API simulada para registro, correo verificado/no verificado, recuperación, errores, persistencia, datos de invitado/cuentas, texto Unicode, enlaces de acción, ausencia de contraseñas almacenadas, interfaz móvil y modo no configurado.
+`node tools/copy-firebase.cjs` vuelve a descargar los dos SDK desde el CDN oficial y su licencia. `node tests/accounts.cjs` ejecuta la prueba automatizada, con Node.js, Playwright, pdf-lib y Microsoft Edge; `PLANO_RUNTIME_MODULES` indica dónde están esas dependencias. No necesita un proyecto Firebase real. Prueba el SDK contra una API simulada para registro, correo verificado/no verificado, recuperación, errores, persistencia, separación de dos cuentas, conservación de notas antiguas, enlaces de acción, ausencia de contraseñas almacenadas e interfaz móvil. Comprueba la primera pantalla obligatoria, que Escape no permita entrar, la guardia de importación sin sesión, el arranque de cuentas con el editor averiado y la recuperación tras fallar el SDK.
+
+`node tests/accounts-live.cjs` presenta el código local bajo el origen HTTPS de Pages, sirviendo los archivos mediante interceptación de las solicitudes del navegador, y comprueba la conexión con Firebase real mediante un intento de acceso con datos inexistentes. No crea usuarios, no envía correos ni publica archivos. Las pruebas previas del editor usan `tests/editor-auth-fixture.cjs` para aislar sus herramientas de la autenticación; ese adaptador solo se sirve desde los tests y no es una opción de la aplicación.

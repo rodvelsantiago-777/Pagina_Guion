@@ -12,7 +12,7 @@ async function drag(page,from,to){await page.mouse.move(from.x,from.y);await pag
  sheet.drawText('Texto anterior a la escena que debe permanecer oculto.',{x:65,y:800,size:12,font});
  sheet.drawText('INT. ESTUDIO - DIA',{x:65,y:770,size:12,font});
  for(let y=720;y>=500;y-=14)sheet.drawText('Ana prepara la camara. Todo esta listo para el rodaje. '.repeat(2).slice(0,80),{x:5,y,size:12,font});
- const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+ const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
  try{
    const context=await browser.newContext({viewport:{width:1540,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.goto(process.env.PLANO_TEST_URL||pathToFileURL(path.resolve(__dirname,'../index.html')).href);await page.locator('#file-input').setInputFiles({name:'margenes.pdf',mimeType:'application/pdf',buffer});await ready(page);

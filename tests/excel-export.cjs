@@ -9,7 +9,7 @@ async function download(page,name,menu=false){const waiting=page.waitForEvent('d
 (async()=>{
  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Courier);
  for(const heading of ['INT. CASA - DIA','EXT. CALLE - NOCHE']){const sheet=pdf.addPage([595,842]);sheet.drawText(heading,{x:65,y:770,size:12,font});sheet.drawText('Ana abre la puerta.',{x:65,y:700,size:12,font});}
- const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+ const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
  try{
   const context=await browser.newContext({viewport:{width:1540,height:1100},acceptDownloads:true}),page=await context.newPage(),errors=[],network=[];
   page.on('pageerror',e=>errors.push(e.message));await context.route('**/*',route=>{if(/^https?:/.test(route.request().url())){network.push(route.request().url());return route.abort();}return route.continue();});

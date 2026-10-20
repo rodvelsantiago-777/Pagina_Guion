@@ -13,7 +13,7 @@ function ratio(a,b){return(Math.max(lum(a),lum(b))+.05)/(Math.min(lum(a),lum(b))
    const sheet=pdf.addPage([595,842]);sheet.drawText(heading,{x:65,y:770,size:12,font});
    for(let y=690;y>=450;y-=60)sheet.drawText('Ana prepara la camara para el siguiente plano.',{x:65,y,size:12,font});
  }
- const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+ const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
  try{
    const context=await browser.newContext({viewport:{width:1540,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
    await page.addInitScript(()=>{if(sessionStorage.getItem('seeded'))return;sessionStorage.setItem('seeded','true');localStorage.setItem('plano-appearance-v1',JSON.stringify({mode:'dark',preset:'pink',accent:'#f000aa',surface:'#aa44cc',contrast:'#992299'}));localStorage.setItem('plano-notes-v1:sentinel','Notas existentes');localStorage.setItem('plano-custom-colors-v1','["#112233"]');});

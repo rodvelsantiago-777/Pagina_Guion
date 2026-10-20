@@ -53,7 +53,7 @@ async function highlight(page,word,line) {
   text('2',25,400); text('EXT. CALLE - NOCHE',70,400,true); text('2',560,400);
   text('La calle permanece vacía.',65,368); text('Una luz parpadea al fondo.',65,352);
   const buffer=Buffer.from(await pdf.save()); fs.writeFileSync(path.join(output,'escenas-misma-pagina.pdf'),buffer);
-  const browser=await chromium.launch({channel:'msedge',headless:true});
+  const browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
   try {
     const page=await browser.newPage({viewport:{width:1540,height:1100}}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));

@@ -25,7 +25,7 @@ async function view(page,value){if(!await page.locator('#view-mode-button').isVi
   text(pages[2],'2 EXT. CALLE - NOCHE',65,430);text(pages[2],'La calle permanece vacia.',65,390);text(pages[2],'Se escucha un coche a lo lejos.',65,370);
   text(pages[3],'Un coche dobla lentamente la esquina.',65,760);text(pages[3],'Ana observa desde la acera.',65,740);text(pages[3],'El coche se detiene frente a ella.',65,720);
   const buffer=Buffer.from(await pdf.save());fs.writeFileSync(path.join(output,'portada-y-escenas.pdf'),buffer);
-  const browser=await chromium.launch({channel:'msedge',headless:true});
+  const browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
   try{
     const page=await browser.newPage({viewport:{width:1540,height:1100}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(process.env.PLANO_TEST_URL||pathToFileURL(path.resolve(__dirname,'../index.html')).href);

@@ -37,7 +37,7 @@ async function createLine(page) {
   const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Courier),sheet=pdf.addPage([595,842]);
   for(const [text,y] of [['INT. CASA - DIA',770],['Ana abre la puerta lentamente.',730],['EXT. CALLE - NOCHE',430],['Una luz se enciende en la calle.',390]]) sheet.drawText(text,{x:65,y,size:12,font});
   const buffer=Buffer.from(await pdf.save());
-  const browser=await chromium.launch({channel:'msedge',headless:true});
+  const browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
   const base=process.env.PLANO_TEST_URL || pathToFileURL(path.resolve(__dirname,'../index.html')).href;
   const errors=[];
   try {

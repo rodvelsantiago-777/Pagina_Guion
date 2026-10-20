@@ -104,7 +104,7 @@ async function assertLabelClearance(page) {
 
   const pdf = await fixture(); const scanned = await fixture(true);
   fs.writeFileSync(path.join(output,'guion-prueba.pdf'),pdf);
-  const browser = await chromium.launch({ channel:'msedge',headless:true });
+  const browser = await require('./editor-auth-fixture.cjs').launch(chromium,{ channel:'msedge',headless:true });
   try {
     const page = await browser.newPage({viewport:{width:1540,height:1100}});
     const errors=[]; page.on('pageerror',error=>errors.push(error.message));

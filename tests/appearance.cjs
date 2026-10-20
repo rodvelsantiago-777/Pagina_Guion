@@ -24,7 +24,7 @@ async function documentSnapshot(page){const snapshot=await page.evaluate(async()
  for(const [index,heading] of ['INT. ESTUDIO - DIA','EXT. CALLE - NOCHE'].entries()){
    const sheet=pdf.addPage([595,842]);sheet.drawText(heading,{x:65,y:770,size:12,font});sheet.drawText('Ana prepara la camara.',{x:65,y:710,size:12,font});sheet.drawText('Todo esta listo para rodar.',{x:65,y:680,size:12,font});
  }
- const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+ const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
  try{
    const context=await browser.newContext({viewport:{width:1540,height:1100}}),page=await context.newPage(),errors=[];
    page.on('pageerror',e=>errors.push(e.message));await page.goto(base);

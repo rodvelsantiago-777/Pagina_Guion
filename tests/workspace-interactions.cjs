@@ -43,7 +43,7 @@ async function correct(page,id){
   const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Courier);
   const sheet=pdf.addPage([595,842]);for(const [text,y] of [['INT. CASA - DIA',770],['Ana abre la puerta.',700],['Una luz ilumina la mesa.',650],['Ana encuentra una carta.',600],['EXT. CALLE - NOCHE',400],['La calle permanece vacia.',350]])sheet.drawText(text,{x:65,y,size:12,font});
   const second=pdf.addPage([595,842]);second.drawText('Ana sale y cierra la puerta.',{x:65,y:730,size:12,font});
-  const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+  const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
   try{
     const context=await browser.newContext({viewport:{width:1540,height:1100}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     const base=process.env.PLANO_TEST_URL||pathToFileURL(path.resolve(__dirname,'../index.html')).href;

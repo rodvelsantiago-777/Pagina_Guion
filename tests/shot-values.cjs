@@ -28,7 +28,7 @@ async function importNotes(page,data) {await page.locator('#backup-input').setIn
   for(const [heading,body] of [['INT. CASA - DIA','Ana abre la puerta.'],['EXT. CALLE - NOCHE','Ana camina por la calle.']]) {
     const sheet=pdf.addPage([595,842]); sheet.drawText(heading,{x:65,y:770,size:12,font}); sheet.drawText(body,{x:65,y:730,size:12,font});
   }
-  const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+  const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
   try {
     const page=await browser.newPage({viewport:{width:1540,height:1100}}),errors=[]; page.on('pageerror',error=>errors.push(error.message));
     await page.goto(process.env.PLANO_TEST_URL||pathToFileURL(path.resolve(__dirname,'../index.html')).href);

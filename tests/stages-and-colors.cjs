@@ -12,7 +12,7 @@ async function notes(page){return page.evaluate(()=>JSON.parse(localStorage.getI
   for(const [index,text] of ['Ana abre la puerta.','La calle permanece vacia.'].entries()){
     const page=pdf.addPage([595,842]);if(index===0)page.drawText('INT. CASA - DIA',{x:65,y:770,size:12,font});page.drawText(text,{x:65,y:700,size:12,font});if(index===1)page.drawText('EXT. CALLE - NOCHE',{x:65,y:400,size:12,font});
   }
-  const buffer=Buffer.from(await pdf.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+  const buffer=Buffer.from(await pdf.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
   try{
     const page=await browser.newPage({viewport:{width:1540,height:1100}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
     const base=process.env.PLANO_TEST_URL||pathToFileURL(path.resolve(__dirname,'../index.html')).href;await page.goto(base);

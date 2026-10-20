@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#fefefd">
   <meta name="description" content="PLANO, tu espacio de trabajo para llevar una historia del guion al rodaje.">
+  <style>body.auth-locked .app-shell{display:none!important}</style>
   <title>PLANO — Estudio de guion</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='5' fill='%23262930'/%3E%3Cpath d='M10 29V11h6v14m5-3V11h6v7' fill='none' stroke='%23d0aa8e' stroke-width='4'/%3E%3C/svg%3E">
   <script src="appearance.js"></script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="appearance.css">
-  <link rel="stylesheet" href="accounts.css">
-  <script src="auth-config.js" defer></script>
-  <script src="accounts.js" defer></script>
+  <link rel="stylesheet" href="accounts.css?v=20261020-required-account-1">
+  <script src="auth-config.js?v=20261020-required-account-1" defer></script>
+  <script src="accounts.js?v=20261020-required-account-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="vendor/pdf.js" defer></script>
   <script src="vendor/pdf-assets.js" defer></script>
@@ -27,9 +28,9 @@
   <script src="document-labels.js" defer></script>
   <script src="pdf-export.js" defer></script>
   <script src="excel-export.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="app.js?v=20261020-required-account-1" defer></script>
 </head>
-<body>
+<body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="i-script" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
@@ -60,7 +61,11 @@
   </svg>
 
   <a class="skip-link" href="#main-content">Ir al contenido</a>
-  <div class="app-shell">
+  <section id="auth-entry" class="auth-entry" aria-label="Acceso a PLANO">
+    <header class="auth-entry-header"><a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>PLANO</a><button id="auth-theme" class="header-icon" type="button" aria-label="Cambiar entre modo claro y oscuro" title="Cambiar entre modo claro y oscuro"><svg><use href="#i-moon"/></svg></button></header>
+    <div class="auth-entry-layout"><div class="auth-entry-copy"><p class="eyebrow">ESTUDIO DE GUION</p><h1>Tu próxima historia empieza aquí.</h1><p>Crea tu cuenta o inicia sesión para trabajar la cobertura y preparar tu guion técnico.</p><span class="auth-entry-rule" aria-hidden="true"></span><p class="auth-entry-local">Tus PDF y anotaciones permanecen en este navegador.</p></div><div class="auth-entry-access"><p id="auth-loading" class="auth-loading" role="status">Preparando el acceso…</p><div id="auth-card-mount"></div><noscript><p>Activa JavaScript para crear tu cuenta o iniciar sesión.</p></noscript></div></div>
+  </section>
+  <div class="app-shell" inert aria-hidden="true">
     <aside class="sidebar" aria-label="Espacio de trabajo">
       <a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>PLANO<span class="brand-dot">®</span></a>
       <div class="studio-label">DE LA IDEA AL RODAJE</div>
@@ -224,9 +229,9 @@
   </div>
   <dialog id="account-dialog" class="account-dialog" aria-labelledby="account-title">
     <header><div><p class="account-eyebrow">PLANO / TU CUENTA</p><h2 id="account-title">Bienvenido de nuevo</h2></div><button id="close-account" class="shot-close" type="button" aria-label="Cerrar cuenta"><svg><use href="#i-close"/></svg></button></header>
-    <div id="account-tabs" class="account-tabs" role="group" aria-label="Acceso a la cuenta"><button type="button" data-account-view="login" aria-pressed="true">Iniciar sesión</button><button type="button" data-account-view="signup" aria-pressed="false">Crear cuenta</button></div>
+    <div id="account-tabs" class="account-tabs" role="group" aria-label="Acceso a la cuenta"><button type="button" data-account-view="signup" aria-pressed="true">Crear cuenta</button><button type="button" data-account-view="login" aria-pressed="false">Iniciar sesión</button></div>
     <p id="account-message" class="account-message" role="status" aria-live="polite" hidden></p>
-    <div id="account-unavailable" class="account-unavailable" hidden><p>Las cuentas todavía no están disponibles.</p><p>Puedes seguir preparando tu guion en este navegador.</p></div>
+    <div id="account-unavailable" class="account-unavailable" hidden><p>No se pudo preparar el acceso.</p><p>Es necesario iniciar sesión para entrar al estudio.</p><button id="account-retry" class="account-link" type="button">Reintentar conexión</button></div>
     <form id="account-form">
       <p id="account-form-intro" class="account-text" hidden></p>
       <div class="account-field" data-account-field="name" hidden><label for="account-name">Tu nombre</label><input id="account-name" type="text" autocomplete="name" minlength="2" maxlength="80"></div>
@@ -240,7 +245,7 @@
     </form>
     <section id="account-verify" hidden><p class="account-text">Para activar la cuenta, verifica el correo <strong id="account-verify-email"></strong>. Abre el enlace recibido y vuelve aquí.</p><div class="account-stack"><button id="account-check-email" type="button" class="button button-primary">Ya he verificado mi correo</button><button id="account-resend" type="button" class="button button-secondary">Reenviar enlace</button><button id="account-other-email" type="button" class="account-link">Usar otro correo</button></div></section>
     <section id="account-profile" hidden><div class="account-identity"><span id="account-avatar" class="account-avatar" aria-hidden="true"></span><div><strong id="account-profile-name"></strong><p id="account-profile-email"></p><span class="account-verified">Correo verificado</span></div></div><p class="account-text">Las anotaciones de tu cuenta se guardan por separado en este navegador. Los PDF permanecen en tu dispositivo.</p><div class="account-stack"><button id="account-change-password" type="button" class="button button-secondary">Cambiar contraseña</button><button id="account-signout" type="button" class="account-link account-signout">Cerrar sesión</button></div></section>
-    <footer class="account-footer"><p id="account-local-note">Crear una cuenta no sube tus documentos ni sincroniza los proyectos entre dispositivos.</p><button id="account-continue" type="button">Continuar sin cuenta</button></footer>
+    <footer class="account-footer"><p id="account-local-note">Verifica tu correo para activar la cuenta. Tus documentos no se suben a la nube.</p><button id="account-continue" type="button" hidden>Volver al guion</button></footer>
   </dialog>
 </body>
 </html>

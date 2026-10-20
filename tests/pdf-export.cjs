@@ -13,7 +13,7 @@ async function download(page,name){const pending=page.waitForEvent('download');a
  const crop=document.addPage([655,900]);crop.setMediaBox(-30,-40,655,900);crop.setCropBox(20,30,535,720);crop.setRotation(degrees(90));crop.node.set(PDFName.of('UserUnit'),PDFNumber.of(2));crop.drawText('Texto recortado y girado',{x:100,y:600,size:12,font});
  const image=new PNG({width:400,height:600});image.data.fill(255);for(let y=90;y<500;y+=50)for(let x=50;x<300;x++)for(let row=0;row<3;row++){const i=((y+row)*400+x)*4;image.data[i]=image.data[i+1]=image.data[i+2]=50;}
  const scanned=document.addPage([595,842]);scanned.drawImage(await document.embedPng(PNG.sync.write(image)),{x:0,y:0,width:595,height:842});
- const buffer=Buffer.from(await document.save()),browser=await chromium.launch({channel:'msedge',headless:true});
+ const buffer=Buffer.from(await document.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,{channel:'msedge',headless:true});
  try{
    const context=await browser.newContext({viewport:{width:1540,height:1100},acceptDownloads:true}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
    await context.route('**/*',route=>{const url=route.request().url();return /^https?:/.test(url)&&!process.env.PLANO_TEST_URL?route.abort():route.continue();});

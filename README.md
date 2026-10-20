@@ -1,6 +1,6 @@
 # PLANO — Estudio de guion y cobertura
 
-Aplicación local de producción audiovisual en HTML, CSS y JavaScript. Interfaz en español y adaptable a escritorio, tableta y móvil. Incluye un visor propio basado en [PDF.js de Mozilla](https://mozilla.github.io/pdf.js/), distribuido en `vendor/` con sus recursos y licencias. No requiere instalación, compilación ni conexión a Internet para usarla.
+Aplicación web de producción audiovisual en HTML, CSS y JavaScript. Interfaz en español y adaptable a escritorio, tableta y móvil. Incluye un visor propio basado en [PDF.js de Mozilla](https://mozilla.github.io/pdf.js/), distribuido en `vendor/` con sus recursos y licencias. El acceso requiere una cuenta de Firebase con correo verificado; los PDF y las anotaciones se procesan en el navegador. No requiere compilación.
 
 ## Exportar el PDF con cobertura
 
@@ -24,7 +24,7 @@ La personalización afecta exclusivamente a la interfaz: el PDF conserva sus col
 
 ## Abrir y usar
 
-1. Abre `index.html` en una versión actualizada de Edge, Chrome o Firefox. Conserva las carpetas y archivos del proyecto juntos. También funciona desde un servidor HTTP estático.
+1. Abre la web publicada o sirve esta carpeta por HTTP en una versión actualizada de Edge, Chrome o Firefox. La primera pantalla permite crear una cuenta o iniciar sesión. Verifica tu correo para entrar al estudio. Una sesión verificada guardada entra directamente. Conserva las carpetas y archivos del proyecto juntos; abrir el archivo mediante `file://` no habilita la autenticación. Consulta [CUENTAS.md](CUENTAS.md).
 2. Selecciona o arrastra un PDF de hasta 100 MB. Se analizará su texto y pasarás automáticamente a **Guion técnico / líneas de cobertura**.
 3. En el icono **Vista del guion**, fijo en la cabecera derecha, elige **Guion completo** o **Vista de edición** para trabajar únicamente con las escenas y una tarjeta compacta de portada; una escena del grupo **Escena por escena** para concentrarte en ella; o **Vista de impresión** para ver todas las páginas originales del PDF. Todas las vistas tienen desplazamiento vertical continuo.
 4. Usa **Resaltar** y selecciona un fragmento. Se abrirá una ventana que pide el **nombre del plano**; al guardarlo aparecerá en el documento y en el panel. Para una selección existente, o una selección táctil, pulsa **Resaltar selección**.
@@ -226,7 +226,7 @@ node tools/build-vendor.cjs RUTA_A_PDFJS_DIST RUTA_A_ESBUILD
 
 ## Pendiente
 
-El sistema de cuentas está integrado con Firebase Authentication y conectado a la app web `planos-15624` mediante su configuración pública en `auth-config.js`. Requiere Email/Password habilitado y el dominio autorizado en Authentication. Sigue [CUENTAS.md](CUENTAS.md) y comprueba los ajustes con `node tools/check-accounts.cjs`. El editor continúa disponible en modo local. Las cuentas no suben PDF ni sincronizan anotaciones entre dispositivos.
+El sistema de cuentas está integrado con Firebase Authentication y conectado a la app web `planos-15624` mediante su configuración pública en `auth-config.js`. Requiere Email/Password habilitado y el dominio autorizado en Authentication. Sigue [CUENTAS.md](CUENTAS.md) y comprueba los ajustes con `node tools/check-accounts.cjs`. El registro o inicio de sesión con correo verificado es obligatorio para acceder al editor. Las cuentas no suben PDF ni sincronizan anotaciones entre dispositivos.
 
 La escritura/edición del guion literario, detección de personajes, importación de otros formatos y OCR todavía no están implementados.
 
