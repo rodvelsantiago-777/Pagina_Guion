@@ -226,6 +226,8 @@ node tools/build-vendor.cjs RUTA_A_PDFJS_DIST RUTA_A_ESBUILD
 
 ## Pendiente
 
+El sistema de cuentas está integrado con Firebase Authentication y conectado a la app web `planos-15624` mediante su configuración pública en `auth-config.js`. Requiere Email/Password habilitado y el dominio autorizado en Authentication. Sigue [CUENTAS.md](CUENTAS.md) y comprueba los ajustes con `node tools/check-accounts.cjs`. El editor continúa disponible en modo local. Las cuentas no suben PDF ni sincronizan anotaciones entre dispositivos.
+
 La escritura/edición del guion literario, detección de personajes, importación de otros formatos y OCR todavía no están implementados.
 
 ## Exportar guion técnico a Excel

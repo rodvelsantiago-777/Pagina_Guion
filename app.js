@@ -127,6 +127,7 @@ class LocalBinaryFactory {
 }
 
 async function upload(file) {
+  await PlanoAccounts.ready;
   if (!file || state.busy || state.pending || state.editing) return;
   const id = ++state.loadId;
   let candidate = null;
@@ -170,7 +171,7 @@ async function upload(file) {
     state.url = URL.createObjectURL(file); state.pages = pages;
     state.scenes = sceneTools.detectScenes(pages);
     state.fingerprint = hash || pdf.fingerprints[0];
-    state.key = `plano-notes-v1:${state.fingerprint}`;
+    state.key = PlanoAccounts.notesKey(state.fingerprint);
     state.annotations = readSavedNotes();
     state.history = []; state.future = []; state.scene = "all"; state.stage = "coverage";
     state.segmentIndex = 0; state.fit = true; state.zoom = 1; state.drawing = null; state.viewAnchor = null;
@@ -1403,3 +1404,20 @@ workspace.addEventListener("drop", event => {
 for (const name of ["dragover", "drop"]) window.addEventListener(name, event => { if (hasFiles(event)) event.preventDefault(); if (name === "drop") clearDrag(); });
 window.addEventListener("blur", () => { clearDrag(); cancelLineGesture(); }); window.addEventListener("dragend", clearDrag);
 window.addEventListener("beforeunload", () => { if (state.url) URL.revokeObjectURL(state.url); });
+
+// Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
+PlanoAccounts.init({
+  canChange: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && PlanoTechnicalScript.finishEditing(),
+  change: async () => {
+    const shell = $(".app-shell"); shell.inert = true;
+    try {
+      // Las exportaciones ya capturaron sus datos; terminan antes de destruir el PDF.
+      while (state.exporting) await new Promise(resolve => setTimeout(resolve, 100));
+      if (state.pdf) saveNotes();
+      PlanoTechnicalScript.finishEditing(false);
+      closeDocument();
+      $("#annotations-list").replaceChildren();
+      $("#technical-table-body").replaceChildren();
+    } finally { shell.inert = false; }
+  }
+});

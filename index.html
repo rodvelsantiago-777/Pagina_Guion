@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="appearance.css">
+  <link rel="stylesheet" href="accounts.css">
+  <script src="auth-config.js" defer></script>
+  <script src="accounts.js" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="vendor/pdf.js" defer></script>
   <script src="vendor/pdf-assets.js" defer></script>
@@ -84,7 +87,7 @@
         <div class="editor-file editor-only"><strong id="file-name"></strong><span id="file-size"></span></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" disabled aria-selected="false" title="Escribir el guion · Próximamente"><svg><use href="#i-lock"/></svg><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
-        <div class="appearance-actions"><button id="toggle-theme" class="header-icon" type="button" aria-label="Activar modo oscuro" aria-pressed="false" title="Activar modo oscuro"><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" class="header-icon" type="button" aria-label="Elegir tema" title="Elegir tema"><svg><use href="#i-sliders"/></svg></button></div>
+        <button id="open-account" class="account-launch" type="button" aria-haspopup="dialog" aria-controls="account-dialog" title="Mi cuenta"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-2a8 8 0 0 1 16 0v2"/></svg><span>Mi cuenta</span></button><div class="appearance-actions"><button id="toggle-theme" class="header-icon" type="button" aria-label="Activar modo oscuro" aria-pressed="false" title="Activar modo oscuro"><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" class="header-icon" type="button" aria-label="Elegir tema" title="Elegir tema"><svg><use href="#i-sliders"/></svg></button></div>
         <div class="editor-actions editor-only">
           
           <div class="view-mode-control" title="Vista del guion"><button id="view-mode-button" class="header-icon" type="button" aria-label="Vista del guion" aria-haspopup="menu" aria-controls="view-mode-menu" aria-expanded="false"><svg aria-hidden="true"><use href="#i-grid"/></svg></button><select id="scene-select" hidden aria-label="Vista del guion"><option value="all">Guion completo</option><option value="editing">Vista de edición</option><option value="print">Vista de impresión</option></select></div>
@@ -219,5 +222,25 @@
       <div class="dialog-actions"><button id="cancel-color-picker" class="button button-secondary" type="button">Cancelar</button><button id="save-custom-color" class="button button-primary" type="submit" hidden>Usar color</button></div>
     </form>
   </div>
+  <dialog id="account-dialog" class="account-dialog" aria-labelledby="account-title">
+    <header><div><p class="account-eyebrow">PLANO / TU CUENTA</p><h2 id="account-title">Bienvenido de nuevo</h2></div><button id="close-account" class="shot-close" type="button" aria-label="Cerrar cuenta"><svg><use href="#i-close"/></svg></button></header>
+    <div id="account-tabs" class="account-tabs" role="group" aria-label="Acceso a la cuenta"><button type="button" data-account-view="login" aria-pressed="true">Iniciar sesión</button><button type="button" data-account-view="signup" aria-pressed="false">Crear cuenta</button></div>
+    <p id="account-message" class="account-message" role="status" aria-live="polite" hidden></p>
+    <div id="account-unavailable" class="account-unavailable" hidden><p>Las cuentas todavía no están disponibles.</p><p>Puedes seguir preparando tu guion en este navegador.</p></div>
+    <form id="account-form">
+      <p id="account-form-intro" class="account-text" hidden></p>
+      <div class="account-field" data-account-field="name" hidden><label for="account-name">Tu nombre</label><input id="account-name" type="text" autocomplete="name" minlength="2" maxlength="80"></div>
+      <div class="account-field" data-account-field="email"><label for="account-email">Correo electrónico</label><input id="account-email" type="email" autocomplete="email" maxlength="254" required></div>
+      <div class="account-field" data-account-field="password"><label for="account-password">Contraseña</label><div class="account-password-wrap"><input id="account-password" type="password" autocomplete="current-password" maxlength="128" required><button id="account-show-password" type="button" aria-pressed="false" aria-label="Mostrar contraseña">Mostrar</button></div><small id="account-password-hint" hidden>Utiliza al menos 12 caracteres.</small></div>
+      <div class="account-field" data-account-field="confirm" hidden><label for="account-confirm">Repite la contraseña</label><input id="account-confirm" type="password" autocomplete="new-password" maxlength="128"></div>
+      <label id="account-remember-row" class="account-remember"><input id="account-remember" type="checkbox">Mantener la sesión iniciada en este dispositivo</label>
+      <button id="account-submit" class="button button-primary account-submit" type="submit">Iniciar sesión</button>
+      <button id="account-forgot" class="account-link account-forgot" type="button">He olvidado mi contraseña</button>
+      <button id="account-back" class="account-link account-forgot" type="button" hidden>Volver a iniciar sesión</button>
+    </form>
+    <section id="account-verify" hidden><p class="account-text">Para activar la cuenta, verifica el correo <strong id="account-verify-email"></strong>. Abre el enlace recibido y vuelve aquí.</p><div class="account-stack"><button id="account-check-email" type="button" class="button button-primary">Ya he verificado mi correo</button><button id="account-resend" type="button" class="button button-secondary">Reenviar enlace</button><button id="account-other-email" type="button" class="account-link">Usar otro correo</button></div></section>
+    <section id="account-profile" hidden><div class="account-identity"><span id="account-avatar" class="account-avatar" aria-hidden="true"></span><div><strong id="account-profile-name"></strong><p id="account-profile-email"></p><span class="account-verified">Correo verificado</span></div></div><p class="account-text">Las anotaciones de tu cuenta se guardan por separado en este navegador. Los PDF permanecen en tu dispositivo.</p><div class="account-stack"><button id="account-change-password" type="button" class="button button-secondary">Cambiar contraseña</button><button id="account-signout" type="button" class="account-link account-signout">Cerrar sesión</button></div></section>
+    <footer class="account-footer"><p id="account-local-note">Crear una cuenta no sube tus documentos ni sincroniza los proyectos entre dispositivos.</p><button id="account-continue" type="button">Continuar sin cuenta</button></footer>
+  </dialog>
 </body>
 </html>

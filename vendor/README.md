@@ -1,5 +1,7 @@
 # Bibliotecas de terceros
 
+- **Firebase JavaScript SDK 12.19.0**, Google y colaboradores. `firebase-app-compat.js` y `firebase-auth-compat.js` proceden de `https://www.gstatic.com/firebasejs/12.19.0/`. Se cargan localmente cuando se configura el servicio de cuentas; las operaciones de autenticación se comunican con Firebase. Licencia Apache-2.0 en `LICENSE-firebase.txt`; código en https://github.com/firebase/firebase-js-sdk. Copia reproducible con `../tools/copy-firebase.cjs`. No se incluye Analytics, Firestore ni almacenamiento de archivos en la nube.
+
 - **ExcelJS 4.4.0**, Guyon Roche y colaboradores. Código: https://github.com/exceljs/exceljs. Licencia MIT en `LICENSE-exceljs.txt`. `exceljs.min.js` es el bundle de navegador oficial; solo se carga al exportar Excel y funciona sin conexión. Se obtuvo del paquete npm oficial versionado. `../tools/copy-exceljs.cjs` permite repetir la copia desde el paquete instalado o una ruta a su carpeta.
 - `excel-template.js` contiene la plantilla propia de PLANO, sin datos de proyectos ni nombres del equipo. Se genera con `../tools/build-excel-template.mjs` usando Artifact Tool. El script normaliza el prefijo del namespace principal OOXML para que ExcelJS pueda leerlo; el navegador carga la plantilla local y añade los datos actuales.
 
