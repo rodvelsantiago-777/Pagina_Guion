@@ -281,7 +281,7 @@ function refreshSegments() {
   state.segmentIndex = Math.max(0, Math.min(state.segmentIndex, state.segments.length - 1));
 }
 function cancelRendering() {
-  cancelLineGesture(false);
+  cancelDrawing(false); cancelLineGesture(false);
   ++state.renderId;
   const viewer = state.viewer;
   if (viewer) {
@@ -544,7 +544,7 @@ function updatePageIndicator() {
 function setTool(tool) {
   hideHighlightAction();
   if (state.highlightCorrection) cancelHighlightCorrection();
-  cancelLineGesture(false); state.selectedLine = null;
+  cancelDrawing(false); cancelLineGesture(false); state.selectedLine = null;
   state.tool = tool; state.drawing = null;
   for (const button of document.querySelectorAll("button[data-tool]")) {
     const active = button.dataset.tool === tool;
@@ -665,11 +665,51 @@ function pointerPosition(event, context) {
   const bounds = context.content.getBoundingClientRect(); const { segment } = context;
   return { x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)), y: Math.max(segment.top, Math.min(segment.bottom, (event.clientY - bounds.top) / bounds.height)) };
 }
+// Buscar la página bajo el puntero aunque el SVG inicial conserve su captura.
+function coveragePointer(event, fallback) {
+  let closest = fallback, distance = Infinity;
+  for (const context of state.viewer?.contexts.values() || []) {
+    const box = context.crop.getBoundingClientRect();
+    const dy = Math.max(box.top - event.clientY, 0, event.clientY - box.bottom);
+    if (dy < distance) { closest = context; distance = dy; }
+  }
+  const box = closest.crop.getBoundingClientRect();
+  if (closest.status === "idle") ensurePage(closest);
+  if (closest.content) return { ...pointerPosition(event, closest), page: closest.segment.page };
+  return { page: closest.segment.page, x: Math.max(0, Math.min(1, (event.clientX - box.left) / closest.viewport.width)),
+    y: Math.max(closest.segment.top, Math.min(closest.segment.bottom, closest.segment.top + (event.clientY - box.top) / closest.viewport.height)) };
+}
+let coverageScrollFrame = 0;
+function autoScrollCoverage() {
+  if (coverageScrollFrame) return;
+  function tick() {
+    coverageScrollFrame = 0;
+    const gesture = state.drawing || state.lineGesture, event = gesture?.pointer;
+    if (!event || !state.viewer) return;
+    const stage = $("#pdf-stage"), bounds = stage.getBoundingClientRect(), edge = 52;
+    const speed = event.clientY > bounds.bottom - edge ? Math.min(24, (event.clientY - bounds.bottom + edge) * .4)
+      : event.clientY < bounds.top + edge ? -Math.min(24, (bounds.top + edge - event.clientY) * .4) : 0;
+    const before = stage.scrollTop;
+    if (speed) stage.scrollTop += speed;
+    if (stage.scrollTop !== before) {
+      if (state.drawing) state.drawing.end = endPosition(event);
+      else updateLineGesture(event);
+      drawAnnotations();
+    }
+    coverageScrollFrame = requestAnimationFrame(tick);
+  }
+  coverageScrollFrame = requestAnimationFrame(tick);
+}
+function stopCoverageScroll() { cancelAnimationFrame(coverageScrollFrame); coverageScrollFrame = 0; }
+function cancelDrawing(redraw = true) {
+  const drawing = state.drawing; state.drawing = null; stopCoverageScroll();
+  if (drawing?.context.svg?.hasPointerCapture(drawing.pointerId)) drawing.context.svg.releasePointerCapture(drawing.pointerId);
+  if (redraw) drawAnnotations();
+}
 function endPosition(event) {
-  const context = state.drawing.context;
-  const point = pointerPosition(event, context); const start = state.drawing.start;
+  const { context, start } = state.drawing, point = coveragePointer(event, context);
   if (event.shiftKey) {
-    if (Math.abs(point.x - start.x) * context.viewport.width > Math.abs(point.y - start.y) * context.viewport.height) point.y = start.y;
+    if (point.page === start.page && Math.abs(point.x - start.x) * context.viewport.width > Math.abs(point.y - start.y) * context.viewport.height) point.y = start.y;
     else point.x = start.x;
   }
   return point;
@@ -677,23 +717,24 @@ function endPosition(event) {
 function bindDrawing(context) {
   const { svg } = context;
   svg.addEventListener("pointerdown", event => {
-    if (state.tool !== "line" || context.status !== "ready" || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (state.tool !== "line" || state.drawing || state.pending || context.status !== "ready" || (event.pointerType === "mouse" && event.button !== 0)) return;
     event.preventDefault(); window.getSelection()?.removeAllRanges();
-    const start = pointerPosition(event, context); state.drawing = { context, start, end: start, pointerId: event.pointerId };
-    svg.setPointerCapture(event.pointerId); drawAnnotations(context);
+    const start = { ...pointerPosition(event, context), page: context.segment.page };
+    state.drawing = { context, start, end: start, pointerId: event.pointerId, pointer: event };
+    svg.setPointerCapture(event.pointerId); autoScrollCoverage(); drawAnnotations();
   });
   svg.addEventListener("pointermove", event => {
     if (!state.drawing || state.drawing.pointerId !== event.pointerId) return;
-    state.drawing.end = endPosition(event); drawAnnotations(context);
+    state.drawing.pointer = event; state.drawing.end = endPosition(event); drawAnnotations();
   });
   svg.addEventListener("pointerup", event => {
     if (!state.drawing || state.drawing.pointerId !== event.pointerId) return;
-    const start = state.drawing.start; const end = endPosition(event); state.drawing = null;
-    if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
-    const distance = Math.hypot((end.x - start.x) * context.viewport.width, (end.y - start.y) * context.viewport.height);
-    if (distance >= 6) requestNamedAnnotations([{ type: "line", page: context.segment.page, start, end, color: $("#annotation-color").value }]); else drawAnnotations(context);
+    const { start } = state.drawing, end = endPosition(event), geometry = PlanoCoverage.fromEnds(start, end);
+    cancelDrawing(false);
+    const distance = Math.hypot((end.x - start.x) * context.viewport.width, (PlanoCoverage.unit(end) - PlanoCoverage.unit(start)) * context.viewport.height);
+    if (distance >= 6) requestNamedAnnotations([{ type: "line", ...geometry, color: $("#annotation-color").value }]); else drawAnnotations();
   });
-  svg.addEventListener("pointercancel", () => { state.drawing = null; drawAnnotations(); });
+  for (const type of ["pointercancel", "lostpointercapture"]) svg.addEventListener(type, () => { if (state.drawing?.context === context) cancelDrawing(); });
 }
 function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name);
@@ -706,12 +747,12 @@ function drawAnnotations(onlyContext = null) {
   for (const context of contexts) {
     if (!context.svg || context.status !== "ready") continue;
     context.svg.replaceChildren();
-    const annotations = [...state.annotations, ...(state.pending?.items || [])].map(item => state.lineGesture && item.id === state.lineGesture.id ? state.lineGesture.draft : item).filter(item => annotationInSegment(item, context.segment));
+    const annotations = PlanoCoverage.onPage([...state.annotations, ...(state.pending?.items || [])].map(item => state.lineGesture && item.id === state.lineGesture.id ? state.lineGesture.draft : item), context.segment.page).filter(item => annotationInSegment(item, context.segment));
     for (const annotation of annotations.filter(item => item.page === context.segment.page)) {
       const group = svgElement("g", { "data-annotation-id": annotation.id || "pending", ...(annotation.id ? {} : { class: "pending-annotation" }) });
       if (annotation.type === "highlight") {
         for (const rect of annotation.rects) group.append(svgElement("rect", { x: rect.x * 1000, y: rect.y * 1000, width: rect.width * 1000, height: rect.height * 1000, fill: annotation.color, "fill-opacity": 0.38, stroke: "none" }));
-      } else group.append(lineElement(annotation.start, annotation.end, annotation.color), ...lineCaps(annotation.start, annotation.end, annotation.color, context.viewport));
+      } else group.append(lineElement(annotation.start, annotation.end, annotation.color), ...lineCaps(annotation.start, annotation.end, annotation.color, context.viewport, annotation));
       if (annotation.id && annotation.type === "line") {
         const target = svgElement("path", { class: "line-hit-target", d: `M${annotation.start.x * 1000} ${annotation.start.y * 1000}L${annotation.end.x * 1000} ${annotation.end.y * 1000}`, stroke: "transparent", fill: "none", "stroke-width": 18, "vector-effect": "non-scaling-stroke", tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Mover línea: ${annotationDisplayName(annotation)}`, "aria-pressed": String(state.selectedLine === annotation.id) });
         const help = svgElement("title"); help.textContent = "Arrastra para mover la línea. Clic para mostrar sus extremos. Flechas: mover; Mayús + flechas: 10 px."; target.append(help);
@@ -721,7 +762,10 @@ function drawAnnotations(onlyContext = null) {
       }
       context.svg.append(group);
     }
-    if (state.drawing?.context === context) context.svg.append(lineElement(state.drawing.start, state.drawing.end, $("#annotation-color").value, true), ...lineCaps(state.drawing.start, state.drawing.end, $("#annotation-color").value, context.viewport));
+    if (state.drawing) {
+      const draft = PlanoCoverage.part({type:"line", ...PlanoCoverage.fromEnds(state.drawing.start, state.drawing.end)}, context.segment.page);
+      if (draft) context.svg.append(lineElement(draft.start, draft.end, $("#annotation-color").value, true), ...lineCaps(draft.start, draft.end, $("#annotation-color").value, context.viewport, draft));
+    }
     const selected = state.tool === "select" && annotations.find(item => item.id === state.selectedLine && item.type === "line");
     if (selected) drawLineHandles(selected, context);
     if (!state.drawing) PlanoDocumentLabels.draw(context, annotations.filter(item => item.page === context.segment.page), {
@@ -729,7 +773,7 @@ function drawAnnotations(onlyContext = null) {
       positionMenu: showTitlePositionMenu,
       canDrag: () => state.tool === "select" && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection,
       move: (item, position) => { remember(); item.labelPosition = position; changed(); },
-      moveLineTitle: (item, position) => { remember(); item.lineLabel = position; delete item.labelPosition; changed(); }
+      moveLineTitle: (item, position) => { const source = state.annotations.find(note => note.id === item.id); if (!source) return; remember(); source.lineLabel = position; delete source.labelPosition; changed(); }
     });
   }
 }
@@ -742,17 +786,19 @@ function annotationInSegment(item, segment) {
 function lineElement(start, end, color, preview = false) {
   return svgElement("line", { x1: start.x * 1000, y1: start.y * 1000, x2: end.x * 1000, y2: end.y * 1000, stroke: color, "stroke-width": 3, "stroke-linecap": "round", "vector-effect": "non-scaling-stroke", ...(preview ? { "stroke-dasharray": "5 4" } : {}) });
 }
-function lineCaps(start, end, color, viewport) {
+function lineCaps(start, end, color, viewport, item = {}) {
   return PlanoDocumentLabels.capSegments({ start, end }, viewport).map((cap, i) => svgElement("path", {
     d: `M${cap.start.x / viewport.width * 1000} ${cap.start.y / viewport.height * 1000}L${cap.end.x / viewport.width * 1000} ${cap.end.y / viewport.height * 1000}`,
     class: "coverage-cap", "data-endpoint": i ? "end" : "start", fill: "none", stroke: color, "stroke-width": 3, "stroke-linecap": "round", "vector-effect": "non-scaling-stroke"
-  }));
+  })).filter(cap => cap.dataset.endpoint === "start" ? !item.continuesBefore : !item.continuesAfter);
 }
 
 function drawLineHandles(item, context) {
+  item = state.lineGesture?.id === item.id ? state.lineGesture.draft : state.annotations.find(note => note.id === item.id) || item;
   const group = svgElement("g", { class: "line-selection", "data-line-id": item.id });
   const { width, height } = context.viewport;
   for (const endpoint of ["start", "end"]) {
+    if ((endpoint === "start" ? item.page : PlanoCoverage.endPage(item)) !== context.segment.page) continue;
     const point = item[endpoint];
     if (point.y < context.segment.top || point.y > context.segment.bottom) continue;
     const attributes = { cx: point.x * 1000, cy: point.y * 1000 };
@@ -767,6 +813,19 @@ function drawLineHandles(item, context) {
 }
 function transformedLine(original, context, mode, origin, point, snap = false) {
   const draft = structuredClone(original);
+  point.page ??= context.segment.page; origin.page ??= context.segment.page;
+  if (mode !== "move") {
+    const fixed = { page: mode === "start" ? PlanoCoverage.endPage(original) : original.page, ...original[mode === "start" ? "end" : "start"] };
+    if (snap) {
+      if (point.page === fixed.page && Math.abs((point.x - fixed.x) * context.viewport.width) > Math.abs((point.y - fixed.y) * context.viewport.height)) point = { ...point, y: fixed.y };
+      else point = { ...point, x: fixed.x };
+    }
+    const geometry = mode === "start" ? PlanoCoverage.fromEnds(point, fixed) : PlanoCoverage.fromEnds(fixed, point);
+    delete draft.endPage; return Object.assign(draft, geometry);
+  }
+  if (PlanoCoverage.endPage(original) !== original.page || point.page !== origin.page) {
+    delete draft.endPage; return Object.assign(draft, PlanoCoverage.moved(original, point.x - origin.x, PlanoCoverage.unit(point) - PlanoCoverage.unit(origin), state.pdf.numPages));
+  }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   if (mode === "move") {
     const minX = Math.min(original.start.x, original.end.x), maxX = Math.max(original.start.x, original.end.x);
@@ -776,30 +835,23 @@ function transformedLine(original, context, mode, origin, point, snap = false) {
     const dy = clamp(point.y - origin.y, (fits ? context.segment.top : 0) - minY, (fits ? context.segment.bottom : 1) - maxY);
     draft.start = { x: original.start.x + dx, y: original.start.y + dy };
     draft.end = { x: original.end.x + dx, y: original.end.y + dy };
-  } else {
-    const fixed = original[mode === "start" ? "end" : "start"];
-    const next = { x: clamp(point.x, 0, 1), y: clamp(point.y, context.segment.top, context.segment.bottom) };
-    if (snap) {
-      if (fixed.y >= context.segment.top && fixed.y <= context.segment.bottom && Math.abs((next.x - fixed.x) * context.viewport.width) > Math.abs((next.y - fixed.y) * context.viewport.height)) next.y = fixed.y;
-      else next.x = fixed.x;
-    }
-    draft[mode] = next;
   }
   return draft;
 }
 function commitLineGeometry(id, draft, context) {
   const item = state.annotations.find(note => note.id === id && note.type === "line");
-  if (!item || Math.hypot((draft.end.x - draft.start.x) * context.viewport.width, (draft.end.y - draft.start.y) * context.viewport.height) < 6) return false;
-  if (["start", "end"].every(end => Math.abs(item[end].x - draft[end].x) < 1e-9 && Math.abs(item[end].y - draft[end].y) < 1e-9)) return false;
-  remember(); item.start = { ...draft.start }; item.end = { ...draft.end }; changed(); return true;
+  if (!item || Math.hypot((draft.end.x - draft.start.x) * context.viewport.width, (PlanoCoverage.endPage(draft) - draft.page + draft.end.y - draft.start.y) * context.viewport.height) < 6) return false;
+  if (item.page === draft.page && PlanoCoverage.endPage(item) === PlanoCoverage.endPage(draft) && ["start", "end"].every(end => Math.abs(item[end].x - draft[end].x) < 1e-9 && Math.abs(item[end].y - draft[end].y) < 1e-9)) return false;
+  remember(); item.page = draft.page; delete item.endPage; if (draft.endPage) item.endPage = draft.endPage; item.start = { ...draft.start }; item.end = { ...draft.end }; changed(); return true;
 }
 function beginLineGesture(event, item, context, mode) {
   if (state.tool !== "select" || state.pending || state.editing || state.lineGesture || state.highlightCorrection || context.status !== "ready" || event.button !== 0 || event.pointerType === "touch" && !event.isPrimary) return;
   event.preventDefault(); event.stopPropagation();
   window.getSelection()?.removeAllRanges();
+  item = state.annotations.find(note => note.id === item.id) || item;
   state.selectedLine = item.id;
-  state.lineGesture = { id: item.id, context, mode, original: structuredClone(item), draft: structuredClone(item), origin: pointerPosition(event, context), clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId, moved: false, frame: 0 };
-  context.svg.setPointerCapture(event.pointerId);
+  state.lineGesture = { id: item.id, context, mode, original: structuredClone(item), draft: structuredClone(item), origin: { ...pointerPosition(event, context), page: context.segment.page }, pointer: event, clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId, moved: false, frame: 0 };
+  context.svg.setPointerCapture(event.pointerId); autoScrollCoverage();
   $("#pdf-stage").classList.add("is-transforming-line");
   drawAnnotations();
 }
@@ -808,8 +860,8 @@ function updateLineGesture(event) {
   if (!gesture || event.pointerId !== gesture.pointerId) return;
   event.preventDefault();
   if (!gesture.moved && Math.hypot(event.clientX - gesture.clientX, event.clientY - gesture.clientY) < 3) return;
-  gesture.moved = true;
-  gesture.draft = transformedLine(gesture.original, gesture.context, gesture.mode, gesture.origin, pointerPosition(event, gesture.context), event.shiftKey);
+  gesture.moved = true; gesture.pointer = event;
+  gesture.draft = transformedLine(gesture.original, gesture.context, gesture.mode, gesture.origin, coveragePointer(event, gesture.context), event.shiftKey);
   if (!gesture.frame) gesture.frame = requestAnimationFrame(() => {
     gesture.frame = 0;
     if (state.lineGesture === gesture) drawAnnotations();
@@ -818,7 +870,7 @@ function updateLineGesture(event) {
 function cancelLineGesture(redraw = true) {
   const gesture = state.lineGesture;
   if (!gesture) return;
-  state.lineGesture = null;
+  state.lineGesture = null; stopCoverageScroll();
   cancelAnimationFrame(gesture.frame);
   if (gesture.context.svg.hasPointerCapture(gesture.pointerId)) gesture.context.svg.releasePointerCapture(gesture.pointerId);
   $("#pdf-stage").classList.remove("is-transforming-line");
@@ -846,8 +898,8 @@ function lineKeydown(event, item, context, mode) {
   const original = state.annotations.find(note => note.id === item.id);
   if (!original) return;
   if (direction) {
-    const origin = original[mode === "end" ? "end" : "start"], step = event.shiftKey ? 10 : 1;
-    const point = { x: origin.x + direction[0] * step / context.viewport.width, y: origin.y + direction[1] * step / context.viewport.height };
+    const origin = { ...original[mode === "end" ? "end" : "start"], page: mode === "end" ? PlanoCoverage.endPage(original) : original.page }, step = event.shiftKey ? 10 : 1;
+    const point = { page: origin.page, x: Math.max(0, Math.min(1, origin.x + direction[0] * step / context.viewport.width)), y: Math.max(context.segment.top, Math.min(context.segment.bottom, origin.y + direction[1] * step / context.viewport.height)) };
     if (!commitLineGeometry(item.id, transformedLine(original, context, mode, origin, point), context)) drawAnnotations();
   } else drawAnnotations();
   focusLineControl(item.id, context, mode);
@@ -858,6 +910,7 @@ function remember() {
   if (state.history.length > 50) state.history.shift(); state.future = [];
 }
 function annotationY(annotation) { return annotation.type === "line" ? annotation.start.y : annotation.rects[0].y; }
+function annotationPages(item) { return item.type === "line" && PlanoCoverage.endPage(item) !== item.page ? `Páginas ${item.page}–${item.endPage}` : `Página ${item.page}`; }
 function annotationDisplayName(item) {
   if (item.shotName) return item.shotName;
   const index = state.annotations.filter(note => note.type === item.type).findIndex(note => note.id === item.id) + 1;
@@ -893,7 +946,7 @@ function askShotName(items) {
   const suggestion = PlanoShotNames.suggest(state.annotations, state.scenes, items[0], sceneTools.sceneAt);
   input.placeholder = suggestion;
   $("#shot-name-hint").textContent = `Si lo dejas vacío, se guardará como «${suggestion}». La secuencia continúa a partir del último nombre guardado en esta escena.`;
-  $("#shot-name-description").textContent = items[0].type === "line" ? "Dale un nombre al plano que acabas de trazar." : items.length > 1 ? "Este resalte abarca varias páginas. Todas sus partes compartirán el nombre del plano." : "Dale un nombre al plano de este fragmento resaltado.";
+  $("#shot-name-description").textContent = items[0].type === "line" ? (items[0].endPage ? "Este plano continúa entre páginas. Tendrá una sola ficha y el mismo nombre en todos sus tramos." : "Dale un nombre al plano que acabas de trazar.") : items.length > 1 ? "Este resalte abarca varias páginas. Todas sus partes compartirán el nombre del plano." : "Dale un nombre al plano de este fragmento resaltado.";
   return new Promise(resolve => {
     function submit(event) {
       event.preventDefault();
@@ -924,7 +977,7 @@ function openShotEditor(item, previousFocus = document.activeElement) {
   $("#edit-shot-color").value = item.color;
   colorPalette.syncLaunches();
   $("#edit-color-value").textContent = item.color.toUpperCase();
-  $("#edit-shot-meta").textContent = `${item.type === "line" ? "Línea de cobertura" : "Resalte"} · Página ${item.page}`;
+  $("#edit-shot-meta").textContent = `${item.type === "line" ? "Línea de cobertura" : "Resalte"} · ${annotationPages(item)}`;
   $("#edit-shot-excerpt").hidden = item.type !== "highlight";
   $("#edit-shot-excerpt").open = false;
   $("#edit-shot-text").textContent = item.text || "";
@@ -979,7 +1032,7 @@ function openShotDetails(item) {
   state.details = { id: current.id, previousFocus: document.activeElement };
   $("#shot-details-title").textContent = annotationDisplayName(current);
   const scene = sceneTools.sceneAt(state.scenes, current.page, annotationY(current));
-  $("#shot-details-meta").textContent = `${scene ? `Escena ${String(scene.number).padStart(2, "0")} · ` : ""}${current.type === "line" ? "Línea de cobertura" : "Resalte"} · Página ${current.page}`;
+  $("#shot-details-meta").textContent = `${scene ? `Escena ${String(scene.number).padStart(2, "0")} · ` : ""}${current.type === "line" ? "Línea de cobertura" : "Resalte"} · ${annotationPages(current)}`;
   const list = $("#shot-details-technical"); list.replaceChildren();
   for (const key of shotValues.keys) {
     const pair = document.createElement("div"), term = document.createElement("dt"), value = document.createElement("dd");
@@ -1081,6 +1134,11 @@ function validateNotes(value, pageCount = state.pdf.numPages) {
     }
     if (item.type === "line") {
       if (!point(item.start) || !point(item.end)) throw new Error("Hay coordenadas de línea inválidas.");
+      if (item.endPage !== undefined) {
+        if (!Number.isInteger(item.endPage) || item.endPage < item.page || item.endPage > pageCount) throw new Error("Hay páginas finales de línea inválidas.");
+        if (item.endPage > item.page && item.endPage - item.page + item.end.y - item.start.y <= 0) throw new Error("Hay líneas entre páginas sin longitud válida.");
+        if (item.endPage !== item.page) clean.endPage = item.endPage;
+      }
       clean.start = { x: item.start.x, y: item.start.y }; clean.end = { x: item.end.x, y: item.end.y };
     } else {
       if (!Array.isArray(item.rects) || !item.rects.length || item.rects.length > 5000 || item.rects.some(rect => !point(rect) || !coordinate(rect.width) || !coordinate(rect.height) || rect.x + rect.width > 1.001 || rect.y + rect.height > 1.001)) throw new Error("Hay coordenadas de resalte inválidas.");
@@ -1222,7 +1280,7 @@ function refreshAnnotations() {
     description.textContent = chars.length > 160 ? `${chars.slice(0, 159).join("")}…` : chars.join("") || "Añade una descripción del plano…";
     description.classList.toggle("is-empty", !chars.length);
     const footer = document.createElement("div"); footer.className = "annotation-card-footer";
-    const kind = document.createElement("span"); kind.className = "annotation-kind"; kind.textContent = `${item.type === "line" ? "Línea" : "Resalte"} · Pág. ${item.page}`;
+    const kind = document.createElement("span"); kind.className = "annotation-kind"; kind.textContent = `${item.type === "line" ? "Línea" : "Resalte"} · ${annotationPages(item)}`;
     const actions = document.createElement("div"); actions.className = "annotation-card-actions"; actions.append(locate, edit, remove); footer.append(kind, actions);
     card.append(heading, specs, description, footer);
     cards.append(card);
@@ -1409,7 +1467,7 @@ document.addEventListener("keydown", event => {
     if (state.highlightCorrection) { cancelHighlightCorrection(); window.getSelection()?.removeAllRanges(); return; }
     $("#project-menu").open = false;
     if (smallScreen.matches && state.panelOpen) { setPanelOpen(false); $("#toggle-annotations").focus(); }
-    state.drawing = null; setTool("select"); return;
+    cancelDrawing(false); setTool("select"); return;
   }
   if (!state.pdf || state.screen !== "editor") return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); undo(event.shiftKey); }

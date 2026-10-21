@@ -138,17 +138,18 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await db.exec('truncate public.plano_usage');
   console.log('OK apariencia de cuenta: restauración entre dispositivos, validación, permisos, cambios durante carga, caché pendiente, cierre de sesión y cambio de propietario durante una lectura.');
   const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Courier),sheet=doc.addPage([595,842]);sheet.drawText('INT. ESTUDIO - DIA',{x:65,y:770,size:12,font});sheet.drawText('La historia comienza.',{x:65,y:700,size:12,font});
+  const continuation=doc.addPage([595,842]);continuation.drawText('La historia continua.',{x:65,y:700,size:12,font});
   const pdf=Buffer.from(await doc.save()),one=await newDevice();
   await one.page.locator('#file-input').setInputFiles({name:'Historia.pdf',mimeType:'application/pdf',buffer:pdf});await one.page.waitForFunction(()=>state.cloudProject&&!state.busy);
   const id=await one.page.evaluate(()=>state.cloudProject.id);
   async function edit(page,name){
-   await page.evaluate(name=>{state.annotations=[{id:'test-line',shotId:'test-line',type:'line',page:1,color:'#e8b83f',start:{x:.85,y:.2},end:{x:.85,y:.4},shotName:name,description:'Una descripción de prueba',grip:'Trípode',sound:'Ambiente',note:'Nota privada'}];changed();},name);
+   await page.evaluate(name=>{state.annotations=[{id:'test-line',shotId:'test-line',type:'line',page:1,endPage:2,color:'#e8b83f',start:{x:.85,y:.2},end:{x:.85,y:.4},shotName:name,description:'Una descripción de prueba',grip:'Trípode',sound:'Ambiente',note:'Nota privada'}];changed();},name);
   }
   await edit(one.page,'Plano A');await one.page.waitForFunction(()=>PlanoCloud.info().status==='saved');
   assert.equal(uploads,1,'Los cambios de notas no vuelven a subir el PDF');
   assert.equal(await one.page.evaluate(()=>Object.keys(localStorage).some(key=>key.startsWith('plano-notes'))),false,'Los cambios de nube no se guardan en el dispositivo');
   const two=await newDevice();await two.page.locator('#open-cloud').click();await two.page.getByRole('button',{name:'Historia.pdf',exact:true}).click();await two.page.waitForFunction(()=>state.cloudProject&&!state.busy);
-  assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Plano A','Otro dispositivo recupera PDF y planos');
+  assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Plano A','Otro dispositivo recupera PDF y planos');assert.equal(await two.page.evaluate(()=>state.annotations[0].endPage),2,'La cuenta conserva la continuación entre páginas');
   await one.context.setOffline(true);await edit(one.page,'Sin conexión');await one.page.evaluate(()=>PlanoCloud.flush().catch(()=>{}));assert.equal(await one.page.evaluate(()=>PlanoCloud.info().status),'error');
   assert.equal((await rpc('ana','read',id,{})).payload.annotations[0].shotName,'Plano A');
   await assert.rejects(one.page.evaluate(()=>cloudTestHooks.beforeChange()),/Cloud save pending/,'No se cierra sesión fingiendo que se guardó');

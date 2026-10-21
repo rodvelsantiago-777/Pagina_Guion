@@ -1,6 +1,7 @@
 /* Detección geométrica de encabezados y límites de escena. Sin servicios externos. */
 (function (root) {
   "use strict";
+  const coverage = typeof module !== "undefined" && module.exports ? require('./coverage-lines.js') : root.PlanoCoverage;
   function linesFromItems(items, viewport, transform) {
     const rows = [];
     for (const item of items) {
@@ -94,7 +95,7 @@
       const page = pages[segment.page - 1];
       const lines = page.lines.filter(line => !furniture(line) && line.y >= segment.top && line.y < segment.bottom);
       const bounds = lines.map(line => ({ top: line.y - (line.height || 0.014) * 0.15, bottom: line.y + (line.height || 0.014) * 1.4 }));
-      for (const item of annotations.filter(item => item.page === segment.page)) {
+      for (const item of coverage.onPage(annotations, segment.page)) {
         const top = item.type === "line" ? Math.min(item.start.y, item.end.y) : Math.min(...item.rects.map(rect => rect.y));
         const bottom = item.type === "line" ? Math.max(item.start.y, item.end.y) : Math.max(...item.rects.map(rect => rect.y + rect.height));
         if (bottom >= segment.top && top < segment.bottom) {

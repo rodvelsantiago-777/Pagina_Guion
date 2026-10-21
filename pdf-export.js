@@ -69,7 +69,7 @@
       const style = { color: color(item.color), thickness: 3 / scale, lineCap: PDFLib.LineCapStyle.Round };
       target.drawLine({ start, end, ...style });
       const nx = -dy / length * 6 / scale, ny = dx / length * 6 / scale;
-      for (const p of [start, end]) target.drawLine({ start: { x: p.x - nx, y: p.y - ny }, end: { x: p.x + nx, y: p.y + ny }, ...style });
+      for (const p of [...(item.continuesBefore ? [] : [start]), ...(item.continuesAfter ? [] : [end])]) target.drawLine({ start: { x: p.x - nx, y: p.y - ny }, end: { x: p.x + nx, y: p.y + ny }, ...style });
     }
   }
   async function references(document, labels) {
@@ -95,11 +95,11 @@
     if (!window.PDFLib) throw new Error("No se encontró el motor de exportación local.");
     const document = await PDFLib.PDFDocument.load(original, { updateMetadata: false });
     const host = window.document.createElement("div"); host.className = "pdf-export-workbench"; host.setAttribute("aria-hidden", "true"); window.document.body.append(host);
-    const overflow = [], pages = [...new Set(annotations.map(item => item.page))].sort((a, b) => a - b);
+    const overflow = [], pages = [...new Set(annotations.flatMap(PlanoCoverage.pages))].sort((a, b) => a - b);
     try {
       for (const [index, number] of pages.entries()) {
         onProgress(`Preparando PDF con cobertura… ${index + 1}/${pages.length}`); await pause();
-        const items = annotations.filter(item => item.page === number), rendered = await preparePage(await pdf.getPage(number), items, scenes, displayName, host), target = document.getPage(number - 1);
+        const items = PlanoCoverage.onPage(annotations, number), rendered = await preparePage(await pdf.getPage(number), items, scenes, displayName, host), target = document.getPage(number - 1);
         target.pushOperators(PDFLib.pushGraphicsState(), PDFLib.concatTransformationMatrix(...pageMatrix(rendered.natural)));
         drawMarks(target, rendered.natural, items, rendered.scale);
         for (const label of rendered.labels) {

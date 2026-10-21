@@ -23,7 +23,8 @@
   <script src="compact-popovers.js" defer></script>
   <script src="vendor/pdf.js" defer></script>
   <script src="vendor/pdf-assets.js" defer></script>
-  <script src="scene-analysis.js" defer></script>
+  <script src="coverage-lines.js?v=20261021-multipage-1" defer></script>
+  <script src="scene-analysis.js?v=20261021-multipage-1" defer></script>
   <script src="shot-names.js" defer></script>
   <script src="shot-values.js" defer></script>
   <script src="shot-order.js" defer></script>
@@ -31,9 +32,9 @@
   <script src="technical-script.js" defer></script>
   <script src="label-layout.js" defer></script>
   <script src="document-labels.js" defer></script>
-  <script src="pdf-export.js" defer></script>
+  <script src="pdf-export.js?v=20261021-multipage-1" defer></script>
   <script src="excel-export.js" defer></script>
-  <script src="app.js?v=20261020-account-theme-1" defer></script>
+  <script src="app.js?v=20261021-multipage-1" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -154,7 +155,7 @@
               </aside>
               <div class="viewer-column">
                 <div class="annotation-toolbar" role="toolbar" aria-label="Herramientas de anotación">
-                  <div class="tool-group"><button class="tool active" data-tool="select" type="button" aria-pressed="true" aria-label="Seleccionar texto" title="Seleccionar texto (V)"><svg><use href="#i-pointer"/></svg><span>Seleccionar</span></button><button class="tool" data-tool="highlight" type="button" aria-pressed="false" aria-label="Resaltar texto" title="Resaltar texto (H)"><svg><use href="#i-highlight"/></svg><span>Resaltar</span></button><button class="tool" data-tool="line" type="button" aria-pressed="false" aria-label="Dibujar línea recta" title="Dibujar una línea recta (L)"><svg><use href="#i-line"/></svg><span>Línea</span></button></div>
+                  <div class="tool-group"><button class="tool active" data-tool="select" type="button" aria-pressed="true" aria-label="Seleccionar texto" title="Seleccionar texto (V)"><svg><use href="#i-pointer"/></svg><span>Seleccionar</span></button><button class="tool" data-tool="highlight" type="button" aria-pressed="false" aria-label="Resaltar texto" title="Resaltar texto (H)"><svg><use href="#i-highlight"/></svg><span>Resaltar</span></button><button class="tool" data-tool="line" type="button" aria-pressed="false" aria-label="Dibujar línea recta" title="Dibujar una línea, también entre páginas (L). Acerca el puntero al borde para desplazar el guion."><svg><use href="#i-line"/></svg><span>Línea</span></button></div>
                   <div class="color-picker"><input id="annotation-color" type="color" value="#e8b83f" hidden><button class="color-launch" data-color-target="annotation-color" type="button" aria-label="Elegir color de las anotaciones"><span></span></button></div>
                   <button id="apply-highlight" class="tool" type="button" hidden>Resaltar selección</button>
                   <button id="undo-button" class="tool" type="button" disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><svg><use href="#i-undo"/></svg></button><button id="redo-button" class="tool" type="button" disabled aria-label="Rehacer" title="Rehacer (Ctrl+Mayús+Z)"><svg><use href="#i-redo"/></svg></button>
