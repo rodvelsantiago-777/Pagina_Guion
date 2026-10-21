@@ -42,6 +42,8 @@ body.is-editing{height:100dvh;overflow:hidden}
 .tool:hover{background:var(--paper)}
 .tool.active{background:var(--surface-alt);border-color:var(--line);color:var(--muted)}
 .tool:disabled{opacity:.32;cursor:not-allowed}
+.annotation-toolbar .continue-line{position:absolute;right:12px;top:calc(100% + 7px);z-index:10;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);box-shadow:0 2px 8px var(--shadow);font-weight:600}
+.annotation-toolbar .continue-line:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .color-picker{display:flex;align-items:center;margin-right:7px}
 .color-picker>span{display:none}
 .color-picker input{width:27px;height:27px;padding:2px;border:1px solid var(--line);border-radius:5px;background:var(--paper);cursor:pointer}

@@ -264,6 +264,12 @@ La plantilla base se reconstruye con `node tools/build-excel-template.mjs`, usan
 
 Con **Línea**, arrastra desde el inicio del plano hasta su fin en otra página. Al acercar el puntero al borde superior o inferior del visor, el documento se desplaza automáticamente. Con **Seleccionar**, pulsa una línea y arrastra su extremo para prolongarla o acortarla, también entre páginas. Escape cancela el gesto completo y deshacer/rehacer conserva la operación como un solo cambio.
 
+Puedes mantener sujeto el extremo y desplazar el guion con la rueda sin mover el ratón: el extremo se recalcula al desplazarse el documento y se guarda al soltar. El visor completo conserva la captura durante el gesto, aunque se abandone el SVG de la hoja inicial.
+
+Al seleccionar una línea aparece el botón compacto **Continuar línea**. Prolonga el mismo plano a la página siguiente y lleva al extremo nuevo para ajustarlo; no crea otra ficha ni pide otro nombre. Si la vista por escenas ocultaba esa página, muestra el guion completo para continuar. Cada pulsación es un único paso de deshacer/rehacer. En la última página se desactiva.
+
 Un plano largo mantiene una única ficha, nombre, color y posición en el guion técnico. En el documento se dibuja un tramo por página con el mismo nombre; los remates solo señalan el inicio y el fin reales. La ficha indica el rango de páginas. El PDF exportado incluye todos los tramos, incluso si está seleccionada otra vista del guion. El guardado de cuenta y las copias JSON conservan la página final mediante el campo opcional `endPage`; las líneas antiguas siguen funcionando.
 
 `coverage-lines.js` centraliza la proyección de la línea entre páginas, compartida por el visor, los recortes por escena y la exportación. `node tests/multipage-lines.cjs` verifica arrastre real entre dos y tres páginas de distintas alturas, prolongación desde el extremo, remates, autoscroll, cancelación, historial, recuperación, ficha única y PDF exportado. `tests/cloud.cjs` comprueba también la recuperación de esta geometría desde otra sesión de cuenta.
+
+`node tests/line-continuation.cjs` reproduce la regresión de sujetar el extremo y usar únicamente la rueda. Usa los ejecutables de Brave y Edge, un visor de 1366 × 650 con zoom normal y las cuatro vistas. Comprueba también el botón para continuar entre escenas, la última página, la identidad del plano, el historial y el diseño móvil.

@@ -481,7 +481,7 @@ async function renderContext(context) {
     }
     PlanoDocumentLabels.prepare(context);
     context.status = "ready"; context.slot.dataset.ready = "true"; context.slot.setAttribute("aria-busy", "false");
-    drawAnnotations(context); bindDrawing(context); bindLineEditing(context);
+    drawAnnotations(context); bindDrawing(context);
     let highlightDown = null;
     textLayer.addEventListener("pointerdown", event => { highlightDown = event.button === 0 ? { x: event.clientX, y: event.clientY } : null; });
     textLayer.addEventListener("pointerup", event => {
@@ -692,18 +692,24 @@ function autoScrollCoverage() {
     const before = stage.scrollTop;
     if (speed) stage.scrollTop += speed;
     if (stage.scrollTop !== before) {
-      if (state.drawing) state.drawing.end = endPosition(event);
-      else updateLineGesture(event);
-      drawAnnotations();
+      refreshCoverageGesture();
     }
     coverageScrollFrame = requestAnimationFrame(tick);
   }
   coverageScrollFrame = requestAnimationFrame(tick);
 }
 function stopCoverageScroll() { cancelAnimationFrame(coverageScrollFrame); coverageScrollFrame = 0; }
+function refreshCoverageGesture() {
+  if (state.drawing?.pointer) { state.drawing.end = endPosition(state.drawing.pointer); drawAnnotations(); }
+  else if (state.lineGesture?.pointer) updateLineGesture(state.lineGesture.pointer);
+}
+function releaseCoveragePointer(pointerId) {
+  const stage = $("#pdf-stage");
+  if (stage.hasPointerCapture(pointerId)) stage.releasePointerCapture(pointerId);
+}
 function cancelDrawing(redraw = true) {
   const drawing = state.drawing; state.drawing = null; stopCoverageScroll();
-  if (drawing?.context.svg?.hasPointerCapture(drawing.pointerId)) drawing.context.svg.releasePointerCapture(drawing.pointerId);
+  if (drawing) releaseCoveragePointer(drawing.pointerId);
   if (redraw) drawAnnotations();
 }
 function endPosition(event) {
@@ -721,27 +727,53 @@ function bindDrawing(context) {
     event.preventDefault(); window.getSelection()?.removeAllRanges();
     const start = { ...pointerPosition(event, context), page: context.segment.page };
     state.drawing = { context, start, end: start, pointerId: event.pointerId, pointer: event };
-    svg.setPointerCapture(event.pointerId); autoScrollCoverage(); drawAnnotations();
+    $("#pdf-stage").setPointerCapture(event.pointerId); autoScrollCoverage(); drawAnnotations();
   });
-  svg.addEventListener("pointermove", event => {
-    if (!state.drawing || state.drawing.pointerId !== event.pointerId) return;
-    state.drawing.pointer = event; state.drawing.end = endPosition(event); drawAnnotations();
-  });
-  svg.addEventListener("pointerup", event => {
-    if (!state.drawing || state.drawing.pointerId !== event.pointerId) return;
-    const { start } = state.drawing, end = endPosition(event), geometry = PlanoCoverage.fromEnds(start, end);
-    cancelDrawing(false);
-    const distance = Math.hypot((end.x - start.x) * context.viewport.width, (PlanoCoverage.unit(end) - PlanoCoverage.unit(start)) * context.viewport.height);
-    if (distance >= 6) requestNamedAnnotations([{ type: "line", ...geometry, color: $("#annotation-color").value }]); else drawAnnotations();
-  });
-  for (const type of ["pointercancel", "lostpointercapture"]) svg.addEventListener(type, () => { if (state.drawing?.context === context) cancelDrawing(); });
+
 }
 function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name);
   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
   return element;
 }
+let continuingLine = false;
+function syncContinueLine() {
+  const button = $("#continue-line"), item = state.annotations.find(note => note.id === state.selectedLine && note.type === "line");
+  button.hidden = !item || state.tool !== "select" || state.stage !== "coverage" || Boolean(state.lineGesture || state.pending || state.editing || state.highlightCorrection);
+  const last = item && PlanoCoverage.endPage(item) >= state.pdf?.numPages;
+  button.disabled = continuingLine || !item || last;
+  button.title = last ? "La línea ya llega a la última página del documento" : "Prolongar este mismo plano hasta la página siguiente";
+}
+async function continueSelectedLine() {
+  const item = state.annotations.find(note => note.id === state.selectedLine && note.type === "line"), pdf = state.pdf;
+  if (!item || !pdf || continuingLine || state.busy || state.drawing || state.lineGesture || state.pending || state.editing || state.highlightCorrection) return;
+  const page = PlanoCoverage.endPage(item) + 1;
+  if (page > pdf.numPages) return;
+  continuingLine = true; syncContinueLine();
+  try {
+    const furniture = sceneTools.pageFurniture(state.pages), first = state.pages[page - 1].lines.find(line => !furniture(line));
+    const y = Math.min(.9, Math.max(.08, (first?.y ?? .08) + .07));
+    const draft = { ...item, endPage: page, end: { x: item.end.x, y } };
+    const notes = state.annotations.map(note => note.id === item.id ? draft : note);
+    const contains = view => sceneTools.workingSegments(state.scenes, state.pages, view, notes).some(segment => segment.page === page && y >= segment.top && y <= segment.bottom);
+    if (!contains(state.scene)) {
+      state.scene = contains("all") ? "all" : "print";
+      $("#scene-select").value = state.scene; syncViewMenu();
+    }
+    remember(); item.endPage = page; item.end = { ...draft.end }; changed();
+    const context = contextAt({ page, y });
+    if (context) {
+      await ensurePage(context);
+      if (state.pdf !== pdf || state.viewer !== context.viewer) return;
+      scrollToPosition({ page, y: Math.max(context.segment.top, y - 80 / context.viewport.height) });
+      state.selectedLine = item.id; drawAnnotations(); focusLineControl(item.id, context, "end");
+    }
+    message(`El plano continúa en la página ${page}. Arrastra su extremo para ajustar dónde termina.`);
+  } finally { continuingLine = false; syncContinueLine(); }
+}
+$("#continue-line").addEventListener("click", continueSelectedLine);
 function drawAnnotations(onlyContext = null) {
+  syncContinueLine();
   // Los listeners pueden pasar un evento: solo se aceptan contextos de página aquí.
   const contexts = onlyContext?.segment ? [onlyContext] : Array.from(state.viewer?.contexts.values() || []);
   for (const context of contexts) {
@@ -851,7 +883,7 @@ function beginLineGesture(event, item, context, mode) {
   item = state.annotations.find(note => note.id === item.id) || item;
   state.selectedLine = item.id;
   state.lineGesture = { id: item.id, context, mode, original: structuredClone(item), draft: structuredClone(item), origin: { ...pointerPosition(event, context), page: context.segment.page }, pointer: event, clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId, moved: false, frame: 0 };
-  context.svg.setPointerCapture(event.pointerId); autoScrollCoverage();
+  $("#pdf-stage").setPointerCapture(event.pointerId); autoScrollCoverage();
   $("#pdf-stage").classList.add("is-transforming-line");
   drawAnnotations();
 }
@@ -859,9 +891,12 @@ function updateLineGesture(event) {
   const gesture = state.lineGesture;
   if (!gesture || event.pointerId !== gesture.pointerId) return;
   event.preventDefault();
-  if (!gesture.moved && Math.hypot(event.clientX - gesture.clientX, event.clientY - gesture.clientY) < 3) return;
+  const point = coveragePointer(event, gesture.context);
+  const distance = Math.hypot((point.x - gesture.origin.x) * gesture.context.viewport.width,
+    (PlanoCoverage.unit(point) - PlanoCoverage.unit(gesture.origin)) * gesture.context.viewport.height);
+  if (!gesture.moved && distance < 3) return;
   gesture.moved = true; gesture.pointer = event;
-  gesture.draft = transformedLine(gesture.original, gesture.context, gesture.mode, gesture.origin, coveragePointer(event, gesture.context), event.shiftKey);
+  gesture.draft = transformedLine(gesture.original, gesture.context, gesture.mode, gesture.origin, point, event.shiftKey);
   if (!gesture.frame) gesture.frame = requestAnimationFrame(() => {
     gesture.frame = 0;
     if (state.lineGesture === gesture) drawAnnotations();
@@ -872,20 +907,37 @@ function cancelLineGesture(redraw = true) {
   if (!gesture) return;
   state.lineGesture = null; stopCoverageScroll();
   cancelAnimationFrame(gesture.frame);
-  if (gesture.context.svg.hasPointerCapture(gesture.pointerId)) gesture.context.svg.releasePointerCapture(gesture.pointerId);
+  releaseCoveragePointer(gesture.pointerId);
   $("#pdf-stage").classList.remove("is-transforming-line");
   if (redraw) drawAnnotations();
 }
-function bindLineEditing(context) {
-  context.svg.addEventListener("pointermove", event => { if (state.lineGesture?.context === context) updateLineGesture(event); });
-  context.svg.addEventListener("pointerup", event => {
+// La captura y el ciclo del gesto pertenecen al visor, no a un SVG de página.
+$("#pdf-stage").addEventListener("pointermove", event => {
+  if (state.drawing?.pointerId === event.pointerId) {
+    event.preventDefault(); state.drawing.pointer = event; state.drawing.end = endPosition(event); drawAnnotations();
+  } else if (state.lineGesture?.pointerId === event.pointerId) updateLineGesture(event);
+});
+$("#pdf-stage").addEventListener("pointerup", event => {
+  if (state.drawing?.pointerId === event.pointerId) {
+    const { context, start } = state.drawing, end = endPosition(event), geometry = PlanoCoverage.fromEnds(start, end);
+    cancelDrawing(false);
+    const distance = Math.hypot((end.x - start.x) * context.viewport.width, (PlanoCoverage.unit(end) - PlanoCoverage.unit(start)) * context.viewport.height);
+    if (distance >= 6) requestNamedAnnotations([{ type: "line", ...geometry, color: $("#annotation-color").value }]); else drawAnnotations();
+  } else if (state.lineGesture?.pointerId === event.pointerId) {
     const gesture = state.lineGesture;
-    if (gesture?.context !== context || event.pointerId !== gesture.pointerId) return;
     updateLineGesture(event); cancelLineGesture(false);
-    if (!gesture.moved || !commitLineGeometry(gesture.id, gesture.draft, context)) drawAnnotations();
-  });
-  for (const type of ["pointercancel", "lostpointercapture"]) context.svg.addEventListener(type, () => { if (state.lineGesture?.context === context) cancelLineGesture(); });
-}
+    if (!gesture.moved || !commitLineGeometry(gesture.id, gesture.draft, gesture.context)) drawAnnotations();
+  }
+});
+for (const type of ["pointercancel", "lostpointercapture"]) $("#pdf-stage").addEventListener(type, event => {
+  if (state.drawing?.pointerId === event.pointerId) cancelDrawing();
+  if (state.lineGesture?.pointerId === event.pointerId) cancelLineGesture();
+});
+window.addEventListener("blur", () => {
+  const active = Boolean(state.drawing || state.lineGesture);
+  cancelDrawing(false); cancelLineGesture(false);
+  if (active) drawAnnotations();
+});
 function focusLineControl(id, context, mode) {
   if (mode === "move") Array.from(context.svg.querySelectorAll("g[data-annotation-id]")).find(group => group.dataset.annotationId === id)?.querySelector(".line-hit-target")?.focus({ preventScroll: true });
   else Array.from(context.svg.querySelectorAll(".line-selection")).find(group => group.dataset.lineId === id)?.querySelector(`[data-endpoint="${mode}"]`)?.focus({ preventScroll: true });
@@ -1356,10 +1408,11 @@ $(".project-menu-content").addEventListener("click", event => { if (event.target
 document.addEventListener("pointerdown", event => { if (!$("#project-menu").contains(event.target)) $("#project-menu").open = false; });
 document.addEventListener("pointerdown", event => { if (state.highlightAction && !$("#highlight-action").contains(event.target)) hideHighlightAction(); });
 document.addEventListener("pointerdown", event => { if (state.titleMenu && !$("#title-position-menu").contains(event.target)) hideTitlePositionMenu(); });
-document.addEventListener("pointerdown", () => { if (state.selectedLine && !state.lineGesture) { state.selectedLine = null; drawAnnotations(); } });
+document.addEventListener("pointerdown", event => { if (state.selectedLine && !state.lineGesture && !event.target.closest("#continue-line")) { state.selectedLine = null; drawAnnotations(); } });
 let scrollFrame = 0;
 $("#pdf-stage").addEventListener("scroll", () => {
   hideHighlightAction();
+  refreshCoverageGesture();
   if (scrollFrame) return;
   scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; updatePageIndicator(); });
 }, { passive: true });
