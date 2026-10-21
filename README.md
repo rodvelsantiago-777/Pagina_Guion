@@ -24,7 +24,7 @@ La interfaz utiliza superficies sólidas, tipografía editorial, bordes finos y 
 
 En la esquina superior derecha, **luna/sol** alterna entre modo claro y oscuro. El botón de **ajustes** abre un menú pequeño junto al control, con doce temas cerrados: **Predeterminado, Rojo, Café, Naranja, Amarillo, Verde, Celeste, Azul, Rosa, Violeta, Grises y Grises oscuros**. No hay selección libre de tonos para la interfaz. Cada tema tiene sus versiones clara y oscura; elegir un tema conserva el modo actual.
 
-La selección se aplica inmediatamente y se guarda en `plano-appearance-v2`. Al recargar se elimina la clave antigua `plano-appearance-v1`, incluidos los tonos libres y el tema anterior, y se vuelve al predeterminado conservando solo el modo claro/oscuro. Esta limpieza no toca las notas ni los colores guardados de los planos, y las nuevas elecciones de tema se conservan normalmente. El tema predeterminado usa superficies grises neutras, también en oscuro. Pulsa fuera, el cierre o **Esc** para cerrar el menú. Si el almacenamiento no está disponible, funciona durante la sesión.
+La selección se aplica inmediatamente y se guarda en la cuenta: otro dispositivo recupera el tema y el modo al iniciar sesión. El menú indica el estado del guardado y permite reintentar si falla la conexión. Una caché mínima por usuario conserva preferencias pendientes; se sincronizan al volver a conectar o entrar. La apariencia previa de `plano-appearance-v2` se adopta al activar esta versión en la primera cuenta del navegador, si esa cuenta aún no tiene preferencias. Sin almacenamiento de nube configurado se conserva el guardado local en `plano-appearance-v2`. Al recargar se elimina la clave antigua `plano-appearance-v1`, incluidos los tonos libres y el tema anterior, y se vuelve al predeterminado conservando solo el modo claro/oscuro. Esta limpieza no toca las notas ni los colores guardados de los planos, y las nuevas elecciones de tema se conservan normalmente. El tema predeterminado usa superficies grises neutras, también en oscuro. Pulsa fuera, el cierre o **Esc** para cerrar el menú. Si el almacenamiento no está disponible, funciona durante la sesión.
 
 La personalización afecta exclusivamente a la interfaz: el PDF conserva sus colores, los de sus marcas, la portada visual, sus dimensiones y su posición de lectura. La **Vista de impresión** conserva el PDF original. No se altera el contenido del guion ni se incorpora la apariencia a las copias JSON de los planos.
 
@@ -160,6 +160,7 @@ Los PDF dañados y protegidos con contraseña muestran un aviso y no reemplazan 
 - `styles.css`: diseño de la página principal.
 - `editor.css`: espacio de cobertura compacto, visor continuo y panel desplegable.
 - `appearance.css`: diseño del estudio, superficies y componentes compartidos, adaptación móvil y ventana de apariencia.
+- `appearance-account.js`: sincroniza el tema y el modo por cuenta, con caché aislada y recuperación sin conexión.
 - `appearance.js`: doce temas cerrados, claro/oscuro, contraste y persistencia independiente del PDF; se carga antes de mostrar la página.
 - `compact-popovers.js`: posicionamiento de menús anclados, límites de pantalla, reajuste con desplazamiento y cierre por Escape.
 - `app.js`: carga, renderizado, selección, líneas, historial, guardado y copias.

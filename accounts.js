@@ -89,6 +89,8 @@
       connecting=false;
       if(!['forgot','reset'].includes(view))view=current?current.emailVerified?'profile':'verify':view==='signup'?'signup':'login';
       render();resolveReady();
+      // El token y el usuario ya están disponibles cuando se restaura la apariencia.
+      document.dispatchEvent(new CustomEvent('plano-account-change'));
     });
     return queue;
   }

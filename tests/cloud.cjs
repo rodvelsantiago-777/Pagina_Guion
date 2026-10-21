@@ -14,7 +14,8 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
  const tokens={ana:await sign('ana'),bob:await sign('bob')},verify=firebaseVerifier(jose,'planos-15624',jwtKeys);
  let failUpload=false,failRemove=false,failFinish=false,uploads=0;
  const rpc=async(owner,action,id,data)=>{if(failFinish&&action==='delete_finish')throw new Error('UNAVAILABLE');return(await db.query('select public.plano_cloud($1,$2,$3,$4::jsonb) as result',[owner,action,id,JSON.stringify(data)])).rows[0].result;};
- const handler=createHandler({verify,rpc,origins:[new URL(base).origin],
+ const preferences=async(owner,action,patch)=>(await db.query('select public.plano_preferences($1,$2,$3::jsonb) as result',[owner,action,JSON.stringify(patch)])).rows[0].result;
+ const handler=createHandler({verify,rpc,preferences,origins:[new URL(base).origin],
   upload:async(owner,id,data)=>{if(failUpload)throw new Error('Storage unavailable');files.set(owner+'/'+id,new Uint8Array(data));uploads++;},
   download:async(owner,id)=>{const bytes=files.get(owner+'/'+id);if(!bytes)throw new Error('UNAVAILABLE');return new Blob([bytes],{type:'application/pdf'});},
   remove:async(owner,id)=>{if(failRemove)throw new Error('Storage unavailable');files.delete(owner+'/'+id);}
@@ -26,6 +27,16 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
  try{
   await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
   const sql=fs.readFileSync(path.join(root,'supabase/migrations/20261021001829_plano_private_cloud.sql'),'utf8');await db.exec(sql);await db.exec(sql);
+  const prefsMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_account_preferences.sql'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',prefsMigration),'utf8'));
+  await db.exec('set role service_role');try{assert.equal(await preferences('ana','read',{}),null);}finally{await db.exec('reset role');}
+  for(const role of ['anon','authenticated']){await db.exec('set role '+role);try{await assert.rejects(db.query('select * from public.plano_preferences'),/permission denied/);await assert.rejects(db.query("select public.plano_preferences('ana','read')"),/permission denied/);}finally{await db.exec('reset role');}}
+  assert.equal((await json('preferences_read',{},'')).status,401);
+  assert.equal((await json('preferences_save',{patch:{mode:'dark',preset:'violet'},owner:'bob'})).status,200);
+  assert.equal((await json('preferences_read',{},tokens.bob)).preferences,null,'El propietario del cuerpo no cambia la cuenta del token');
+  assert.deepEqual((await json('preferences_save',{patch:{preset:'blue'}})).preferences,{mode:'dark',preset:'blue'});
+  assert.deepEqual((await json('preferences_save',{patch:{mode:'light'}})).preferences,{mode:'light',preset:'blue'});
+  for(const patch of [{},{mode:'auto'},{preset:'custom'},{mode:null},{owner:'bob'},[]]){assert.equal((await json('preferences_save',{patch})).status,400);await assert.rejects(preferences('ana','save',patch),/INVALID_INPUT/);}
+  await db.exec('truncate public.plano_preferences,public.plano_usage');
   await db.exec('set role service_role');try{assert.deepEqual((await rpc('ana','list',null,{})).projects,[],'El servidor ejecuta la función con sus permisos, sin SECURITY DEFINER');}finally{await db.exec('reset role');}
   for(const role of ['anon','authenticated']){
    await db.exec('set role '+role);try{await assert.rejects(db.query('select * from public.plano_projects'),/permission denied/);await assert.rejects(db.query("select public.plano_cloud('ana','list')"),/permission denied/);}finally{await db.exec('reset role');}
@@ -67,9 +78,10 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
 
   browser=await chromium.launch({channel:'msedge',headless:true});
   const errors=[];
-  async function newDevice(owner='ana'){
+  async function newDevice(owner='ana',options={}){
    const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();
    page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
+   if(options.initialSettings)await page.addInitScript(settings=>localStorage.setItem('plano-appearance-v2',JSON.stringify(settings)),options.initialSettings);
    await page.route(base+'**',route=>{
     const relative=decodeURIComponent(new URL(route.request().url()).pathname.slice(new URL(base).pathname.length))||'index.html';
     if(relative==='accounts.js')return route.fulfill({contentType:'text/javascript',body:`globalThis.PlanoAccounts={ready:Promise.resolve(),getUser:()=>({id:${JSON.stringify(owner)},email:'prueba@example.invalid'}),getAccessToken:async()=>${JSON.stringify(tokens[owner])},notesKey:f=>'plano-notes-user-v1:${owner}:'+f,connectWorkspace:hooks=>{globalThis.cloudTestHooks=hooks;hooks.change(${JSON.stringify(owner)});},open:()=>{}};document.body.classList.remove('auth-locked');document.querySelector('#auth-entry').hidden=true;document.querySelector('.app-shell').inert=false;`});
@@ -78,11 +90,53 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
    });
    await page.route(endpoint+'**',async route=>{
     const request=route.request();const response=await handler(new Request(request.url(),{method:request.method(),headers:request.headers(),body:request.postDataBuffer()||undefined}));
+    if(request.url().includes('action=preferences_read')&&options.holdRead)await options.holdRead;
     await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
    });
    await page.goto(base);await page.waitForFunction(()=>globalThis.PlanoCloudLibrary&&PlanoCloud.info().owner);
    return{page,context};
   }
+  // Dos dispositivos recuperan tema y modo sin tener que subir un PDF.
+  const legacy=await newDevice('ana',{initialSettings:{mode:'dark',preset:'red'}});await legacy.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
+  assert.deepEqual(await preferences('ana','read',{}),{mode:'dark',preset:'red'},'La primera cuenta adopta la personalización anterior si aún no tiene una en la nube');await legacy.context.close();await db.exec('truncate public.plano_preferences,public.plano_usage');
+  const appearanceOne=await newDevice();await appearanceOne.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
+  await appearanceOne.page.locator('#toggle-theme').click();await appearanceOne.page.locator('#open-appearance').click();await appearanceOne.page.locator('[data-appearance-preset=violet]').click();
+  await appearanceOne.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
+  assert.deepEqual(await preferences('ana','read',{}),{mode:'dark',preset:'violet'});
+  const appearanceTwo=await newDevice();await appearanceTwo.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
+  assert.deepEqual(await appearanceTwo.page.evaluate(()=>PlanoAppearance.get()),{mode:'dark',preset:'violet'});
+  await appearanceTwo.page.locator('#open-appearance').click();assert((await appearanceTwo.page.locator('#appearance-dialog').boundingBox()).width<=280);assert.equal(await appearanceTwo.page.locator('#appearance-sync').textContent(),'Tema guardado en tu cuenta');await appearanceTwo.page.screenshot({path:path.join(root,'tests/.output/apariencia-cuenta.png')});await appearanceTwo.page.locator('#close-appearance').click();
+  await appearanceTwo.context.setOffline(true);await appearanceTwo.page.locator('#toggle-theme').click();await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.flush());assert.equal(await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.info().status),'error');
+  await appearanceTwo.context.setOffline(false);await appearanceTwo.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'violet'});
+  await appearanceTwo.page.locator('#toggle-theme').click();await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.flush());
+  await appearanceOne.context.setOffline(true);await appearanceOne.page.locator('#toggle-theme').click();await appearanceOne.page.evaluate(()=>PlanoAccountAppearance.flush());
+  assert.equal(await appearanceOne.page.evaluate(()=>PlanoAccountAppearance.info().status),'error');
+  assert.deepEqual(await preferences('ana','read',{}),{mode:'dark',preset:'violet'});
+  // El pendiente sobrevive al cierre de la pestaña, siempre asociado al UID.
+  const offlineCache=await appearanceOne.page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([key])=>key.startsWith('plano-appearance'))));
+  await appearanceOne.context.close();
+  const restored=await newDevice('ana');await restored.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
+  await restored.page.evaluate(values=>{for(const [key,value] of Object.entries(values))localStorage.setItem(key,value);},offlineCache);
+  await restored.page.reload();await restored.page.waitForFunction(()=>PlanoAccountAppearance?.info().status==='saved');
+  assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'violet'});
+  // Una lectura lenta no revierte elecciones nuevas.
+  let release;const held=new Promise(resolve=>release=resolve),slow=await newDevice('ana',{holdRead:held});
+  await slow.page.waitForFunction(()=>PlanoAccountAppearance?.info().status==='loading');
+  await slow.page.locator('#open-appearance').click();await slow.page.locator('[data-appearance-preset=blue]').click();release();
+  await slow.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
+  assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'blue'});
+  // Cambiar de cuenta con una lectura pendiente no aplica el tema anterior.
+  let releaseOld;const oldHeld=new Promise(resolve=>releaseOld=resolve),switcher=await newDevice('ana',{holdRead:oldHeld});
+  await switcher.page.waitForFunction(()=>PlanoAccountAppearance?.info().status==='loading');
+  await switcher.page.evaluate(async token=>{await cloudTestHooks.change('bob');PlanoAccounts.getUser=()=>({id:'bob'});PlanoAccounts.getAccessToken=async()=>token;document.dispatchEvent(new CustomEvent('plano-account-change'));},tokens.bob);
+  releaseOld();await switcher.page.waitForFunction(()=>PlanoAccountAppearance.info().owner==='bob'&&PlanoAccountAppearance.info().status==='saved');
+  assert.deepEqual(await switcher.page.evaluate(()=>PlanoAppearance.get()),{mode:'light',preset:'default'});
+  await switcher.page.locator('#toggle-theme').click();await switcher.page.evaluate(()=>cloudTestHooks.beforeChange());
+  assert.deepEqual(await preferences('bob','read',{}),{mode:'dark',preset:'default'},'Cerrar sesión termina el guardado de apariencia');
+  assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'blue'});
+  for(const device of [appearanceTwo,restored,slow,switcher])await device.context.close();
+  await db.exec('truncate public.plano_usage');
+  console.log('OK apariencia de cuenta: restauración entre dispositivos, validación, permisos, cambios durante carga, caché pendiente, cierre de sesión y cambio de propietario durante una lectura.');
   const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Courier),sheet=doc.addPage([595,842]);sheet.drawText('INT. ESTUDIO - DIA',{x:65,y:770,size:12,font});sheet.drawText('La historia comienza.',{x:65,y:700,size:12,font});
   const pdf=Buffer.from(await doc.save()),one=await newDevice();
   await one.page.locator('#file-input').setInputFiles({name:'Historia.pdf',mimeType:'application/pdf',buffer:pdf});await one.page.waitForFunction(()=>state.cloudProject&&!state.busy);

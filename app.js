@@ -1440,7 +1440,7 @@ window.addEventListener("beforeunload", () => { if (state.url) URL.revokeObjectU
 // Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
 PlanoAccounts.connectWorkspace({
   canChange: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && PlanoTechnicalScript.finishEditing(),
-  beforeChange: async () => { try { if (PlanoCloud.configured) await PlanoCloud.flush(); } catch { throw Object.assign(new Error("Cloud save pending"), { code: "plano/cloud-unsaved" }); } },
+  beforeChange: async () => { await globalThis.PlanoAccountAppearance?.flush(); try { if (PlanoCloud.configured) await PlanoCloud.flush(); } catch { throw Object.assign(new Error("Cloud save pending"), { code: "plano/cloud-unsaved" }); } },
   change: async nextOwner => {
     const shell = $(".app-shell"); shell.inert = true;
     try {

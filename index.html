@@ -8,16 +8,17 @@
   <style>body.auth-locked .app-shell{display:none!important}</style>
   <title>PLANO — Estudio de guion</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='5' fill='%23262930'/%3E%3Cpath d='M10 29V11h6v14m5-3V11h6v7' fill='none' stroke='%23d0aa8e' stroke-width='4'/%3E%3C/svg%3E">
-  <script src="appearance.js"></script>
+  <script src="appearance.js?v=20261020-account-theme-1"></script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="editor.css">
-  <link rel="stylesheet" href="appearance.css?v=20261020-sidebar-cleanup-1">
+  <link rel="stylesheet" href="appearance.css?v=20261020-account-theme-1">
   <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
   <link rel="stylesheet" href="cloud.css?v=20261020-cloud-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
-  <script src="accounts.js?v=20261020-cloud-1" defer></script>
+  <script src="accounts.js?v=20261020-account-theme-1" defer></script>
   <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
   <script src="cloud.js?v=20261020-cloud-1" defer></script>
+  <script src="appearance-account.js?v=20261020-account-theme-1" defer></script>
   <script src="cloud-library.js?v=20261020-cloud-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="vendor/pdf.js" defer></script>
@@ -32,7 +33,7 @@
   <script src="document-labels.js" defer></script>
   <script src="pdf-export.js" defer></script>
   <script src="excel-export.js" defer></script>
-  <script src="app.js?v=20261020-cloud-1" defer></script>
+  <script src="app.js?v=20261020-account-theme-1" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -236,6 +237,7 @@
     <header class="compact-popover-heading"><h2 id="appearance-title">Tema de la página</h2><button id="close-appearance" class="shot-close" type="button" aria-label="Cerrar temas"><svg><use href="#i-close"/></svg></button></header>
     <div class="appearance-modes" role="group" aria-label="Modo de visualización"><button data-appearance-mode="light" type="button" aria-pressed="true"><svg><use href="#i-sun"/></svg>Claro</button><button data-appearance-mode="dark" type="button" aria-pressed="false"><svg><use href="#i-moon"/></svg>Oscuro</button></div>
     <div class="appearance-presets" role="group" aria-label="Temas predeterminados"></div>
+    <button id="appearance-sync" class="appearance-sync" type="button" hidden disabled aria-live="polite"></button>
   </div>
   <div id="title-position-menu" class="highlight-action" popover="manual" role="menu" aria-label="Posición del título"><button id="toggle-title-pin" type="button" role="menuitem">Fijar posición</button></div>
   <div id="highlight-action" class="highlight-action" popover="manual" role="toolbar" aria-label="Acciones del resalte"><button id="correct-highlight" type="button"><svg><use href="#i-highlight"/></svg>Corregir resalte</button></div>

@@ -17,7 +17,9 @@
     gray: { label: "Grises", accent: "#727272", surface: "#909090", contrast: "#353535" },
     graphite: { label: "Grises oscuros", accent: "#434343", surface: "#696969", contrast: "#292929" }
   };
-  let settings = { ...defaults };
+  let settings = { ...defaults }, accountManaged = false;
+  const valid = value => Object.fromEntries(Object.entries(value || {}).filter(([name, item]) =>
+    name === "mode" ? ["light", "dark"].includes(item) : name === "preset" && Object.hasOwn(palettes, item)));
   try {
     // Retirar los tonos libres y las preferencias de apariencia anteriores.
     const legacy = localStorage.getItem("plano-appearance-v1");
@@ -79,7 +81,7 @@
     for (const [name, value] of Object.entries(tokens)) root.style.setProperty("--" + name, value);
     root.dataset.theme = settings.mode; root.dataset.palette = settings.preset; root.style.colorScheme = settings.mode;
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", tokens.paper);
-    if (persist) { try { localStorage.setItem(key, JSON.stringify(settings)); } catch {} }
+    if (persist && !accountManaged) { try { localStorage.setItem(key, JSON.stringify(settings)); } catch {} }
     sync();
   }
   function sync() {
@@ -93,20 +95,32 @@
       button.setAttribute("aria-pressed", String(settings.preset === button.dataset.appearancePreset));
     }
   }
+  function choose(patch) {
+    patch = valid(patch);
+    patch = Object.fromEntries(Object.entries(patch).filter(([name, value]) => settings[name] !== value));
+    if (!Object.keys(patch).length) return;
+    Object.assign(settings, patch); apply(true);
+    document.dispatchEvent(new CustomEvent("plano-appearance-change", { detail: patch }));
+  }
+  globalThis.PlanoAppearance = {
+    get: () => ({ ...settings }), valid, defaults: Object.freeze({ ...defaults }),
+    set: value => { settings = { ...defaults, ...valid(value) }; apply(); },
+    manageAccount: value => { accountManaged = Boolean(value); }
+  };
   apply();
   document.addEventListener("DOMContentLoaded", () => {
     const dialog = document.querySelector("#appearance-dialog"), open = document.querySelector("#open-appearance");
-    document.querySelector("#toggle-theme").addEventListener("click", () => { settings.mode = settings.mode === "dark" ? "light" : "dark"; apply(true); });
+    document.querySelector("#toggle-theme").addEventListener("click", () => choose({ mode: settings.mode === "dark" ? "light" : "dark" }));
     const list = dialog.querySelector(".appearance-presets");
     for (const [id, palette] of Object.entries(palettes)) {
       const button = document.createElement("button"); button.type = "button"; button.dataset.appearancePreset = id;
       const swatch = document.createElement("i"); swatch.style.background = palette.accent; swatch.setAttribute("aria-hidden", "true");
       button.append(swatch, document.createTextNode(palette.label)); list.append(button);
-      button.addEventListener("click", () => { settings.preset = id; apply(true); PlanoPopover.hide(dialog, true); });
+      button.addEventListener("click", () => { choose({ preset: id }); PlanoPopover.hide(dialog, true); });
     }
     open.addEventListener("click", () => { document.querySelector("#project-menu").open = false; sync(); PlanoPopover.show(dialog, open); });
     document.querySelector("#close-appearance").addEventListener("click", () => PlanoPopover.hide(dialog, true));
-    for (const button of dialog.querySelectorAll("[data-appearance-mode]")) button.addEventListener("click", () => { settings.mode = button.dataset.appearanceMode; apply(true); });
+    for (const button of dialog.querySelectorAll("[data-appearance-mode]")) button.addEventListener("click", () => choose({ mode: button.dataset.appearanceMode }));
     sync();
   });
 })();

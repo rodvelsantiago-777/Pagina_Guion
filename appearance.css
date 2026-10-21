@@ -322,6 +322,10 @@ body:not(.is-editing) .page-footer>span:last-child{font-size:8px;letter-spacing:
 .technical-export:disabled{opacity:.45;cursor:default}
 .technical-export:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .technical-export svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.appearance-sync{display:block;width:100%;margin:10px 0 0;padding:8px 0 0;border:0;border-top:1px solid var(--line);background:none;text-align:left;color:var(--muted);font:500 11px/1.5 var(--sans)}
+.appearance-sync:disabled{opacity:1;cursor:default}
+.appearance-sync[data-state="error"]{color:var(--danger);cursor:pointer}
+.appearance-sync:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:900px){.technical-actions #technical-edit-status{display:none}}
 @media(max-width:620px){.technical-export{margin-right:4px;padding:6px 8px;font-size:11px;gap:4px}}
 @media(max-width:380px){.technical-export span{font-size:0}.technical-export span::after{content:"Excel";font-size:11px}.technical-heading-title{flex-shrink:0}.technical-heading h2{font-size:18px}.technical-actions{flex-shrink:0}}
