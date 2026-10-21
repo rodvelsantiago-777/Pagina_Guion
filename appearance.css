@@ -12,7 +12,7 @@ button,input,textarea,select{font-family:var(--sans)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 ::placeholder{color:var(--faint)}
 /* Inicio editorial: tinta, papel y una única nota de color. */
-.sidebar{width:240px;padding:36px 20px 22px;background:var(--sidebar);color:var(--side-ink);min-height:720px}
+.sidebar{width:240px;padding:36px 20px 22px;background:var(--sidebar);color:var(--side-ink);min-height:0;overflow-y:auto}
 .brand{font-size:27px;letter-spacing:5px;color:var(--side-ink)}
 .brand-mark i{background:var(--accent)}
 .sidebar .brand-mark i{background:var(--side-accent,#d0aa8e)}
@@ -33,7 +33,7 @@ body:not(.is-editing) .nav-section span{font-size:9px;color:var(--side-muted)}
 .sidebar-note p{font:22px/1.5 var(--serif);color:var(--side-ink)}
 .frame-line{background:var(--side-line)}
 body:not(.is-editing) .sidebar-note>span:last-child{font-size:9px;color:var(--side-muted);letter-spacing:1.3px}
-body:not(.is-editing) .sidebar-footer{font-size:11px;border-color:var(--side-line);color:var(--side-muted)}
+body:not(.is-editing) .sidebar-footer{font-size:11px;border-color:var(--side-line);color:var(--side-muted);margin-top:auto}
 .version{color:inherit}.version-dot{background:var(--side-accent,#d0aa8e)}
 .topbar{height:76px;padding:0 44px;gap:22px;background:var(--paper)}
 .breadcrumb{gap:12px}body:not(.is-editing) .breadcrumb,body:not(.is-editing) .breadcrumb strong{font-size:13px}

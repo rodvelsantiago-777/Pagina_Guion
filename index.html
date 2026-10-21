@@ -11,7 +11,7 @@
   <script src="appearance.js"></script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="editor.css">
-  <link rel="stylesheet" href="appearance.css">
+  <link rel="stylesheet" href="appearance.css?v=20261020-sidebar-cleanup-1">
   <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
   <link rel="stylesheet" href="cloud.css?v=20261020-cloud-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
@@ -95,7 +95,6 @@
       <a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>PLANO<span class="brand-dot">®</span></a>
       <div class="studio-label">DE LA IDEA AL RODAJE</div>
       <div class="project-label">ESPACIO DE TRABAJO</div>
-      <div class="project-card"><span class="project-avatar">P</span><div><strong>Mi proyecto</strong><span>Producción audiovisual</span></div><span class="project-indicator" title="Proyecto local"></span></div>
 
       <nav class="navigation" aria-label="Herramientas de producción">
         <button class="nav-item active" id="nav-import" type="button" aria-current="page"><svg><use href="#i-upload"/></svg><span>Importar guion</span></button>
@@ -105,7 +104,6 @@
         <button class="nav-item" disabled><svg><use href="#i-script"/></svg><span>Editor literario</span><svg class="lock"><use href="#i-lock"/></svg></button>
       </nav>
 
-      <div class="sidebar-note"><span class="tiny-cross">+</span><p>Cada plano comienza<br>con una buena historia.</p><div class="frame-line"></div><span>ESCRIBE. IMAGINA. RUEDA.</span></div>
       <div class="sidebar-footer"><span class="version-dot"></span> Estudio local <span class="version">v0.2</span></div>
     </aside>
 
@@ -113,7 +111,7 @@
       <header class="topbar">
         <button id="toggle-annotations" class="header-icon editor-only panel-toggle" type="button" aria-label="Mostrar u ocultar escenas y anotaciones" aria-controls="annotations-panel" aria-expanded="true" title="Escenas y anotaciones"><svg><use href="#i-panel"/></svg></button>
         <button id="editor-home" class="editor-home editor-only" type="button" aria-label="Volver al inicio" title="Volver al inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>PLANO</span></button>
-        <div class="breadcrumb">Mi proyecto <span>/</span> <strong id="breadcrumb-current">Importar guion</strong></div>
+        <div class="breadcrumb"><strong id="breadcrumb-current">Importar guion</strong></div>
         <div class="editor-file editor-only"><strong id="file-name"></strong><span id="file-size"></span></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" disabled aria-selected="false" title="Escribir el guion · Próximamente"><svg><use href="#i-lock"/></svg><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
