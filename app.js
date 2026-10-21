@@ -8,7 +8,7 @@ const colorPalette = window.PlanoColors.setup();
 const MAX_SIZE = 100 * 1024 * 1024;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const state = {
-  pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, pages: [], scenes: [],
+  pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, pages: [], scenes: [],
   annotations: [], history: [], future: [], scene: "all", segmentIndex: 0,
   tool: "select", zoom: 1, fit: true, renderId: 0, loadId: 0,
   viewer: null, panelOpen: null, viewAnchor: null, pending: null, editing: null, details: null, highlightCorrection: null, highlightAction: null, stage: "coverage", selectedLine: null, lineGesture: null,
@@ -32,6 +32,7 @@ function busy(value) {
   $("#upload-button").disabled = value;
   $("#replace-button").disabled = value;
   $(".script-workspace").setAttribute("aria-busy", String(value));
+  $("#document-view").inert = value; $("#technical-view").inert = value;
 }
 
 function showScreen(screen) {
@@ -126,15 +127,17 @@ class LocalBinaryFactory {
   }
 }
 
-async function upload(file) {
+async function upload(file, options = {}) {
   await PlanoAccounts.ready;
   if (!PlanoAccounts.getUser()) { $("#file-input").value = ""; PlanoAccounts.open("signup"); return; }
   if (!file || state.busy || state.pending || state.editing) return;
+  if (!PlanoTechnicalScript.finishEditing()) return;
   const id = ++state.loadId;
   let candidate = null;
   busy(true); message("");
   const previousStatus = state.pdf ? "Guion listo" : "Sin documento";
   try {
+    if (PlanoCloud.configured) await PlanoCloud.flush();
     if (!file.size) throw new Error("El archivo está vacío. Selecciona un PDF con contenido.");
     if (file.size > MAX_SIZE) throw new Error("El PDF supera el límite de 100 MB.");
     if (!(await file.slice(0, 1024).text()).includes("%PDF-")) throw new Error("Este archivo no parece ser un PDF válido.");
@@ -165,31 +168,51 @@ async function upload(file) {
       if (number % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
     if (id !== state.loadId) { await candidate.destroy(); return; }
+    let cloudProject = options.project || null;
+    let incomingPayload = null, incomingNotes = null;
+    if (PlanoCloud.configured) {
+      if (!cloudProject) cloudProject = await PlanoCloud.importFile(file);
+      if (cloudProject.fingerprint !== hash) throw new Error("La huella del PDF no coincide con el proyecto. Vuelve a descargarlo.");
+      incomingPayload = PlanoCloud.preview(cloudProject);
+      incomingNotes = validateNotes(incomingPayload.annotations, pdf.numPages);
+      await PlanoCloud.flush();
+      if (id !== state.loadId) { await candidate.destroy(); return; }
+    }
     cancelRendering();
     const previousPdf = state.pdf;
     if (state.url) URL.revokeObjectURL(state.url);
-    state.pdf = pdf; state.loading = null; state.file = file;
+    state.pdf = pdf; state.loading = null; state.file = cloudProject ? new File([file], cloudProject.name, { type: 'application/pdf' }) : file;
+    state.cloudProject = cloudProject;
     state.url = URL.createObjectURL(file); state.pages = pages;
     state.scenes = sceneTools.detectScenes(pages);
     state.fingerprint = hash || pdf.fingerprints[0];
     state.key = PlanoAccounts.notesKey(state.fingerprint);
-    state.annotations = readSavedNotes();
+    const cloudPayload = cloudProject ? PlanoCloud.attach(cloudProject) : null;
+    state.annotations = cloudPayload && !cloudProject.created ? incomingNotes : readSavedNotes();
     state.history = []; state.future = []; state.scene = "all"; state.stage = "coverage";
     state.segmentIndex = 0; state.fit = true; state.zoom = 1; state.drawing = null; state.viewAnchor = null;
-    $("#file-name").textContent = file.name; $("#file-name").title = file.name;
-    $("#file-size").textContent = `${pdf.numPages} ${pdf.numPages === 1 ? "página" : "páginas"} · ${(file.size / 1024).toLocaleString("es", { maximumFractionDigits: 1 })} KB · Archivo local`;
+    if (cloudPayload?.view && !cloudProject.created) {
+      if (["all", "editing", "print", ...state.scenes.map(scene => scene.id)].includes(cloudPayload.view.scene)) state.scene = cloudPayload.view.scene;
+      if (["coverage", "technical"].includes(cloudPayload.view.stage)) state.stage = cloudPayload.view.stage;
+    }
+    $("#file-name").textContent = state.file.name; $("#file-name").title = state.file.name;
+    $("#file-size").textContent = `${pdf.numPages} ${pdf.numPages === 1 ? "página" : "páginas"} · ${(file.size / 1024).toLocaleString("es", { maximumFractionDigits: 1 })} KB · ${cloudProject ? "PDF en tu cuenta" : "Archivo local"}`;
     $("#open-document").href = state.url;
     updateSceneOptions(); refreshSegments(); setTool("select"); refreshAnnotations();
     status(`${state.scenes.length} ${state.scenes.length === 1 ? "escena" : "escenas"} · Guion listo`, true);
     if (previousPdf) previousPdf.destroy().catch(() => {});
     showScreen("editor");
+    if (cloudProject?.created && state.annotations.length) saveNotes();
+    else if (cloudProject) PlanoCloudLibrary.refreshStatus();
     message("");
+    return true;
   } catch (error) {
     if (id !== state.loadId) return;
     if (candidate) candidate.destroy().catch(() => {});
     state.loading = null; status(previousStatus, Boolean(state.pdf));
     const text = error.name === "PasswordException" || /password|destroyed/i.test(error.message) ? "El PDF está protegido con contraseña. Abre una copia sin contraseña para trabajar la cobertura." : error.name === "InvalidPDFException" ? "El archivo está dañado o no es un PDF válido." : `No se pudo abrir el PDF. ${error.message || "Prueba con otro archivo."}`;
     message(text, true);
+    return false;
   } finally {
     if (id === state.loadId) { busy(false); $("#file-input").value = ""; }
   }
@@ -1005,18 +1028,23 @@ function changed() {
 }
 function saveNotes() {
   if (!state.key) return;
+  if (PlanoCloud.configured) {
+    if (!state.cloudProject) { $("#save-status").textContent = "Este guion todavía no está guardado en tu cuenta."; return; }
+    PlanoCloud.schedule({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations, view: { scene: state.scene, stage: state.stage } });
+    return;
+  }
   try {
     localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations }));
     $("#save-status").textContent = "✓ Notas guardadas en este navegador";
   } catch { $("#save-status").textContent = "No se pudo guardar aquí. Exporta las notas antes de cerrar."; }
 }
-function validateNotes(value) {
+function validateNotes(value, pageCount = state.pdf.numPages) {
   if (!Array.isArray(value) || value.length > 10000) throw new Error("La copia de notas no es válida.");
   const ids = new Set();
   const coordinate = number => Number.isFinite(number) && number >= 0 && number <= 1;
   const point = value => value && coordinate(value.x) && coordinate(value.y);
   return value.map(item => {
-    if (!item || typeof item.id !== "string" || item.id.length > 120 || ids.has(item.id) || !["highlight", "line"].includes(item.type) || !Number.isInteger(item.page) || item.page < 1 || item.page > state.pdf.numPages || !/^#[0-9a-f]{6}$/i.test(item.color)) throw new Error("La copia contiene anotaciones inválidas.");
+    if (!item || typeof item.id !== "string" || item.id.length > 120 || ids.has(item.id) || !["highlight", "line"].includes(item.type) || !Number.isInteger(item.page) || item.page < 1 || item.page > pageCount || !/^#[0-9a-f]{6}$/i.test(item.color)) throw new Error("La copia contiene anotaciones inválidas.");
     ids.add(item.id);
     if (item.shotName !== undefined && (typeof item.shotName !== "string" || item.shotName.length > 120)) throw new Error("Hay nombres de plano inválidos.");
     if (item.shotId !== undefined && (typeof item.shotId !== "string" || item.shotId.length > 120)) throw new Error("Hay identificadores de plano inválidos.");
@@ -1247,7 +1275,7 @@ function closeDocument() {
   ++state.loadId; cancelRendering();
   state.loading?.destroy().catch(() => {}); state.pdf?.destroy().catch(() => {});
   if (state.url) URL.revokeObjectURL(state.url);
-  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, annotations: [], pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
+  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, annotations: [], pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
   $("#pdf-container").replaceChildren(); $("#open-document").removeAttribute("href");
   busy(false); message(""); status("Sin documento"); showScreen("import"); $("#upload-button").focus();
 }
@@ -1278,7 +1306,10 @@ $("#pdf-stage").addEventListener("scroll", () => {
   scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; updatePageIndicator(); });
 }, { passive: true });
 for (const id of ["#upload-button", "#replace-button"]) $(id).addEventListener("click", () => $("#file-input").click());
-$("#remove-button").addEventListener("click", closeDocument);
+$("#remove-button").addEventListener("click", async () => {
+  try { if (PlanoCloud.configured) { if (!PlanoTechnicalScript.finishEditing()) return; await PlanoCloud.flush(); PlanoCloud.detach(); } closeDocument(); }
+  catch (error) { message(error.message, true); PlanoCloudLibrary.open(); }
+});
 $("#nav-import").addEventListener("click", () => { message(""); showScreen("import"); });
 for (const id of ["#nav-editor", "#return-editor"]) $(id).addEventListener("click", () => { message(""); showScreen("editor"); });
 $("#scene-select").addEventListener("change", event => {
@@ -1409,16 +1440,26 @@ window.addEventListener("beforeunload", () => { if (state.url) URL.revokeObjectU
 // Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
 PlanoAccounts.connectWorkspace({
   canChange: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && PlanoTechnicalScript.finishEditing(),
+  beforeChange: async () => { try { if (PlanoCloud.configured) await PlanoCloud.flush(); } catch { throw Object.assign(new Error("Cloud save pending"), { code: "plano/cloud-unsaved" }); } },
   change: async nextOwner => {
     const shell = $(".app-shell"); shell.inert = true;
     try {
       // Las exportaciones ya capturaron sus datos; terminan antes de destruir el PDF.
       while (state.exporting) await new Promise(resolve => setTimeout(resolve, 100));
-      if (state.pdf) saveNotes();
+      if (state.pdf && !PlanoCloud.configured) saveNotes();
+      PlanoCloudLibrary.closeOnIdentity(); PlanoCloud.changeOwner(nextOwner);
       PlanoTechnicalScript.finishEditing(false);
       closeDocument();
       $("#annotations-list").replaceChildren();
       $("#technical-table-body").replaceChildren();
     } finally { shell.inert = !nextOwner; }
   }
+});
+
+PlanoCloudLibrary.init({
+  open: async id => { if (state.busy || state.exporting || state.pending || state.editing || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
+  renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; state.file = new File([state.file], project.name, { type: "application/pdf" }); $("#file-name").textContent = project.name; $("#file-name").title = project.name; },
+  deleted: id => { if (state.cloudProject?.id === id) closeDocument(); },
+  reload: project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; const notes = validateNotes(project.payload.annotations); state.annotations = notes; state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
+  exportDraft: () => { if (!state.pdf) return false; $("#save-backup").click(); return true; }
 });

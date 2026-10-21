@@ -27,6 +27,7 @@ async function backend(route){
 const server=http.createServer((request,response)=>{
  const url=new URL(request.url,'http://localhost'),relative=decodeURIComponent(url.pathname).replace(/^\/Pagina_Guion\//,'');
  if(relative==='auth-config.js'){response.setHeader('Content-Type','text/javascript');return response.end('globalThis.PlanoAuthConfig='+JSON.stringify(config));}
+ if(relative==='cloud-config.js'){response.setHeader('Content-Type','text/javascript');return response.end('globalThis.PlanoCloudConfig={};');}
  const target=path.resolve(root,relative||'index.html');if(!target.startsWith(root+path.sep)){response.writeHead(403);return response.end();}
  fs.readFile(target,(error,bytes)=>{if(error){response.writeHead(404);return response.end();}response.setHeader('Content-Type',({'.js':'text/javascript','.html':'text/html','.css':'text/css','.mjs':'text/javascript'})[path.extname(target)]||'application/octet-stream');response.end(bytes);});
 });

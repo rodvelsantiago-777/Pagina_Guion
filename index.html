@@ -13,8 +13,12 @@
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="appearance.css">
   <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
+  <link rel="stylesheet" href="cloud.css?v=20261020-cloud-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
-  <script src="accounts.js?v=20261020-email-compat-1" defer></script>
+  <script src="accounts.js?v=20261020-cloud-1" defer></script>
+  <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
+  <script src="cloud.js?v=20261020-cloud-1" defer></script>
+  <script src="cloud-library.js?v=20261020-cloud-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="vendor/pdf.js" defer></script>
   <script src="vendor/pdf-assets.js" defer></script>
@@ -28,7 +32,7 @@
   <script src="document-labels.js" defer></script>
   <script src="pdf-export.js" defer></script>
   <script src="excel-export.js" defer></script>
-  <script src="app.js?v=20261020-required-account-1" defer></script>
+  <script src="app.js?v=20261020-cloud-1" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -63,7 +67,7 @@
   <a class="skip-link" href="#main-content">Ir al contenido</a>
   <section id="auth-entry" class="auth-entry" aria-label="Acceso a PLANO">
     <header class="auth-entry-header"><a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>PLANO</a><button id="auth-theme" class="header-icon" type="button" aria-label="Cambiar entre modo claro y oscuro" title="Cambiar entre modo claro y oscuro"><svg><use href="#i-moon"/></svg></button></header>
-    <div class="auth-entry-layout"><div class="auth-entry-copy"><p class="eyebrow">ESTUDIO DE GUION</p><h1>Tu próxima historia empieza aquí.</h1><p>Crea tu cuenta o inicia sesión para trabajar la cobertura y preparar tu guion técnico.</p><span class="auth-entry-rule" aria-hidden="true"></span><p class="auth-entry-local">Tus PDF y anotaciones permanecen en este navegador.</p></div><div class="auth-entry-access"><p id="auth-loading" class="auth-loading" role="status">Preparando el acceso…</p><div id="auth-card-mount">
+    <div class="auth-entry-layout"><div class="auth-entry-copy"><p class="eyebrow">ESTUDIO DE GUION</p><h1>Tu próxima historia empieza aquí.</h1><p>Crea tu cuenta o inicia sesión para trabajar la cobertura y preparar tu guion técnico.</p><span class="auth-entry-rule" aria-hidden="true"></span><p id="auth-local-description" class="auth-entry-local">Tus PDF y anotaciones permanecen en este navegador.</p></div><div class="auth-entry-access"><p id="auth-loading" class="auth-loading" role="status">Preparando el acceso…</p><div id="auth-card-mount">
   <section id="account-card" class="account-dialog" aria-labelledby="account-title">
     <header><div><p class="account-eyebrow">PLANO / TU CUENTA</p><h2 id="account-title" tabindex="-1">Crea tu cuenta</h2></div><button id="close-account" class="shot-close" type="button" aria-label="Cerrar cuenta"><svg><use href="#i-close"/></svg></button></header>
     <div id="account-tabs" class="account-tabs" role="group" aria-label="Acceso a la cuenta"><button type="button" data-account-view="signup" aria-pressed="true">Crear cuenta</button><button type="button" data-account-view="login" aria-pressed="false">Iniciar sesión</button></div>
@@ -81,7 +85,7 @@
       <button id="account-back" class="account-link account-forgot" type="button" hidden>Volver a iniciar sesión</button>
     </form>
     <section id="account-verify" hidden><p class="account-text">Para activar la cuenta, verifica el correo <strong id="account-verify-email"></strong>. Abre el enlace recibido y vuelve aquí.</p><div class="account-stack"><button id="account-check-email" type="button" class="button button-primary">Ya he verificado mi correo</button><button id="account-resend" type="button" class="button button-secondary">Reenviar enlace</button><button id="account-other-email" type="button" class="account-link">Usar otro correo</button></div></section>
-    <section id="account-profile" hidden><div class="account-identity"><span id="account-avatar" class="account-avatar" aria-hidden="true"></span><div><strong id="account-profile-name"></strong><p id="account-profile-email"></p><span class="account-verified">Correo verificado</span></div></div><p class="account-text">Las anotaciones de tu cuenta se guardan por separado en este navegador. Los PDF permanecen en tu dispositivo.</p><div class="account-stack"><button id="account-change-password" type="button" class="button button-secondary">Cambiar contraseña</button><button id="account-signout" type="button" class="account-link account-signout">Cerrar sesión</button></div></section>
+    <section id="account-profile" hidden><div class="account-identity"><span id="account-avatar" class="account-avatar" aria-hidden="true"></span><div><strong id="account-profile-name"></strong><p id="account-profile-email"></p><span class="account-verified">Correo verificado</span></div></div><p id="account-storage-description" class="account-text">Las anotaciones de tu cuenta se guardan por separado en este navegador. Los PDF permanecen en tu dispositivo.</p><div class="account-stack"><button id="account-change-password" type="button" class="button button-secondary">Cambiar contraseña</button><button id="account-signout" type="button" class="account-link account-signout">Cerrar sesión</button></div></section>
     <footer class="account-footer"><p id="account-local-note">Verifica tu correo para activar la cuenta. Tus documentos no se suben a la nube.</p><button id="account-continue" type="button" hidden>Volver al guion</button></footer>
   </section>
       </div><noscript><p>Activa JavaScript para crear tu cuenta o iniciar sesión.</p></noscript></div></div>
@@ -113,6 +117,7 @@
         <div class="editor-file editor-only"><strong id="file-name"></strong><span id="file-size"></span></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" disabled aria-selected="false" title="Escribir el guion · Próximamente"><svg><use href="#i-lock"/></svg><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
+        <button id="open-cloud" class="cloud-launch" type="button" aria-label="Abrir mis proyectos y estado del guardado" aria-haspopup="dialog" aria-controls="cloud-library" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18a4 4 0 0 1-1-7.9 7 7 0 0 1 13-2A5 5 0 0 1 18 18H6Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span id="open-cloud-label">Mis proyectos</span></button>
         <button id="open-account" class="account-launch" type="button" aria-haspopup="dialog" aria-controls="account-dialog" title="Mi cuenta"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-2a8 8 0 0 1 16 0v2"/></svg><span>Mi cuenta</span></button><div class="appearance-actions"><button id="toggle-theme" class="header-icon" type="button" aria-label="Activar modo oscuro" aria-pressed="false" title="Activar modo oscuro"><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" class="header-icon" type="button" aria-label="Elegir tema" title="Elegir tema"><svg><use href="#i-sliders"/></svg></button></div>
         <div class="editor-actions editor-only">
           
@@ -248,6 +253,14 @@
       <div class="dialog-actions"><button id="cancel-color-picker" class="button button-secondary" type="button">Cancelar</button><button id="save-custom-color" class="button button-primary" type="submit" hidden>Usar color</button></div>
     </form>
   </div>
+  <dialog id="cloud-library" class="cloud-library" aria-labelledby="cloud-library-title">
+    <header><div><h2 id="cloud-library-title">Mis proyectos</h2><p id="cloud-library-count">Tu biblioteca privada</p></div><button id="close-cloud" class="shot-close" type="button" aria-label="Cerrar proyectos"><svg><use href="#i-close"/></svg></button></header>
+    <div class="cloud-library-tools"><button id="cloud-new" class="button button-primary" type="button">Subir guion</button><button id="cloud-refresh" class="button button-secondary" type="button">Actualizar</button></div>
+    <div id="cloud-sync-alert" class="cloud-alert" role="status" hidden><p id="cloud-sync-error"></p><div><button id="cloud-retry-save" type="button">Reintentar guardado</button><button id="cloud-reload" type="button" hidden>Recargar versión de la nube</button><button id="cloud-export-draft" type="button">Descargar copia de mis notas</button></div></div>
+    <p id="cloud-library-message" class="account-message" role="status" hidden></p>
+    <div id="cloud-projects"></div><p id="cloud-empty" class="cloud-empty" hidden>Todavía no tienes proyectos. Sube un PDF para empezar.</p>
+    <p class="cloud-library-note">Plan gratuito. Las subidas y descargas se detienen al alcanzar los límites; no se contrata espacio adicional. Espera la confirmación del guardado antes de cerrar.</p>
+  </dialog>
   <dialog id="account-dialog" class="account-modal" aria-labelledby="account-title">
 
   </dialog>

@@ -1,4 +1,4 @@
-/* Cuentas reales mediante Firebase Auth. El editor y sus archivos siguen siendo locales. */
+/* Cuentas reales mediante Firebase Auth. Los proyectos usan la integración de nube cuando está configurada. */
 (function (root) {
   'use strict';
   const $=selector=>document.querySelector(selector);
@@ -10,6 +10,7 @@
   function message(text='',error=false){const node=$('#account-message');node.textContent=text;node.hidden=!text;node.classList.toggle('is-error',error);}
   function safeError(error){
     const messages={
+      'plano/cloud-unsaved':'No se ha podido guardar el proyecto. Abre «Mis proyectos» para reintentar o descargar tus notas antes de cerrar sesión.',
       'auth/invalid-credential':'El correo o la contraseña no son correctos.', 'auth/wrong-password':'El correo o la contraseña no son correctos.', 'auth/user-not-found':'El correo o la contraseña no son correctos.',
       'auth/email-already-in-use':'No se pudo crear la cuenta con ese correo. Prueba a iniciar sesión o recuperar el acceso.', 'auth/invalid-email':'Escribe un correo electrónico válido.',
       'auth/weak-password':'Elige una contraseña más larga que cumpla los requisitos de la cuenta.', 'auth/password-does-not-meet-requirements':'La contraseña no cumple los requisitos de seguridad.',
@@ -96,7 +97,7 @@
     if(!client){message('No se pudo preparar el acceso. Reintenta la conexión.',true);return;}
     if(changing&&hooks.canChange&&!hooks.canChange()){message('Termina o cancela la edición del plano y espera a que finalice la exportación antes de cambiar de cuenta.',true);return;}
     working=true;message();render();
-    try{await action();}catch(error){message(safeError(error),true);}
+    try{if(changing)await hooks.beforeChange?.();await action();}catch(error){message(safeError(error),true);}
     finally{working=false;$('#account-password').value='';$('#account-confirm').value='';render();}
   }
   function actionSettings(){return{url:location.origin+location.pathname,handleCodeInApp:false};}
@@ -160,7 +161,7 @@
         }
       },['login','signup'].includes(mode));
     });
-    $('#account-signout').addEventListener('click',()=>task(async()=>{await client.signOut();await acceptUser(null);setView('login');message('Sesión cerrada. Tus anotaciones siguen guardadas en este navegador.');},true));
+    $('#account-signout').addEventListener('click',()=>task(async()=>{await client.signOut();await acceptUser(null);setView('login');message(root.PlanoCloud?.configured?'Sesión cerrada. Tus proyectos confirmados siguen guardados en tu cuenta.':'Sesión cerrada. Tus anotaciones siguen guardadas en este navegador.');},true));
     $('#account-other-email').addEventListener('click',()=>task(async()=>{await client.signOut();await acceptUser(null);$('#account-email').value='';setView('login');},true));
     $('#account-resend').addEventListener('click',()=>{if(Date.now()>=resendAt)task(sendVerification);});
     $('#account-check-email').addEventListener('click',()=>task(async()=>{if(!client.currentUser)return;await client.currentUser.reload();await client.currentUser.getIdToken(true);await acceptUser(client.currentUser);message(current?.emailVerified?'Correo verificado. Tu cuenta ya está activa.':'El correo aún no está verificado. Abre el enlace recibido y vuelve a intentarlo.');},true));
@@ -177,7 +178,8 @@
     return ready;
   }
   function connectWorkspace(options){hooks={...hooks,...options};workspaceConnected=true;if(initialized)render();}
-  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:current.displayName||'',email:current.email}:null};
+  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:current.displayName||'',email:current.email}:null,
+    getAccessToken:async()=>{if(!current?.emailVerified||client?.currentUser?.uid!==current.uid)throw new Error('SESSION');return current.getIdToken();}};
   // El acceso se inicia por sí mismo, aunque el editor tarde en cargar o falle.
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>init());else init();
 })(globalThis);

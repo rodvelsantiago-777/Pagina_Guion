@@ -1,0 +1,4 @@
+# El JWT es de Firebase, no de Supabase. La función verifica su firma,
+# proyecto, caducidad y correo verificado antes de acceder a ningún dato.
+[functions.plano-cloud]
+verify_jwt = false

@@ -2,6 +2,12 @@
 
 Aplicación web de producción audiovisual en HTML, CSS y JavaScript. Interfaz en español y adaptable a escritorio, tableta y móvil. Incluye un visor propio basado en [PDF.js de Mozilla](https://mozilla.github.io/pdf.js/), distribuido en `vendor/` con sus recursos y licencias. El acceso requiere una cuenta de Firebase con correo verificado; los PDF y las anotaciones se procesan en el navegador. No requiere compilación.
 
+## Proyectos privados en la nube
+
+Esta versión incorpora **Mis proyectos**, con PDF originales, anotaciones y fichas técnicas asociados a cada cuenta mediante Supabase Free. La configuración pública está en `cloud-config.js`; el SQL y la Edge Function ya están instalados en el proyecto. Falta publicar este frontend en GitHub Pages y probar un PDF con una cuenta real. Consulta **[NUBE.md](NUBE.md)** para las verificaciones, las protecciones de acceso y los límites. No se activa Firebase Blaze ni se contrata un plan de pago.
+
+El guardado automático solo se confirma tras responder el servidor. Si falta conexión, los cambios pendientes permanecen en memoria de la pestaña y pueden exportarse a JSON. Hay protección contra sobrescrituras entre dispositivos. Los límites conservadores son 10 MiB por PDF, 10 proyectos por cuenta y 80 para el conjunto de la aplicación; se detienen operaciones cuando se agota una cuota. Las pruebas anteriores del editor aíslan la nube; `tests/cloud.cjs` comprueba esta integración con PostgreSQL WASM y JWT reales, sin tocar el proyecto del usuario.
+
 ## Exportar el PDF con cobertura
 
 Abre el **menú del proyecto**, arriba a la derecha, y pulsa **Exportar PDF con cobertura**. Se descarga `nombre-del-guion-cobertura.pdf`, con todas las páginas originales, las líneas con sus remates, los resaltados con transparencia y los nombres de los planos con su color y Courier New negrita. Funciona desde cobertura y desde guion técnico, aunque la vista actual muestre una sola escena.
@@ -25,7 +31,7 @@ La personalización afecta exclusivamente a la interfaz: el PDF conserva sus col
 ## Abrir y usar
 
 1. Abre la web publicada o sirve esta carpeta por HTTP en una versión actualizada de Edge, Chrome o Firefox. La primera pantalla permite crear una cuenta o iniciar sesión. Verifica tu correo para entrar al estudio. Una sesión verificada guardada entra directamente. Conserva las carpetas y archivos del proyecto juntos; abrir el archivo mediante `file://` no habilita la autenticación. Consulta [CUENTAS.md](CUENTAS.md).
-2. Selecciona o arrastra un PDF de hasta 100 MB. Se analizará su texto y pasarás automáticamente a **Guion técnico / líneas de cobertura**.
+2. Selecciona o arrastra un PDF de hasta 10 MB con la nube configurada. Se guardará en tu cuenta, se analizará su texto y pasarás automáticamente a **Guion técnico / líneas de cobertura**. Para recuperar uno ya subido, abre **Mis proyectos**. El modo local de desarrollo sin configuración de nube mantiene el límite anterior de 100 MB.
 3. En el icono **Vista del guion**, fijo en la cabecera derecha, elige **Guion completo** o **Vista de edición** para trabajar únicamente con las escenas y una tarjeta compacta de portada; una escena del grupo **Escena por escena** para concentrarte en ella; o **Vista de impresión** para ver todas las páginas originales del PDF. Todas las vistas tienen desplazamiento vertical continuo.
 4. Usa **Resaltar** y selecciona un fragmento. Se abrirá una ventana que pide el **nombre del plano**; al guardarlo aparecerá en el documento y en el panel. Para una selección existente, o una selección táctil, pulsa **Resaltar selección**.
 5. Usa **Línea recta** y arrastra entre dos puntos. Al terminar, escribe el nombre del plano y pulsa **Guardar plano**. Mantén **Mayús** para fijar una dirección horizontal o vertical. **Esc** cancela la línea en curso.
@@ -38,7 +44,7 @@ La tabla agrupa los planos por escena y respeta el orden del panel. Tiene **nuev
 
 **Pulsa cualquier celda para editarla directamente.** Los campos de texto permiten escribir; valor, angulación, óptica y movimiento ofrecen sus desplegables. Al elegir **Otro** se exige especificarlo antes de aplicar ese cambio. Elegir una opción conocida guarda la celda; el texto se guarda al salir de ella, mediante el botón de confirmación, con **Enter** para nombres o **Ctrl/Cmd + Enter** para textos de varias líneas. **Enter** normal en una descripción o nota introduce un salto de línea. **Tab** guarda y avanza a la siguiente celda; **Esc** o el botón de cancelación descarta el borrador. Las flechas permiten navegar entre celdas cuando no se está escribiendo. Un dato inválido requiere corrección o cancelación antes de cambiar de etapa.
 
-Los cambios directos se guardan en el navegador, se reflejan en cobertura y se pueden deshacer/rehacer; las distintas partes de un plano comparten las ediciones. La flecha pequeña junto al nombre abre la ficha completa para consultar o editar los demás datos. **Ver en el guion** vuelve a cobertura y localiza la marca. La etapa de escritura permanece deshabilitada; no se modifica el texto del PDF.
+Los cambios directos se sincronizan con el proyecto de la nube, se reflejan en cobertura y se pueden deshacer/rehacer durante la sesión; las distintas partes de un plano comparten las ediciones. La flecha pequeña junto al nombre abre la ficha completa para consultar o editar los demás datos. **Ver en el guion** vuelve a cobertura y localiza la marca. La etapa de escritura permanece deshabilitada; no se modifica el texto del PDF.
 
 El valor es independiente del nombre y de su numeración automática: un plano llamado «1» puede tener valor «PA» sin que el siguiente deje de llamarse «2». El formulario muestra la abreviatura y el nombre completo de cada valor; la tarjeta conserva solo la abreviatura. **Sin definir** permite dejarlo pendiente (se muestra «—»). Las notas antiguas sin estos campos siguen funcionando. Toda la ficha técnica se conserva en el historial, el guardado local y las copias JSON; editar un plano entre páginas actualiza los datos de todas sus partes.
 
@@ -139,11 +145,11 @@ La detección es una heurística de encabezados y necesita revisión: guiones co
 
 ## Guardado y copias
 
-- El PDF se procesa en el dispositivo y no se envía a servidores.
-- Las anotaciones se guardan automáticamente en `localStorage`. Al volver a subir el mismo PDF en el mismo navegador y ubicación de la aplicación, se recuperan. El PDF no se almacena: debes volver a seleccionarlo después de recargar.
+- El PDF se procesa en el dispositivo; con la nube configurada, el original se sube de forma privada a tu cuenta una sola vez.
+- Las nuevas anotaciones se sincronizan con la nube y no se escriben en `localStorage`. **Mis proyectos** permite recuperar PDF y notas desde otro dispositivo. El modo local de desarrollo sin configuración de nube conserva el comportamiento anterior de notas locales; no debe confundirse con un guardado en la cuenta.
 - Se usa la huella SHA-256 de todo el archivo para asociar sus notas cuando Web Crypto está disponible; en otros contextos se utiliza la huella de PDF.js. Renombrar el archivo no afecta a la recuperación.
 - **Exportar notas** descarga un JSON con las marcas, nombres, orden de planos, colores, texto seleccionado, coordenadas, posiciones manuales o ligadas de títulos y ficha de plano. **Importar notas** permite recuperarlas junto al PDF correspondiente, conservando las existentes y evitando duplicados por identificador. Los colores recientes pertenecen al navegador y no al JSON de un documento.
-- El guardado local depende del navegador: borrar los datos del sitio, cambiar de carpeta/servidor o usar una sesión privada puede impedir recuperarlo. Si falla el guardado se muestra un aviso. Exporta una copia para conservar el trabajo.
+- Si falla el guardado en la nube se muestra un aviso y los cambios pendientes permanecen en memoria de la pestaña. Reintenta o exporta una copia antes de cerrar. Los proyectos ya confirmados en la nube no dependen del almacenamiento local del navegador.
 - Las anotaciones son una capa de la aplicación: **no se incrustan en el PDF original**. El botón **PDF original** abre la copia sin las marcas de PLANO. El JSON exportado necesita su PDF original para restaurarse.
 
 Los PDF dañados y protegidos con contraseña muestran un aviso y no reemplazan el trabajo abierto. Esta versión requiere una copia sin contraseña.

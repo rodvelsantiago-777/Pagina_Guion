@@ -56,13 +56,13 @@ La configuración pública recibida ya se ha incorporado. La comprobación contr
 
 ## Archivos y anotaciones
 
-Las cuentas están en Firebase; **los PDF y las anotaciones siguen en este navegador**. No se ha activado Cloud Storage, Firestore ni sincronización. No se necesita una base de datos adicional para esta versión.
+Las cuentas están en Firebase. Esta versión incorpora guardado privado de PDF y anotaciones mediante **Supabase Free**, sin activar Firebase Storage/Blaze. Consulta [NUBE.md](NUBE.md): la URL y la clave pública están incorporadas, y sus tablas y su función ya están instaladas. Falta publicar el frontend actualizado en GitHub Pages y probar un PDF con una cuenta real. Un guardado no se confirma si la conexión falla.
 
-Cada usuario verificado tiene un espacio local de notas identificado por su UID de Firebase. Las notas de la versión antigua sin cuentas permanecen intactas bajo la clave `plano-notes-v1:`; no se trasladan automáticamente a otra identidad. Si tienes una copia JSON anterior, inicia sesión, abre el mismo PDF e importa la copia desde el menú del proyecto.
+Cada usuario verificado tiene proyectos privados identificados por su UID de Firebase. Las notas locales anteriores no se borran. Al subir por primera vez un PDF, se recuperan las notas locales de esa misma cuenta; si el proyecto ya existe se usa la versión de la nube. Las notas de la versión antigua sin cuentas permanecen bajo `plano-notes-v1:`; no se trasladan automáticamente a otra identidad. Para recuperarlas importa su copia JSON desde el menú del proyecto.
 
 Al cambiar de identidad se cierra el documento y se vacía su historial de edición antes de activar el nuevo espacio. Las notas guardadas permanecen disponibles cuando vuelvas a entrar y abras ese PDF. Una exportación ya iniciada termina antes de cerrar el documento; los cambios voluntarios de cuenta se bloquean mientras se está editando un plano o exportando. Los cambios de sesión notificados por Firebase se procesan también sin mezclar los espacios.
 
-La separación local organiza los datos entre cuentas; no cifra el almacenamiento del navegador ni constituye un control de acceso para datos alojados en un servidor. Una futura sincronización necesitará reglas de autorización del lado del servidor. Borrar los datos del navegador elimina las notas locales, así que las copias JSON siguen siendo útiles.
+El servidor de nube verifica el token Firebase y el propietario antes de acceder a los datos; las tablas y el bucket carecen de permisos públicos de cliente. Las notas antiguas que sigan en localStorage no están cifradas por este sistema. Borrar los datos del navegador elimina esas copias locales y los cambios que no se hayan sincronizado, pero no los proyectos ya confirmados en la nube. Las copias JSON siguen siendo útiles.
 
 ## Desarrollo y dependencias
 
