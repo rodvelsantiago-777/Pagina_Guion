@@ -23,7 +23,7 @@ function validPayload(data){
  // El cliente valida además coordenadas, páginas y campos de cada plano al abrir.
  for(const note of data.annotations)if(!note||typeof note.id!=='string'||note.id.length>120||!['line','highlight'].includes(note.type))fail('INVALID_INPUT');
 }
-export function createHandler({verify,rpc,preferences,upload,download,remove,origins}){
+export function createHandler({verify,rpc,preferences,releases,upload,download,remove,origins}){
  return async request=>{
   const origin=request.headers.get('origin')||'',allowed=origins.includes(origin);
   const headers={'Cache-Control':'no-store','Vary':'Origin'};
@@ -54,6 +54,11 @@ export function createHandler({verify,rpc,preferences,upload,download,remove,ori
    }
    const bytes=await readLimited(request,PAYLOAD_LIMIT+4096);
    let body;try{body=JSON.parse(new TextDecoder().decode(bytes)||'{}');}catch{fail('INVALID_INPUT');}
+   if(action==='release_read'||action==='release_seen'){
+    if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
+    if(action==='release_seen'&&(typeof body.releaseId!=='string'||!/^[a-zA-Z0-9._-]{1,100}$/.test(body.releaseId)||typeof body.publishedAt!=='string'||!Number.isFinite(Date.parse(body.publishedAt))||Date.parse(body.publishedAt)<Date.UTC(2020,0,1)||Date.parse(body.publishedAt)>Date.now()+300000))fail('INVALID_INPUT');
+    return json({receipt:await releases(owner,action==='release_read'?'read':'seen',body)});
+   }
    if(action==='preferences_read'||action==='preferences_save'){
     if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
     const patch=body.patch;

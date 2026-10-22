@@ -42,8 +42,28 @@ body.is-editing{height:100dvh;overflow:hidden}
 .tool:hover{background:var(--paper)}
 .tool.active{background:var(--surface-alt);border-color:var(--line);color:var(--muted)}
 .tool:disabled{opacity:.32;cursor:not-allowed}
-.annotation-toolbar .continue-line{position:absolute;right:12px;top:calc(100% + 7px);z-index:10;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);box-shadow:0 2px 8px var(--shadow);font-weight:600}
-.annotation-toolbar .continue-line:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.selected-line-actions{position:absolute;right:12px;top:calc(100% + 7px);z-index:10;display:flex;gap:3px;padding:3px;border:1px solid var(--line-strong);border-radius:5px;background:var(--paper);box-shadow:0 2px 8px var(--shadow)}
+.selected-line-actions .tool{font-weight:600;color:var(--ink)}
+.selected-line-actions .tool:hover:not(:disabled){color:var(--accent);background:var(--accent-soft)}
+.paste-shot-dialog{width:min(430px,calc(100vw - 28px));padding:24px}
+.paste-shot-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.paste-shot-dialog h2{font-size:25px;margin:0 0 14px}
+.paste-shot-dialog .eyebrow{margin:0 0 5px;font-size:10px}
+.paste-shot-dialog>p{font:13px/1.6 var(--sans);color:var(--muted);overflow-wrap:anywhere}
+.paste-shot-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}
+.paste-shot-options>button{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border:1px solid var(--line-strong);border-radius:5px;background:var(--paper);color:var(--ink);text-align:left;cursor:pointer}
+.paste-shot-options>button:hover{border-color:var(--accent);background:var(--accent-soft)}
+.paste-shot-options svg{width:22px;height:22px;fill:none;stroke:var(--accent);stroke-width:1.6}
+.paste-shot-options strong{font:650 14px/1.4 var(--sans)}
+.paste-shot-options span{font:12px/1.6 var(--sans);color:var(--muted)}
+.paste-shot-options>button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.paste-shot-dialog .paste-shot-footnote{font-size:11px;margin-bottom:0}
+.shot-details-dialog .dialog-actions{flex-wrap:wrap}
+.paste-highlight-bar{flex-shrink:0;background:var(--accent-soft);color:var(--ink)}
+.pasting-shot .topbar,.pasting-shot .annotation-toolbar,.pasting-shot #annotations-panel{opacity:.5}
+.pdf-stage.is-pasting-highlight .annotation-overlay,.pdf-stage.is-pasting-highlight .annotation-overlay *,.pdf-stage.is-pasting-highlight .document-shot-tag,.pdf-stage.is-pasting-highlight .document-shot-tag *{pointer-events:none!important}
+.pdf-stage.is-pasting-highlight .textLayer{pointer-events:auto;user-select:text;touch-action:auto}
+@media(max-width:540px){.paste-shot-dialog{padding:20px}.paste-shot-options{gap:8px}.paste-shot-options>button{padding:12px}.selected-line-actions{right:8px;max-width:calc(100% - 16px)}}
 .color-picker{display:flex;align-items:center;margin-right:7px}
 .color-picker>span{display:none}
 .color-picker input{width:27px;height:27px;padding:2px;border:1px solid var(--line);border-radius:5px;background:var(--paper);cursor:pointer}
@@ -91,6 +111,18 @@ body.is-editing{height:100dvh;overflow:hidden}
 .annotation-stats{display:flex;gap:16px;padding:0 18px 17px;font-size:10px;color:var(--muted)}
 .annotation-stats b{font-weight:500;color:var(--muted)}
 .annotations-list{padding:0 14px 15px;flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
+.annotation-selection-bar{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:36px;margin:0 13px 8px;padding:4px 0;border-block:1px solid var(--line);flex-shrink:0;font:11px/1.4 var(--sans);color:var(--muted)}
+.annotation-select-all{display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer}
+.annotation-select-all input,.annotation-card .shot-select{width:15px;height:15px;margin:0;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
+.annotation-select-all input:focus-visible,.annotation-card .shot-select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.shot-selection-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+#batch-color-launch{display:flex;align-items:center;gap:6px;width:auto;height:27px;padding:3px 6px}
+#batch-color-launch>span:first-child{width:17px;height:17px}
+#batch-color-launch>.batch-color-caption{width:auto;height:auto;background:none;border:0;font:600 11px var(--sans);color:var(--ink)}
+#batch-color-launch.is-mixed>span:first-child{background:conic-gradient(var(--line-strong) 0deg 90deg,var(--paper) 90deg 180deg,var(--line-strong) 180deg 270deg,var(--paper) 270deg)}
+#clear-shot-selection{width:25px;height:27px;padding:0;border:0;border-radius:3px;background:transparent;color:var(--muted);font:20px var(--sans);cursor:pointer}
+#clear-shot-selection:hover{background:var(--surface-hover);color:var(--ink)}
+.annotation-card.is-batch-selected,.annotation-card.is-batch-selected:hover{border-top-color:var(--accent);border-right-color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-soft)}
 .empty-annotations{text-align:center;padding:55px 13px;color:var(--muted)}
 .empty-annotations>span{display:grid;place-items:center;margin:0 auto 20px;width:42px;height:42px;border-radius:50%;background:var(--paper);color:var(--faint);font-size:30px}
 .empty-annotations strong{display:block;font:19px/1.4 var(--serif);color:var(--muted)}
@@ -381,6 +413,8 @@ body.is-editing{height:100dvh;overflow:hidden}
 .highlight-action button{display:flex;align-items:center;gap:7px;border:0;border-radius:3px;padding:7px 10px;background:transparent;color:inherit;font:13px var(--sans);cursor:pointer}
 .highlight-action button:hover,.highlight-action button:focus-visible{background:var(--accent);outline:1px solid var(--accent);outline-offset:0}
 .highlight-action svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6}
+#highlight-action:popover-open{display:flex;gap:2px}
+#highlight-action button{padding:7px 8px;font-size:12px;gap:5px;white-space:nowrap}
 .editor-file{flex:0 1 auto;max-width:46%}
 .is-editing .stage-picker{display:inline-flex;align-items:center;flex-shrink:0;min-width:0;gap:2px;padding:3px;background:var(--paper);border:1px solid var(--line);border-radius:7px}
 .stage-picker button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 13px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--muted);font:500 13px var(--sans);white-space:nowrap;cursor:pointer}

@@ -69,7 +69,11 @@
     if (definition) input.addEventListener("change", () => {
       syncOther(); if (other && input.value === "other") other.focus(); else finishEditing(true, true);
     });
-    input.addEventListener("input", () => input.setCustomValidity(""));
+    function fitText() {
+      if (input.tagName !== "TEXTAREA") return;
+      input.style.height = "auto"; input.style.height = `${input.scrollHeight + 2}px`;
+    }
+    input.addEventListener("input", () => { input.setCustomValidity(""); fitText(); });
     const tools = document.createElement("div"); tools.className = "technical-cell-tools";
     const hint = document.createElement("span"); hint.textContent = field === "shotName" || definition ? "Enter: guardar" : "Ctrl + Enter: guardar";
     const save = document.createElement("button"); save.type = "submit"; save.className = "technical-cell-save"; save.textContent = "✓"; save.setAttribute("aria-label", "Guardar celda"); save.title = "Guardar celda";
@@ -90,6 +94,7 @@
     form.addEventListener("focusout", event => { if (active?.form === form && !form.contains(event.relatedTarget)) finishEditing(); });
     for (const button of cell.querySelectorAll(":scope > button")) button.hidden = true;
     active = { cell, field, form, input, other }; cell.classList.add("is-cell-editing"); cell.append(form);
+    fitText();
     $("#technical-edit-status").textContent = `Editando ${label(field).toLowerCase()}`;
     input.focus({ preventScroll: true }); if (input.tagName !== "SELECT") input.select();
   }

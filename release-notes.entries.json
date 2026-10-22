@@ -1,0 +1,12 @@
+{
+  "entries": [
+    { "id": "copy-paste-shots", "category": "new", "text": "Copia y pega planos como líneas o resaltados, conservando su ficha técnica y con numeración automática." },
+    { "id": "batch-shot-colors", "category": "new", "text": "Selecciona varios planos en Anotaciones para cambiar su color en conjunto." },
+    { "id": "script-library", "category": "new", "text": "Encuentra todos tus guiones en el inicio con miniatura y título. Añade otro con el botón +." },
+    { "id": "rename-script-files", "category": "new", "text": "Cambia el nombre de tus archivos desde su tarjeta o con el lápiz junto al nombre en el editor." },
+    { "id": "technical-full-text", "category": "improved", "text": "Las filas del guion técnico y sus campos crecen con el contenido: sonido, descripción y notas se muestran completos." },
+    { "id": "release-notes", "category": "new", "text": "Recibe las novedades de cada actualización y vuelve a consultarlas desde Notas de parche, en el inicio o el menú del editor. El aviso de lectura se guarda en tu cuenta." },
+    { "id": "performance-review", "category": "improved", "text": "Inicio más ligero, trazado de líneas con menos redibujados y mejor gestión de memoria al cambiar de vista. La biblioteca evita consultas simultáneas repetidas y la tabla técnica se prepara cuando la abres." },
+    { "id": "empty-scenes-ready", "category": "fixed", "text": "Los documentos sin escenas detectadas terminan correctamente la carga y permiten pasar a la vista de impresión." }
+  ]
+}

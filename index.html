@@ -10,31 +10,34 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='5' fill='%23262930'/%3E%3Cpath d='M10 29V11h6v14m5-3V11h6v7' fill='none' stroke='%23d0aa8e' stroke-width='4'/%3E%3C/svg%3E">
   <script src="appearance.js?v=20261020-account-theme-1"></script>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="editor.css?v=20261021-continuation-2">
+  <link rel="stylesheet" href="editor.css?v=20261022-batch-1">
   <link rel="stylesheet" href="appearance.css?v=20261020-account-theme-1">
   <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
   <link rel="stylesheet" href="cloud.css?v=20261020-cloud-1">
+  <link rel="stylesheet" href="library.css?v=20261022-library-1">
+  <link rel="stylesheet" href="patch-notes.css?v=20261022-history-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
   <script src="accounts.js?v=20261020-account-theme-1" defer></script>
   <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
   <script src="cloud.js?v=20261020-cloud-1" defer></script>
   <script src="appearance-account.js?v=20261020-account-theme-1" defer></script>
-  <script src="cloud-library.js?v=20261020-cloud-1" defer></script>
+  <script src="cloud-library.js?v=20261022-performance-1" defer></script>
   <script src="compact-popovers.js" defer></script>
-  <script src="vendor/pdf.js" defer></script>
-  <script src="vendor/pdf-assets.js" defer></script>
   <script src="coverage-lines.js?v=20261021-multipage-1" defer></script>
   <script src="scene-analysis.js?v=20261021-multipage-1" defer></script>
   <script src="shot-names.js" defer></script>
+  <script src="shot-copy.js?v=20261022-copy-1" defer></script>
   <script src="shot-values.js" defer></script>
   <script src="shot-order.js" defer></script>
   <script src="shot-colors.js" defer></script>
-  <script src="technical-script.js" defer></script>
+  <script src="technical-script.js?v=20261022-library-1" defer></script>
   <script src="label-layout.js" defer></script>
   <script src="document-labels.js" defer></script>
   <script src="pdf-export.js?v=20261021-multipage-1" defer></script>
   <script src="excel-export.js" defer></script>
-  <script src="app.js?v=20261021-continuation-2" defer></script>
+  <script src="script-preview.js?v=20261022-library-1" defer></script>
+  <script src="app.js?v=20261022-performance-1" defer></script>
+  <script src="patch-notes.js?v=20261022-history-1" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -54,6 +57,7 @@
     <symbol id="i-pointer" viewBox="0 0 24 24"><path d="m5 3 14 10-7 1-3 7z"/></symbol>
     <symbol id="i-highlight" viewBox="0 0 24 24"><path d="m9 15 8-11 4 3-8 11zM9 15l-3 5h6l1-2M3 22h18"/></symbol>
     <symbol id="i-line" viewBox="0 0 24 24"><path d="m5 19 14-14"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="m8 4-5 5 5 5M3 9h10a7 7 0 0 1 0 14"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="m16 4 5 5-5 5M21 9H11a7 7 0 0 0 0 14"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l1-6L16 3a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L10 19z"/></symbol>
@@ -99,8 +103,9 @@
       <div class="project-label">ESPACIO DE TRABAJO</div>
 
       <nav class="navigation" aria-label="Herramientas de producción">
-        <button class="nav-item active" id="nav-import" type="button" aria-current="page"><svg><use href="#i-upload"/></svg><span>Importar guion</span></button>
+        <button class="nav-item active" id="nav-import" type="button" aria-current="page"><svg><use href="#i-grid"/></svg><span>Mis guiones</span></button>
         <button class="nav-item" id="nav-editor" type="button" disabled><svg><use href="#i-coverage"/></svg><span>Guion técnico / cobertura</span></button>
+        <button class="nav-item" id="sidebar-patch-notes" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden><svg><use href="#i-script"/></svg><span>Notas de parche</span></button>
         <div class="nav-section">PREPRODUCCIÓN <span>PRÓXIMAMENTE</span></div>
         <button class="nav-item" disabled><svg><use href="#i-people"/></svg><span>Personajes</span><svg class="lock"><use href="#i-lock"/></svg></button>
         <button class="nav-item" disabled><svg><use href="#i-script"/></svg><span>Editor literario</span><svg class="lock"><use href="#i-lock"/></svg></button>
@@ -113,8 +118,8 @@
       <header class="topbar">
         <button id="toggle-annotations" class="header-icon editor-only panel-toggle" type="button" aria-label="Mostrar u ocultar escenas y anotaciones" aria-controls="annotations-panel" aria-expanded="true" title="Escenas y anotaciones"><svg><use href="#i-panel"/></svg></button>
         <button id="editor-home" class="editor-home editor-only" type="button" aria-label="Volver al inicio" title="Volver al inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>PLANO</span></button>
-        <div class="breadcrumb"><strong id="breadcrumb-current">Importar guion</strong></div>
-        <div class="editor-file editor-only"><strong id="file-name"></strong><span id="file-size"></span></div>
+        <div class="breadcrumb"><strong id="breadcrumb-current">Mis guiones</strong></div>
+        <div class="editor-file editor-only"><strong id="file-name"></strong><button id="rename-current-file" class="file-rename-button" type="button" aria-label="Cambiar nombre del archivo" title="Cambiar nombre del archivo"><svg><use href="#i-edit"/></svg></button><span id="file-size"></span></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" disabled aria-selected="false" title="Escribir el guion · Próximamente"><svg><use href="#i-lock"/></svg><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
         <button id="open-cloud" class="cloud-launch" type="button" aria-label="Abrir mis proyectos y estado del guardado" aria-haspopup="dialog" aria-controls="cloud-library" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18a4 4 0 0 1-1-7.9 7 7 0 0 1 13-2A5 5 0 0 1 18 18H6Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span id="open-cloud-label">Mis proyectos</span></button>
@@ -122,25 +127,21 @@
         <div class="editor-actions editor-only">
           
           <div class="view-mode-control" title="Vista del guion"><button id="view-mode-button" class="header-icon" type="button" aria-label="Vista del guion" aria-haspopup="menu" aria-controls="view-mode-menu" aria-expanded="false"><svg aria-hidden="true"><use href="#i-grid"/></svg></button><select id="scene-select" hidden aria-label="Vista del guion"><option value="all">Guion completo</option><option value="editing">Vista de edición</option><option value="print">Vista de impresión</option></select></div>
-          <details id="project-menu" class="project-menu"><summary class="header-icon" aria-label="Menú del proyecto" title="Menú del proyecto"><svg><use href="#i-menu"/></svg></summary><div class="project-menu-content"><span class="menu-caption">PROYECTO</span><button id="menu-home" type="button">Volver al inicio</button><button id="replace-button" type="button">Cambiar PDF</button><a id="open-document" target="_blank" rel="noopener">Abrir PDF original <svg><use href="#i-external"/></svg></a><hr><button id="export-pdf" type="button">Exportar PDF con cobertura</button><button id="export-excel" type="button" disabled>Exportar guion técnico a Excel</button><button id="save-backup" type="button">Exportar notas</button><button id="restore-backup" type="button">Importar notas</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></details>
+          <details id="project-menu" class="project-menu"><summary class="header-icon" aria-label="Menú del proyecto" title="Menú del proyecto"><svg><use href="#i-menu"/></svg></summary><div class="project-menu-content"><span class="menu-caption">GUION</span><button id="menu-home" type="button">Volver al inicio</button><button id="menu-patch-notes" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="rename-file-menu" type="button">Cambiar nombre</button><button id="replace-button" type="button">Cambiar PDF</button><a id="open-document" target="_blank" rel="noopener">Abrir PDF original <svg><use href="#i-external"/></svg></a><hr><button id="export-pdf" type="button">Exportar PDF con cobertura</button><button id="export-excel" type="button" disabled>Exportar guion técnico a Excel</button><button id="save-backup" type="button">Exportar notas</button><button id="restore-backup" type="button">Importar notas</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></details>
         </div>
       </header>
       <main id="main-content">
-        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">EL ESPACIO DE TU PRÓXIMA HISTORIA</p><h1 id="page-title">De la página al plano.</h1><p class="page-description" id="page-description">Tu guion, tu mirada. Todo listo para preparar el rodaje.</p></div><div class="edition-stamp" aria-hidden="true"><span>ESTUDIO DE GUION</span><strong>01 <span>/</span></strong><span>LA HISTORIA PRIMERO</span></div></section>
+        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">TU ESPACIO DE TRABAJO</p><h1 id="page-title">Tus guiones.</h1><p class="page-description" id="page-description">Retoma una historia o empieza a preparar la siguiente.</p></div><div class="edition-stamp" aria-hidden="true"><span>ESTUDIO DE GUION</span><strong>01 <span>/</span></strong><span>LA HISTORIA PRIMERO</span></div></section>
 
         <section class="script-workspace" aria-labelledby="workspace-title">
           <div class="workspace-toolbar"><div class="workspace-tab"><svg><use href="#i-script"/></svg><h2 id="workspace-title">Importar guion</h2></div><span class="workspace-status" id="workspace-status"><span></span>Sin documento</span></div>
 
           <div id="upload-view" class="upload-view">
-            <div class="upload-area" id="drop-zone">
-              <span class="corner top-left" aria-hidden="true"></span><span class="corner top-right" aria-hidden="true"></span><span class="corner bottom-left" aria-hidden="true"></span><span class="corner bottom-right" aria-hidden="true"></span>
-              <div class="paper-illustration" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span>PLANO / ESTUDIO DE GUION</span><b>INT. UNA NUEVA HISTORIA — DÍA</b><i></i><i></i><i></i><em>Todo empieza con una mirada.</em><div class="sample-coverage"><span>01</span></div><small>01 / COBERTURA</small></div><div class="upload-bubble"><svg><use href="#i-coverage"/></svg></div></div>
-              <p class="eyebrow upload-eyebrow">01 / EMPIEZA AQUÍ</p>
-              <h3>Tu guion, en primer plano.</h3>
-              <p class="upload-description">Sube tu PDF para detectar sus escenas y trabajar la cobertura.<br> Resalta el texto, traza líneas y prepara cada plano.</p>
-              <button class="button button-primary" id="upload-button" type="button"><svg><use href="#i-upload"/></svg><span>Subir guion PDF</span><svg class="button-arrow"><use href="#i-arrow"/></svg></button>
-              <button class="button button-secondary return-editor" id="return-editor" type="button" hidden>Volver al guion abierto</button>
-              <p class="file-hint">Formato PDF <span>·</span> Hasta 100 MB</p>
+            <div class="home-library" id="drop-zone" aria-labelledby="home-library-title">
+              <div class="home-library-heading"><div><h2 id="home-library-title">Tu biblioteca</h2><span id="home-library-count">Todos tus guiones, en un solo lugar.</span></div><div class="home-library-tools"><button id="open-patch-notes" class="patch-notes-launch" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="return-editor" class="library-return" type="button" hidden>Volver al guion abierto <span aria-hidden="true">↗</span></button><button id="home-refresh" class="header-icon" type="button" aria-label="Actualizar biblioteca" title="Actualizar biblioteca">↻</button></div></div>
+              <p id="home-library-message" class="home-library-message" role="status" hidden></p>
+              <div id="home-projects" class="home-projects"><button id="upload-button" class="new-script-card" type="button" aria-label="Añadir un nuevo guion PDF"><span class="new-script-plus" aria-hidden="true">+</span><strong>Nuevo guion</strong><span>Subir un PDF</span></button></div>
+              <div class="library-footnote"><p class="file-hint">Formato PDF · Hasta 100 MB</p><span>También puedes arrastrar tu archivo aquí.</span></div>
             </div>
             <p class="privacy-note"><svg><use href="#i-lock"/></svg>Tu historia se queda contigo. El archivo se abre en tu navegador y no se envía a ningún servidor.</p>
           </div>
@@ -150,6 +151,14 @@
               <aside class="annotations-panel" id="annotations-panel" aria-labelledby="annotations-title">
                 <div class="annotations-heading"><h2 id="annotations-title">Anotaciones <span id="annotation-count">0</span></h2><span id="scene-summary"></span></div>
                 <div class="annotation-stats"><span><b id="highlight-count">0</b> resaltes</span><span><b id="line-count">0</b> líneas</span></div>
+                <div class="annotation-selection-bar" role="group" aria-label="Selección de planos">
+                  <label class="annotation-select-all"><input id="select-all-shots" type="checkbox" aria-label="Seleccionar todos los planos"><span id="shot-selection-count" aria-live="polite">Seleccionar planos</span></label>
+                  <div id="shot-selection-actions" class="shot-selection-actions" hidden>
+                    <input id="batch-shot-color" type="color" value="#e8b83f" hidden>
+                    <button id="batch-color-launch" class="color-launch" data-color-target="batch-shot-color" type="button" aria-label="Cambiar color de los planos seleccionados"><span></span><span class="batch-color-caption">Color</span></button>
+                    <button id="clear-shot-selection" type="button" aria-label="Quitar selección" title="Quitar selección">×</button>
+                  </div>
+                </div>
                 <div class="annotations-list" id="annotations-list"></div>
                 <p id="save-status" class="save-status" aria-live="polite">Las notas se guardan en este navegador.</p>
               </aside>
@@ -158,11 +167,12 @@
                   <div class="tool-group"><button class="tool active" data-tool="select" type="button" aria-pressed="true" aria-label="Seleccionar texto" title="Seleccionar texto (V)"><svg><use href="#i-pointer"/></svg><span>Seleccionar</span></button><button class="tool" data-tool="highlight" type="button" aria-pressed="false" aria-label="Resaltar texto" title="Resaltar texto (H)"><svg><use href="#i-highlight"/></svg><span>Resaltar</span></button><button class="tool" data-tool="line" type="button" aria-pressed="false" aria-label="Dibujar línea recta" title="Dibujar una línea, también entre páginas (L). Acerca el puntero al borde para desplazar el guion."><svg><use href="#i-line"/></svg><span>Línea</span></button></div>
                   <div class="color-picker"><input id="annotation-color" type="color" value="#e8b83f" hidden><button class="color-launch" data-color-target="annotation-color" type="button" aria-label="Elegir color de las anotaciones"><span></span></button></div>
                   <button id="apply-highlight" class="tool" type="button" hidden>Resaltar selección</button>
-                  <button id="continue-line" class="tool continue-line" type="button" hidden aria-label="Continuar línea en la página siguiente"><span>Continuar línea</span><span aria-hidden="true">→</span></button>
+                  <div id="selected-line-actions" class="selected-line-actions" role="toolbar" aria-label="Acciones del plano seleccionado" hidden><button id="copy-selected-line" class="tool" type="button"><svg><use href="#i-copy"/></svg>Copiar plano</button><button id="continue-line" class="tool" type="button" hidden aria-label="Continuar línea en la página siguiente"><span>Continuar línea</span><span aria-hidden="true">→</span></button></div>
                   <button id="undo-button" class="tool" type="button" disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><svg><use href="#i-undo"/></svg></button><button id="redo-button" class="tool" type="button" disabled aria-label="Rehacer" title="Rehacer (Ctrl+Mayús+Z)"><svg><use href="#i-redo"/></svg></button>
                   <div class="zoom-controls"><span id="page-label" aria-live="polite"></span><button id="zoom-out" class="icon-button" type="button" aria-label="Reducir zoom">−</button><output id="zoom-label">100%</output><button id="zoom-in" class="icon-button" type="button" aria-label="Aumentar zoom">+</button><button id="fit-width" class="tool" type="button" title="Ajustar al ancho">Ajustar</button></div>
                 </div>
                 <div id="highlight-correction-bar" class="highlight-correction-bar" hidden><span>Selecciona el texto para corregir el resalte.</span><button id="apply-highlight-correction" type="button" disabled>Aplicar corrección</button><button id="cancel-highlight-correction" type="button">Cancelar</button></div>
+                <div id="paste-highlight-bar" class="highlight-correction-bar paste-highlight-bar" role="region" aria-label="Colocar el plano copiado" hidden><span role="status">Resalta el texto donde quieres colocar el plano copiado.</span><button id="apply-pasted-highlight" type="button" disabled>Pegar en selección</button><button id="cancel-pasted-highlight" type="button">Cancelar</button></div>
                 <div class="pdf-stage" id="pdf-stage" tabindex="0" aria-label="Visor del guion"><div id="pdf-container" class="page-host"></div><p class="render-status" id="render-status" role="status" hidden>Preparando página…</p></div>
               </div>
             </div>
@@ -176,7 +186,7 @@
           <input id="backup-input" type="file" accept=".json,application/json" aria-label="Importar una copia de anotaciones" hidden>
         </section>
 
-        <section class="coming-next" aria-labelledby="next-title"><div class="section-heading"><h2 id="next-title">Del papel a la pantalla</h2><span>LO QUE VIENE DESPUÉS</span></div><div class="feature-grid">
+        <section class="coming-next" aria-labelledby="next-title" hidden><div class="section-heading"><h2 id="next-title">Del papel a la pantalla</h2><span>LO QUE VIENE DESPUÉS</span></div><div class="feature-grid">
           <article class="feature-card"><div class="feature-top"><svg><use href="#i-people"/></svg><span>PRÓXIMAMENTE</span></div><h3>Descubre a tus personajes</h3><p>Identifica quién da vida a tu historia y organiza sus intervenciones.</p><span class="feature-number">01 / DESGLOSE</span></article>
           <article class="feature-card"><div class="feature-top"><svg><use href="#i-clapper"/></svg><span>DISPONIBLE</span></div><h3>Recorre cada escena</h3><p>Detecta los encabezados del guion y concéntrate en una escena a la vez.</p><span class="feature-number">02 / ESCENAS</span></article>
           <article class="feature-card"><div class="feature-top"><svg><use href="#i-coverage"/></svg><span>DISPONIBLE</span></div><h3>Imagina el siguiente plano</h3><p>Resalta fragmentos, traza líneas rectas y añade tus notas de cobertura.</p><span class="feature-number">03 / PLANIFICACIÓN</span></article>
@@ -186,6 +196,13 @@
     </div>
   </div>
   <button class="panel-backdrop" id="panel-backdrop" type="button" aria-label="Cerrar el panel de anotaciones" hidden></button>
+  <dialog id="patch-notes-dialog" class="patch-notes-dialog" aria-labelledby="patch-notes-title" aria-describedby="patch-notes-description">
+    <header><div><p id="patch-notes-eyebrow" class="eyebrow">EL ESTUDIO, AL DÍA</p><h2 id="patch-notes-title">Lo nuevo en PLANO</h2><p id="patch-notes-description">Las mejoras de esta actualización.</p></div><button id="close-patch-notes" class="shot-close" type="button" aria-label="Cerrar notas de versión"><svg><use href="#i-close"/></svg></button></header>
+    <div id="patch-notes-content"></div><div id="patch-notes-state" class="patch-notes-state" hidden><p id="patch-notes-state-message" role="status"></p><button id="retry-patch-notes" type="button">Actualizar</button></div><footer><span id="patch-notes-footer">El estudio sigue mejorando.</span><button id="accept-patch-notes" class="button" type="button">Entendido</button></footer>
+  </dialog>
+  <dialog id="rename-file-dialog" class="rename-file-dialog" aria-labelledby="rename-file-title">
+    <form id="rename-file-form"><header><h2 id="rename-file-title">Cambiar nombre</h2><button id="cancel-file-rename" type="button" class="shot-close" aria-label="Cancelar cambio de nombre"><svg><use href="#i-close"/></svg></button></header><label for="rename-file-input">Nombre del guion</label><div class="rename-file-input-wrap"><input id="rename-file-input" type="text" maxlength="176" autocomplete="off" required><span>.pdf</span></div><p id="rename-file-error" role="alert" hidden></p><footer><button id="save-file-rename" class="button button-primary" type="submit">Guardar nombre</button></footer></form>
+  </dialog>
   <dialog id="shot-name-dialog" class="shot-name-dialog" aria-labelledby="shot-name-title" aria-describedby="shot-name-description">
     <form id="shot-name-form">
       <p class="dialog-eyebrow">NUEVO PLANO</p>
@@ -232,7 +249,7 @@
     <div class="shot-details-production"><section><h3>Grip</h3><p id="shot-details-grip"></p></section><section><h3>Sonido</h3><p id="shot-details-sound"></p></section></div>
     <section class="shot-details-notes"><h3><svg><use href="#i-note"/></svg> Notas</h3><p id="shot-details-note"></p></section>
     <details id="shot-details-excerpt"><summary>Fragmento del guion</summary><blockquote id="shot-details-text"></blockquote></details>
-    <div class="dialog-actions"><button id="locate-shot-details" class="button button-secondary" type="button">Ver en el guion</button><button id="edit-shot-details" class="button button-primary" type="button">Editar plano</button></div>
+    <div class="dialog-actions"><button id="copy-shot-details" class="button button-secondary" type="button">Copiar plano</button><button id="locate-shot-details" class="button button-secondary" type="button">Ver en el guion</button><button id="edit-shot-details" class="button button-primary" type="button">Editar plano</button></div>
   </dialog>
   <div id="view-mode-menu" class="compact-popover view-mode-menu" popover="auto" role="menu" aria-label="Vista del guion"></div>
   <div id="appearance-dialog" class="appearance-dialog compact-popover" popover="auto" role="dialog" aria-labelledby="appearance-title">
@@ -242,7 +259,8 @@
     <button id="appearance-sync" class="appearance-sync" type="button" hidden disabled aria-live="polite"></button>
   </div>
   <div id="title-position-menu" class="highlight-action" popover="manual" role="menu" aria-label="Posición del título"><button id="toggle-title-pin" type="button" role="menuitem">Fijar posición</button></div>
-  <div id="highlight-action" class="highlight-action" popover="manual" role="toolbar" aria-label="Acciones del resalte"><button id="correct-highlight" type="button"><svg><use href="#i-highlight"/></svg>Corregir resalte</button></div>
+  <div id="highlight-action" class="highlight-action" popover="manual" role="toolbar" aria-label="Acciones del resalte"><button id="correct-highlight" type="button"><svg><use href="#i-highlight"/></svg>Corregir resalte</button><button id="copy-highlight" type="button"><svg><use href="#i-copy"/></svg>Copiar plano</button></div>
+  <dialog id="paste-shot-dialog" class="shot-name-dialog paste-shot-dialog" aria-labelledby="paste-shot-title" aria-describedby="paste-shot-description"><header><div><p class="eyebrow">PLANO COPIADO</p><h2 id="paste-shot-title">Pegar plano</h2></div><button id="close-paste-shot" class="shot-close" type="button" aria-label="Cancelar pegado"><svg><use href="#i-close"/></svg></button></header><p id="paste-shot-description"></p><div class="paste-shot-options"><button id="paste-as-line" type="button"><svg><use href="#i-line"/></svg><strong>Como línea</strong><span>Crear una línea con la misma ficha.</span></button><button id="paste-as-highlight" type="button"><svg><use href="#i-highlight"/></svg><strong>Como resaltado</strong><span>Marcar el texto donde colocar el plano.</span></button></div><p class="paste-shot-footnote">Se conservarán el color y la información. El nombre seguirá la numeración actual.</p></dialog>
   <div id="color-picker-dialog" popover="auto" role="dialog" class="shot-name-dialog color-picker-dialog compact-popover" aria-labelledby="color-picker-title">
     <form id="color-editor-form">
       <header class="shot-details-header"><div><p class="dialog-eyebrow">PALETA DE COLORES</p><h2 id="color-picker-title">Elige un color</h2></div><button id="close-color-picker" class="shot-close" type="button" aria-label="Cerrar paleta"><svg><use href="#i-close"/></svg></button></header>

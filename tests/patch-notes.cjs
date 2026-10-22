@@ -1,0 +1,79 @@
+/* Rango real de Git, recibos SQL/JWT y aviso en dos dispositivos. */
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
+const {pathToFileURL}=require('node:url'),{PGlite}=require('../tools/node_modules/@electric-sql/pglite');
+const load=name=>require(path.join(process.env.PLANO_RUNTIME_MODULES,name)),{chromium}=load('playwright');
+const {makeRelease,writeSite}=require('../tools/build-pages.cjs'),{releases,unseen}=require('../patch-notes.js');
+const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
+const base='https://rodvelsantiago-777.github.io/Pagina_Guion/',endpoint='https://hoymkaxarjkgttkgocrn.supabase.co/functions/v1/plano-cloud';
+const date=offset=>new Date(Date.now()+offset).toISOString();
+(async()=>{
+ const repo=fs.mkdtempSync(path.join(out,'release-git-')),git=args=>execFileSync('git',args,{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+ git(['init']);git(['config','user.name','Prueba']);git(['config','user.email','test@example.invalid']);
+ const entry={id:'first',category:'new',text:'Biblioteca de guiones.'};
+ fs.writeFileSync(path.join(repo,'release-notes.entries.json'),JSON.stringify({entries:[entry]}));fs.writeFileSync(path.join(repo,'app.js'),'// inicial');git(['add','.']);git(['commit','-m','Primera versión']);const first=git(['rev-parse','HEAD']);
+ fs.appendFileSync(path.join(repo,'app.js'),'\n// cambio');git(['add','.']);git(['commit','-m','fix: conserva los planos al cambiar de vista']);const second=git(['rev-parse','HEAD']);
+ const old={schema:1,releases:[{id:first,publishedAt:date(-200000),version:'Anterior',sections:[{category:'new',items:[entry.text]}]}]};
+ const fallback=makeRelease({root:repo,before:first,after:second,previous:old,publishedAt:date(-100000)});assert(fallback.releases[0].sections.some(section=>section.items.some(text=>text.includes('conserva los planos'))));assert(!fallback.releases[0].sections.flatMap(section=>section.items).includes(entry.text));
+ fs.writeFileSync(path.join(repo,'release-notes.entries.json'),JSON.stringify({entries:[entry,{id:'second',category:'improved',text:'Las filas muestran todo el texto.'}]}));git(['add','.']);git(['commit','-m','Filas adaptables']);const third=git(['rev-parse','HEAD']);
+ const feed=makeRelease({root:repo,before:second,after:third,previous:old,publishedAt:date(-50000),runNumber:3});assert.deepEqual(feed.releases[0].sections,[{category:'improved',items:['Las filas muestran todo el texto.']}]);
+ assert.deepEqual(makeRelease({root:repo,before:second,after:third,previous:feed,publishedAt:date(-1000),runNumber:4}),feed,'Un reintento del mismo commit no es otra versión');
+ assert.equal(unseen(releases(feed),{releaseId:first,publishedAt:old.releases[0].publishedAt}).length,1);assert.equal(unseen(releases(feed),null).length,1);
+ fs.mkdirSync(path.join(repo,'vendor'));fs.writeFileSync(path.join(repo,'vendor/test.js'),'// local');fs.writeFileSync(path.join(repo,'index.html'),'<link href="style.css?v=old"><script src="app.js"></script>');fs.writeFileSync(path.join(repo,'style.css'),'body{}');fs.writeFileSync(path.join(repo,'secret.env'),'no publicar');
+ writeSite(repo,path.join(repo,'site'),feed,third);assert(fs.readFileSync(path.join(repo,'site/index.html'),'utf8').includes(`app.js?v=${third}`));assert(!fs.existsSync(path.join(repo,'site/secret.env')));assert(!fs.existsSync(path.join(repo,'site/.git')));assert.deepEqual(JSON.parse(fs.readFileSync(path.join(repo,'site/release-notes.json'),'utf8')),feed);
+ const db=new PGlite();let browser;
+ try{
+  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
+  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261021001829_plano_private_cloud.sql'),'utf8'));
+  const migration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_release_receipts.sql'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',migration),'utf8'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',migration),'utf8'));
+  const receipt=async(owner,action,data={})=>(await db.query('select public.plano_release_receipt($1,$2,$3::jsonb) as value',[owner,action,JSON.stringify(data)])).rows[0].value;
+  for(const role of ['anon','authenticated']){await db.exec('set role '+role);try{await assert.rejects(db.query('select * from public.plano_release_receipts'),/permission denied/);await assert.rejects(receipt('ana','read'),/permission denied/);}finally{await db.exec('reset role');}}
+  const jose=await import(pathToFileURL(path.join(root,'tools/node_modules/jose/dist/webapi/index.js')).href),keys=await jose.generateKeyPair('RS256'),jwk=await jose.exportJWK(keys.publicKey);
+  const tokens={};for(const owner of ['ana','bob'])tokens[owner]=await new jose.SignJWT({email_verified:true,auth_time:Math.floor(Date.now()/1000)}).setProtectedHeader({alg:'RS256'}).setSubject(owner).setIssuedAt().setExpirationTime('1h').setIssuer('https://securetoken.google.com/planos-15624').setAudience('planos-15624').sign(keys.privateKey);
+  const {firebaseVerifier}=await import('../supabase/functions/plano-cloud/auth.mjs'),{createHandler}=await import('../supabase/functions/plano-cloud/handler.mjs');
+  const handler=createHandler({verify:firebaseVerifier(jose,'planos-15624',jose.createLocalJWKSet({keys:[jwk]})),releases:receipt,origins:[new URL(base).origin]});
+  const call=async(action,body={},owner='ana')=>{const response=await handler(new Request(endpoint+'?action='+action,{method:'POST',headers:{Origin:new URL(base).origin,Authorization:'Bearer '+(tokens[owner]||''),'Content-Type':'application/json'},body:JSON.stringify(body)}));return{status:response.status,...await response.json()};};
+  assert.equal((await call('release_read',{},'unknown')).status,401);assert.equal((await call('release_seen',{releaseId:'invalid/id',publishedAt:date(-1)})).status,400);assert.equal((await call('release_seen',{releaseId:'future',publishedAt:date(86400000)})).status,400);
+  assert.equal((await call('release_read')).receipt,null);await call('release_seen',{releaseId:first,publishedAt:date(-200000),owner:'bob'});assert.equal((await call('release_read',{},'bob')).receipt,null);
+  await call('release_seen',{releaseId:third,publishedAt:feed.releases[0].publishedAt});await call('release_seen',{releaseId:first,publishedAt:old.releases[0].publishedAt});assert.equal((await call('release_read')).receipt.releaseId,third,'Una pestaña vieja no retrocede la lectura');await db.exec('truncate public.plano_release_receipts,public.plano_usage');
+  let activeFeed=feed,holdRead=null;
+  browser=await chromium.launch(process.env.PLANO_BROWSER==='brave'?{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true}:{channel:'msedge',headless:true});const errors=[];
+  async function device(initialOwner='ana',viewport={width:1440,height:1000}){
+   const context=await browser.newContext({viewport}),page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
+   await page.route(base+'**',route=>{
+    const relative=decodeURIComponent(new URL(route.request().url()).pathname.slice(new URL(base).pathname.length))||'index.html';
+    if(relative==='accounts.js')return route.fulfill({contentType:'text/javascript',body:`globalThis.testOwner=${JSON.stringify(initialOwner)};globalThis.testTokens=${JSON.stringify(tokens)};globalThis.PlanoAccounts={ready:Promise.resolve(),getUser:()=>testOwner?{id:testOwner}:null,getAccessToken:async()=>testTokens[testOwner],connectWorkspace:hooks=>{globalThis.testHooks=hooks;hooks.change(testOwner);},open:()=>{}};document.body.classList.remove('auth-locked');document.querySelector('#auth-entry').hidden=true;document.querySelector('.app-shell').inert=false;`});
+    if(relative==='release-notes.json')return route.fulfill({contentType:'application/json',body:JSON.stringify(activeFeed)});
+    const file=path.resolve(root,relative);if(!file.startsWith(root+path.sep)||!fs.existsSync(file))return route.abort();
+    return route.fulfill({contentType:{'.html':'text/html','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript'}[path.extname(file)]||'application/octet-stream',body:fs.readFileSync(file)});
+   });
+   await page.route(endpoint+'**',async route=>{
+    const request=route.request(),action=new URL(request.url()).searchParams.get('action');
+    if(action==='list')return route.fulfill({contentType:'application/json',body:'{"projects":[]}'});
+    if(action?.startsWith('preferences_'))return route.fulfill({contentType:'application/json',body:'{"preferences":{"mode":"light","preset":"default"}}'});
+    const response=await handler(new Request(request.url(),{method:request.method(),headers:request.headers(),body:request.postDataBuffer()}));if(action==='release_read'&&holdRead)await holdRead;
+    await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
+   });
+   await page.goto(base);return{page,context};
+  }
+  const one=await device();await one.page.locator('#patch-notes-dialog').waitFor({state:'visible'});assert.equal(await one.page.locator('.patch-release').count(),1);assert.equal(await one.page.locator('#patch-notes-content li').textContent(),'Las filas muestran todo el texto.');await one.page.screenshot({path:path.join(out,'notas-version-claro.png')});
+  await one.page.locator('#accept-patch-notes').click();await one.page.waitForFunction(()=>!PlanoPatchNotes.info().pending);await one.page.reload();await one.page.waitForFunction(()=>PlanoPatchNotes.info().ready);assert(!(await one.page.locator('#patch-notes-dialog').isVisible()));
+  const two=await device();await two.page.waitForFunction(()=>PlanoPatchNotes.info().ready);assert(!(await two.page.locator('#patch-notes-dialog').isVisible()),'La cuenta recuerda la lectura en otro dispositivo');
+  await two.page.locator('#sidebar-patch-notes').focus();await two.page.keyboard.press('Enter');assert.equal(await two.page.locator('#patch-notes-title').textContent(),'Notas de parche');assert.equal(await two.page.locator('.patch-release').count(),2);assert.equal(await two.page.locator('#patch-notes-footer').textContent(),'2 publicaciones disponibles');await two.page.keyboard.press('Escape');
+  await two.page.evaluate(()=>document.body.classList.add('is-editing'));await two.page.locator('#project-menu summary').click();await two.page.locator('#menu-patch-notes').click();await two.page.locator('#patch-notes-dialog').waitFor({state:'visible'});assert.equal(await two.page.locator('.patch-release').count(),2);await two.page.locator('#accept-patch-notes').click();await two.page.evaluate(()=>document.body.classList.remove('is-editing'));
+  // Dos publicaciones pendientes, contenido seguro y móvil sin desbordamiento.
+  const newer={id:'d'.repeat(40),publishedAt:date(-30000),version:'Nueva',sections:[{category:'new',items:['<img src=x onerror=alert(1)>','Biblioteca renovada.']}]},latest={id:'e'.repeat(40),publishedAt:date(-10000),version:'Actual',sections:[{category:'fixed',items:['Texto completo en sonido.']}]};activeFeed={schema:1,releases:[latest,newer,...feed.releases]};
+  await two.page.reload();await two.page.locator('#patch-notes-dialog').waitFor({state:'visible'});assert.equal(await two.page.locator('.patch-release').count(),2);assert.equal(await two.page.locator('#patch-notes-content img').count(),0);await two.page.locator('#close-patch-notes').click();await two.page.waitForFunction(()=>!PlanoPatchNotes.info().pending);
+  // Otra cuenta recibe su propio aviso; Esc registra la lectura.
+  const bob=await device('bob',{width:390,height:844});await bob.page.locator('#patch-notes-dialog').waitFor({state:'visible'});assert.equal(await bob.page.locator('.patch-release').count(),1);await bob.page.screenshot({path:path.join(out,'notas-version-movil.png')});assert(await bob.page.locator('#patch-notes-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));await bob.page.keyboard.press('Escape');await bob.page.waitForFunction(()=>!PlanoPatchNotes.info().pending);
+  // Sin conexión: no se pierde el recibo, y se sincroniza al volver.
+  activeFeed={schema:1,releases:[{...latest,id:'f'.repeat(40),publishedAt:date(-2000),version:'Sin conexión'},...activeFeed.releases]};await one.page.reload();await one.page.locator('#patch-notes-dialog').waitFor({state:'visible'});await one.context.setOffline(true);await one.page.locator('#accept-patch-notes').click();assert(await one.page.evaluate(()=>PlanoPatchNotes.info().pending));await one.context.setOffline(false);await one.page.waitForFunction(()=>!PlanoPatchNotes.info().pending);
+  // Una lectura lenta de la cuenta anterior no abre notas después del cambio.
+  let release;holdRead=new Promise(resolve=>release=resolve);const slow=await device();await slow.page.waitForFunction(()=>PlanoPatchNotes.info().owner==='ana');await slow.page.evaluate(async()=>{await testHooks.change('bob');testOwner='bob';document.dispatchEvent(new CustomEvent('plano-account-change'));});holdRead=null;release();await slow.page.waitForFunction(()=>PlanoPatchNotes.info().owner==='bob'&&PlanoPatchNotes.info().ready);await slow.page.locator('#patch-notes-dialog').waitFor({state:'visible'});await slow.page.locator('#accept-patch-notes').click();
+  await two.page.locator('#toggle-theme').click();await two.page.locator('#open-patch-notes').click();await two.page.screenshot({path:path.join(out,'notas-version-oscuro.png')});
+  await bob.page.setViewportSize({width:320,height:844});await bob.page.evaluate(()=>document.querySelector('#return-editor').hidden=false);assert(await bob.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  activeFeed={schema:1,releases:[]};const empty=await device();await empty.page.waitForFunction(()=>PlanoPatchNotes.info().ready);assert(await empty.page.locator('#open-patch-notes').isVisible());await empty.page.locator('#open-patch-notes').click();await empty.page.locator('#patch-notes-state').waitFor({state:'visible'});assert((await empty.page.locator('#patch-notes-state-message').textContent()).includes('Todavía no hay'));
+  await empty.page.route(base+'release-notes.json',route=>route.abort());await empty.page.locator('#retry-patch-notes').click();await empty.page.waitForFunction(()=>document.querySelector('#patch-notes-state-message').textContent.includes('No pudimos'));await empty.page.unroute(base+'release-notes.json');activeFeed=feed;await empty.page.locator('#retry-patch-notes').click();await empty.page.locator('.patch-release').first().waitFor();assert.equal(await empty.page.locator('.patch-release').count(),2);assert(!(await empty.page.locator('#patch-notes-state').isVisible()));
+  await empty.page.screenshot({path:path.join(out,'historial-notas-parche.png')});assert.deepEqual(errors,[]);
+  console.log('OK: notas desde Git/push, textos claros, fallback, reintentos, paquete estático, SQL y permisos, JWT, cuenta/dispositivo, versiones omitidas, HTML seguro, Esc, consulta manual, offline, cambio de cuenta y móvil.');
+ }finally{if(browser)await browser.close();await db.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

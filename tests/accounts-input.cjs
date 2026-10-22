@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
 const config={apiKey:'AIza'+'a'.repeat(35),authDomain:'plano-input-test.firebaseapp.com',projectId:'plano-input-test',appId:'1:123456789:web:123456abcdef'};
 const brave=process.env.PLANO_BRAVE_EXE||'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe';
 const targets=[{name:'Edge',channel:'msedge',headless:true}];
-if(fs.existsSync(brave))targets.push({name:'Brave',executablePath:brave,headless:false});
+if(fs.existsSync(brave))targets.push({name:'Brave',executablePath:brave,headless:process.env.PLANO_INPUT_HEADFUL!=='1'});
 else console.log('SKIP: Brave no está instalado; usa PLANO_BRAVE_EXE para indicar su ejecutable.');
 (async()=>{
  fs.mkdirSync(path.join(__dirname,'.output'),{recursive:true});

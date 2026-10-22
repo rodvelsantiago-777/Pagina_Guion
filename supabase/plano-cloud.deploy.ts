@@ -35,7 +35,7 @@ function validPayload(data){
  // El cliente valida además coordenadas, páginas y campos de cada plano al abrir.
  for(const note of data.annotations)if(!note||typeof note.id!=='string'||note.id.length>120||!['line','highlight'].includes(note.type))fail('INVALID_INPUT');
 }
-function createHandler({verify,rpc,preferences,upload,download,remove,origins}){
+function createHandler({verify,rpc,preferences,releases,upload,download,remove,origins}){
  return async request=>{
   const origin=request.headers.get('origin')||'',allowed=origins.includes(origin);
   const headers={'Cache-Control':'no-store','Vary':'Origin'};
@@ -66,6 +66,11 @@ function createHandler({verify,rpc,preferences,upload,download,remove,origins}){
    }
    const bytes=await readLimited(request,PAYLOAD_LIMIT+4096);
    let body;try{body=JSON.parse(new TextDecoder().decode(bytes)||'{}');}catch{fail('INVALID_INPUT');}
+   if(action==='release_read'||action==='release_seen'){
+    if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
+    if(action==='release_seen'&&(typeof body.releaseId!=='string'||!/^[a-zA-Z0-9._-]{1,100}$/.test(body.releaseId)||typeof body.publishedAt!=='string'||!Number.isFinite(Date.parse(body.publishedAt))||Date.parse(body.publishedAt)<Date.UTC(2020,0,1)||Date.parse(body.publishedAt)>Date.now()+300000))fail('INVALID_INPUT');
+    return json({receipt:await releases(owner,action==='release_read'?'read':'seen',body)});
+   }
    if(action==='preferences_read'||action==='preferences_save'){
     if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
     const patch=body.patch;
@@ -121,6 +126,7 @@ async function service(path:string,options:RequestInit={}){
 const object=(owner:string,id:string)=>`/storage/v1/object/plano-pdfs/${encodeURIComponent(owner)}/${id}.pdf`;
 Deno.serve(createHandler({
  verify:firebaseVerifier(jose,projectId),origins,
+ releases:async(owner:string,action:string,data:unknown)=>(await service('/rest/v1/rpc/plano_release_receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_action:action,p_data:data})})).json(),
  preferences:async(owner:string,action:string,patch:unknown)=>(await service('/rest/v1/rpc/plano_preferences',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_action:action,p_patch:patch})})).json(),
  rpc:async(owner:string,action:string,id:string|null,data:unknown)=>(await service('/rest/v1/rpc/plano_cloud',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_action:action,p_id:id,p_data:data})})).json(),
  upload:async(owner:string,id:string,bytes:Uint8Array)=>{await service(object(owner,id),{method:'POST',headers:{'Content-Type':'application/pdf','x-upsert':'false'},body:bytes});},

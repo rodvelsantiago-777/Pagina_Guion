@@ -395,6 +395,8 @@ async function assertLabelClearance(page) {
     assert.equal(await page.locator('#annotation-count').textContent(),'2','Archivo inválido conserva trabajo');
     await page.locator('#file-input').setInputFiles({name:'escaneado.pdf',mimeType:'application/pdf',buffer:scanned});
     await page.locator('.no-scenes-view').waitFor();
+    assert(await page.evaluate(()=>state.rendered&&!state.busy),'Un PDF sin escenas termina la carga y permite cambiar de vista');
+    assert((await page.locator('#page-label').getAttribute('aria-label')).includes('sin escenas detectadas'));
     await page.locator('#scene-select').selectOption('print', {force:true}); await ready(page);
     assert.equal(await page.locator('#scene-select option').count(),3);
     assert.equal(await page.locator('.reader-help,#scene-notice,#tool-help').count(),0,'Se retiró el bloque Ayuda del visor');

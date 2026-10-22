@@ -29,7 +29,7 @@ async function documentSnapshot(page){const snapshot=await page.evaluate(async()
    const context=await browser.newContext({viewport:{width:1540,height:1100}}),page=await context.newPage(),errors=[];
    page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
    assert.equal(await page.locator('html').getAttribute('data-theme'),'light');readable(await tokens(page));
-   assert.equal(await page.locator('.upload-area').evaluate(el=>getComputedStyle(el).backgroundImage),'none');
+   assert.equal(await page.locator('#drop-zone').evaluate(el=>getComputedStyle(el).backgroundImage),'none');
    await page.screenshot({path:path.join(output,'estudio-inicio-claro.png'),fullPage:true});
    await page.locator('#toggle-theme').click();assert.equal(await page.locator('#toggle-theme').getAttribute('aria-pressed'),'true');readable(await tokens(page));
    await page.screenshot({path:path.join(output,'estudio-inicio-oscuro.png'),fullPage:true});

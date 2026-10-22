@@ -28,6 +28,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
   const sql=fs.readFileSync(path.join(root,'supabase/migrations/20261021001829_plano_private_cloud.sql'),'utf8');await db.exec(sql);await db.exec(sql);
   const prefsMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_account_preferences.sql'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',prefsMigration),'utf8'));
+  const libraryMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_library_previews.sql'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',libraryMigration),'utf8'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',libraryMigration),'utf8'));
   await db.exec('set role service_role');try{assert.equal(await preferences('ana','read',{}),null);}finally{await db.exec('reset role');}
   for(const role of ['anon','authenticated']){await db.exec('set role '+role);try{await assert.rejects(db.query('select * from public.plano_preferences'),/permission denied/);await assert.rejects(db.query("select public.plano_preferences('ana','read')"),/permission denied/);}finally{await db.exec('reset role');}}
   assert.equal((await json('preferences_read',{},'')).status,401);
@@ -76,7 +77,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await db.exec('truncate public.plano_projects,public.plano_usage');
   console.log('OK servidor: firmas JWT, verificación de correo, RLS, separación de cuentas, revisiones, cuotas, deduplicación y recuperación de subidas/borrados interrumpidos.');
 
-  browser=await chromium.launch({channel:'msedge',headless:true});
+  browser=await chromium.launch(process.env.PLANO_BROWSER==='brave'?{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true}:{channel:'msedge',headless:true});
   const errors=[];
   async function newDevice(owner='ana',options={}){
    const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();
@@ -91,6 +92,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
    await page.route(endpoint+'**',async route=>{
     const request=route.request();const response=await handler(new Request(request.url(),{method:request.method(),headers:request.headers(),body:request.postDataBuffer()||undefined}));
     if(request.url().includes('action=preferences_read')&&options.holdRead)await options.holdRead;
+    if(request.url().includes('action=list')){options.onList?.();if(options.holdList)await options.holdList;}
     await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
    });
    await page.goto(base);await page.waitForFunction(()=>globalThis.PlanoCloudLibrary&&PlanoCloud.info().owner);
@@ -161,12 +163,42 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await two.page.locator('#cloud-reload').click();await two.page.waitForFunction(()=>state.annotations[0].shotName==='Sin conexión');
   await two.page.locator('#cloud-projects').getByRole('button',{name:'Renombrar'}).click();await two.page.getByRole('textbox',{name:'Nombre del proyecto'}).fill('Historia final.pdf');await two.page.locator('.cloud-rename').getByRole('button',{name:'Guardar',exact:true}).click();await two.page.getByRole('button',{name:'Historia final.pdf',exact:true}).waitFor();
   assert.equal(await two.page.locator('#file-name').textContent(),'Historia final.pdf');
+  await two.page.locator('#close-cloud').click();
+  // Renombrado desde el editor: conserva PDF, notas y nombre de las exportaciones.
+  await two.page.locator('#rename-current-file').click();await two.page.locator('#rename-file-input').fill('Historia editada');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});
+  assert.equal(await two.page.locator('#file-name').textContent(),'Historia editada.pdf');assert.equal((await rpc('ana','read',id,{})).name,'Historia editada.pdf');assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Sin conexión');
+  await two.page.locator('#editor-home').click();await two.page.locator('.script-card-name').filter({hasText:'Historia editada'}).waitFor();await two.page.locator('.script-card-preview img').waitFor();
+  assert.equal(await two.page.locator('.script-card').count(),1);assert(await two.page.locator('#upload-button .new-script-plus').isVisible());
+  assert.equal(await two.page.evaluate(()=>Object.values(localStorage).some(value=>value.includes('data:image/jpeg'))),false,'Las miniaturas privadas no se escriben en localStorage');
+  const summary=(await rpc('ana','list',null,{})).projects[0];assert(summary.thumbnail.startsWith('data:image/jpeg;base64,')&&summary.thumbnail.length<=20000);assert(!('payload'in summary),'La biblioteca no descarga todas las notas');
+  await two.page.locator('.script-rename').click();await two.page.locator('#rename-file-input').fill('   ');await two.page.locator('#save-file-rename').click();assert(await two.page.locator('#rename-file-dialog').isVisible());
+  await two.page.locator('#rename-file-input').fill('Guion desde el inicio');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});await two.page.locator('.script-card-name').filter({hasText:'Guion desde el inicio'}).waitFor();assert.equal(await two.page.locator('#file-name').textContent(),'Guion desde el inicio.pdf');
+  await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-claro.png'),fullPage:true});await two.page.locator('#toggle-theme').click();await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-oscuro.png'),fullPage:true});
+  // Otro dispositivo recibe la miniatura sin volver a descargar el archivo.
+  let releaseList,listCalls=0;const heldList=new Promise(resolve=>releaseList=resolve);
+  const library=await newDevice('ana',{holdList:heldList,onList:()=>listCalls++});
+  await library.page.evaluate(()=>{globalThis.concurrentLibraryReads=Promise.all([PlanoCloudLibrary.showHome(),PlanoCloudLibrary.showHome(),PlanoCloudLibrary.showHome()]);});
+  releaseList();await library.page.evaluate(()=>concurrentLibraryReads);
+  await library.page.locator('.script-card-preview img').waitFor();assert.equal(listCalls,1,'Las cargas simultáneas del inicio comparten una única petición a la biblioteca');
+  assert.equal(await library.page.evaluate(()=>performance.getEntriesByType('resource').filter(entry=>entry.name.includes('action=download')).length),0);await library.context.close();
+  // Guion antiguo sin miniatura: se prepara una vez y conserva sus anotaciones.
+  const legacyDoc=await PDFDocument.create(),legacyFont=await legacyDoc.embedFont(StandardFonts.Courier);legacyDoc.addPage([595,842]).drawText('LA SIGUIENTE HISTORIA',{x:85,y:600,size:18,font:legacyFont});
+  const legacyProject=(await create(Buffer.from(await legacyDoc.save()),'La siguiente historia.pdf')).project;await two.page.locator('#home-refresh').click();await two.page.locator(`.script-card[data-project-id="${legacyProject.id}"] img`).waitFor();await two.page.evaluate(()=>PlanoCloudLibrary.finishPreview());
+  assert((await rpc('ana','read',legacyProject.id,{})).payload.thumbnail.startsWith('data:image/jpeg;base64,'));assert.equal((await rpc('ana','read',legacyProject.id,{})).payload.annotations.length,0);
+  await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-varios.png'),fullPage:true});
+  // «+» abre el selector de archivo y las tarjetas abren el guion correspondiente.
+  const chooser=two.page.waitForEvent('filechooser');await two.page.locator('#upload-button').click();await chooser;
+  await two.page.locator(`.script-card[data-project-id="${id}"] .script-card-open`).click();await two.page.waitForFunction(()=>state.screen==='editor'&&!state.busy);assert.equal(await two.page.locator('#file-name').textContent(),'Guion desde el inicio.pdf');
+  await two.page.locator('#editor-home').click();await two.page.locator(`.script-card[data-project-id="${legacyProject.id}"]`).waitFor();
+  await two.page.setViewportSize({width:390,height:844});assert(await two.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-movil.png'),fullPage:true});
+  await rpc('ana','delete_begin',legacyProject.id,{revision:(await rpc('ana','read',legacyProject.id,{})).revision});await rpc('ana','delete_finish',legacyProject.id,{});files.delete('ana/'+legacyProject.id);await two.page.locator('#home-refresh').click();
+  await two.page.locator('#open-cloud').click();await two.page.locator('#cloud-projects .cloud-project').waitFor();
   const other=await newDevice('bob');await other.page.locator('#open-cloud').click();await other.page.locator('#cloud-empty').waitFor({state:'visible'});assert.equal(await other.page.locator('.cloud-project').count(),0);
   await two.page.screenshot({path:path.join(root,'tests/.output/proyectos-nube.png'),fullPage:true});
   await two.page.setViewportSize({width:390,height:844});assert.equal(await two.page.evaluate(()=>document.querySelector('#cloud-library').scrollWidth<=document.querySelector('#cloud-library').clientWidth+1),true);
   await two.page.locator('#cloud-projects').getByRole('button',{name:'Eliminar',exact:true}).click();await two.page.locator('#cloud-empty').waitFor({state:'visible'});assert.equal(files.size,0);assert.equal(await two.page.evaluate(()=>state.pdf),null);
   await one.page.evaluate(()=>{PlanoCloud.changeOwner('');closeDocument();});
   assert.deepEqual(errors,[]);
-  console.log('OK navegador: subida, autoguardado, segundo dispositivo, sin copias locales, desconexión/recuperación, conflicto sin sobrescritura, copia JSON, renombrado, borrado, aislamiento entre cuentas y móvil.');
+  console.log('OK navegador: subida, autoguardado, biblioteca con miniaturas entre dispositivos y guiones antiguos, sin copias locales, renombrado desde inicio/editor, +, apertura, desconexión/recuperación, conflicto sin sobrescritura, copia JSON, borrado, aislamiento entre cuentas y móvil.');
  }finally{if(browser)await browser.close();await db.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

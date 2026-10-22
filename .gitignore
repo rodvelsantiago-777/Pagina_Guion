@@ -1,2 +1,4 @@
 tests/.output/
 tools/node_modules/
+supabase/.temp/
+_site/

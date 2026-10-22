@@ -55,7 +55,8 @@ async function importNotes(page,data) {await page.locator('#backup-input').setIn
     for(const key of Object.keys(production)) assert.equal(original[key],production[key],'Conserva el texto escrito al crear');
     for(const [field,key] of [['angle','shotAngle'],['lens','shotLens'],['movement','shotMovement']]) {assert.equal(original[key],'other');assert.equal(original[key+'Other'],custom[field]);}
     const card=page.locator('.annotation-card').first();
-    assert.equal(await card.locator('select,input,textarea').count(),0,'Tarjeta de lectura sin controles de formulario');
+    assert.equal(await card.locator('select,input:not(.shot-select),textarea').count(),0,'Tarjeta de lectura sin editores de campos técnicos');
+    assert.equal(await card.locator('input.shot-select[type="checkbox"]').count(),1,'Permite seleccionar el plano para acciones en conjunto');
     assert.equal(await card.locator('.annotation-specs').textContent(),'PMPicada oblicuaÓptica experimental');
     const preview=await card.locator('.annotation-description').textContent(); assert.equal(Array.from(preview).length,160); assert(preview.endsWith('…'));
     assert.equal(await card.locator('.annotation-has-notes').count(),1);
