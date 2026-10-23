@@ -9,7 +9,7 @@ const MAX_SIZE = 100 * 1024 * 1024;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const state = {
   pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, thumbnail: null, pages: [], scenes: [],
-  annotations: [], history: [], future: [], selectedShots: new Set(), scene: "all", segmentIndex: 0,
+  annotations: [], corrections: [], activeCorrection: null, history: [], future: [], selectedShots: new Set(), scene: "all", segmentIndex: 0,
   tool: "select", zoom: 1, fit: true, renderId: 0, loadId: 0,
   viewer: null, panelOpen: null, viewAnchor: null, pending: null, editing: null, details: null, highlightCorrection: null, highlightAction: null, stage: "coverage", selectedLine: null, lineGesture: null,
   segments: [], drawing: null, rendered: false, renderWidth: 0, busy: false, screen: "import", titleMenu: null, exporting: false, pasteChoice: null, pasteHighlight: null
@@ -17,6 +17,7 @@ const state = {
 
 let copiedShot = null;
 let annotationDrawFrame = 0;
+let preparingLinkedText = false;
 let feedbackTimer;
 function message(text, error = false) {
   clearTimeout(feedbackTimer);
@@ -35,6 +36,7 @@ function busy(value) {
   $("#replace-button").disabled = value;
   $(".script-workspace").setAttribute("aria-busy", String(value));
   $("#document-view").inert = value; $("#technical-view").inert = value;
+  syncTechnicalWindowLock();
 }
 
 function showScreen(screen) {
@@ -181,18 +183,19 @@ async function upload(file, options = {}) {
     }
     if (id !== state.loadId) { await candidate.destroy(); return; }
     let cloudProject = options.project || null;
-    let incomingPayload = null, incomingNotes = null;
+    let incomingPayload = null, incomingNotes = null, incomingCorrections = null;
     if (PlanoCloud.configured) {
       if (!cloudProject) cloudProject = await PlanoCloud.importFile(file);
       if (cloudProject.fingerprint !== hash) throw new Error("La huella del PDF no coincide con el proyecto. Vuelve a descargarlo.");
       incomingPayload = PlanoCloud.preview(cloudProject);
       incomingNotes = validateNotes(incomingPayload.annotations, pdf.numPages);
+      incomingCorrections = PlanoCorrections.validate(incomingPayload.corrections, pdf.numPages);
       await PlanoCloud.flush();
       if (id !== state.loadId) { await candidate.destroy(); return; }
     }
     cancelRendering();
     clearShotSelection();
-    $("#technical-table-body").replaceChildren();
+    PlanoTechnicalScript.clear(); $("#technical-table-body").replaceChildren(); PlanoTechnicalWindow.invalidate();
     const previousPdf = state.pdf;
     if (state.url) URL.revokeObjectURL(state.url);
     state.pdf = pdf; state.loading = null; state.file = cloudProject ? new File([file], cloudProject.name, { type: 'application/pdf' }) : file;
@@ -204,6 +207,7 @@ async function upload(file, options = {}) {
     const cloudPayload = cloudProject ? PlanoCloud.attach(cloudProject) : null;
     state.thumbnail = PlanoScriptPreview.valid(cloudPayload?.thumbnail) ? cloudPayload.thumbnail : null;
     state.annotations = cloudPayload && !cloudProject.created ? incomingNotes : readSavedNotes();
+    state.corrections = cloudPayload && !cloudProject.created ? incomingCorrections : readSavedCorrections();
     state.history = []; state.future = []; state.scene = "all"; state.stage = "coverage";
     state.segmentIndex = 0; state.fit = true; state.zoom = 1; state.drawing = null; state.viewAnchor = null;
     if (cloudPayload?.view && !cloudProject.created) {
@@ -251,6 +255,7 @@ function currentLibraryProject() {
 function renameDocumentFile(name) {
   state.file = new File([state.file], name, { type: "application/pdf" });
   $("#file-name").textContent = name; $("#file-name").title = name;
+  PlanoTechnicalWindow.publish();
 }
 async function buildLibraryPreview(project) {
   const owner = PlanoCloud.info().owner;
@@ -334,7 +339,7 @@ $("#view-mode-menu").addEventListener("keydown", event => {
   }
 });
 function refreshSegments() {
-  state.segments = sceneTools.workingSegments(state.scenes, state.pages, state.scene, state.annotations);
+  state.segments = sceneTools.workingSegments(state.scenes, state.pages, state.scene, [...state.annotations, ...PlanoCorrections.annotations(state.corrections)]);
   state.segmentIndex = Math.max(0, Math.min(state.segmentIndex, state.segments.length - 1));
 }
 function cancelRendering() {
@@ -517,7 +522,7 @@ async function renderContext(context) {
     canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`;
     const textLayer = document.createElement("div"); textLayer.className = "textLayer"; textLayer.setAttribute("aria-label", `Texto de la página ${segment.page}`);
     const svg = document.createElementNS(SVG_NS, "svg"); svg.classList.add("annotation-overlay");
-    svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-label", "Capa de líneas y resaltados");
+    svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-label", "Capa de líneas, resaltados y correcciones");
     content.append(canvas, textLayer, svg); crop.replaceChildren(content);
     context.content = content; context.svg = svg;
     const task = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null });
@@ -549,7 +554,7 @@ async function renderContext(context) {
     textLayer.addEventListener("pointerup", event => {
       const point = { x: event.clientX, y: event.clientY }, down = highlightDown; highlightDown = null;
       setTimeout(() => {
-        if (state.tool === "highlight") highlightSelection();
+        if (["highlight", "correction"].includes(state.tool) && state.pasteHighlight?.kind !== "script-link") highlightSelection();
         else if (state.tool === "select" && !state.highlightCorrection && down && Math.hypot(point.x - down.x, point.y - down.y) < 5 && window.getSelection()?.isCollapsed) {
           const bounds = content.getBoundingClientRect(), x = (point.x - bounds.left) / viewport.width, y = (point.y - bounds.top) / viewport.height;
           const item = [...state.annotations].reverse().find(note => note.type === "highlight" && note.page === segment.page && note.rects.some(rect => x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height));
@@ -609,6 +614,8 @@ function setTool(tool) {
   if (state.highlightCorrection) cancelHighlightCorrection();
   cancelDrawing(false); cancelLineGesture(false); state.selectedLine = null;
   state.tool = tool; state.drawing = null;
+  $("#correction-tool-bar").hidden = tool !== "correction";
+  $(".color-picker").hidden = tool === "correction";
   for (const button of document.querySelectorAll("button[data-tool]")) {
     const active = button.dataset.tool === tool;
     button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
@@ -626,10 +633,12 @@ function selectionInPage() {
 function updateSelectionButton() {
   const selected = Boolean(selectionInPage());
   $("#apply-highlight").hidden = !selected || Boolean(state.highlightCorrection || state.pasteHighlight);
+  $("#apply-highlight").textContent = state.tool === "correction" ? "Marcar corrección" : "Resaltar selección";
   $("#apply-pasted-highlight").disabled = !selected;
   $("#apply-highlight-correction").disabled = !selected;
 }
 function highlightSelection() {
+  if (!state.pdf || state.pending || state.editing || state.lineGesture || state.busy || state.exporting) return;
   const selection = selectionInPage();
   if (!selection) return;
   const original = selection.getRangeAt(0);
@@ -657,8 +666,17 @@ function highlightSelection() {
   selection.removeAllRanges(); updateSelectionButton();
   if (state.pasteHighlight) {
     const pending = state.pasteHighlight; finishPastedHighlight();
+    if (pending.kind === "script-link") { restoreLinkedEditor(pending, notes); return; }
     try { if (state.pdf === pending.pdf) { commitPastedNotes(notes, pending.copy); message("Plano pegado en el texto seleccionado."); } }
     catch (error) { message(`No se pudo pegar el plano. ${error.message}`, true); }
+  }
+  else if (state.tool === "correction") {
+    try {
+      if (state.corrections.length >= 1000) throw new Error("El documento ya tiene 1000 correcciones.");
+      const correction = PlanoCorrections.create(notes, state.pdf.numPages);
+      remember(); state.corrections.push(correction); $("#script-corrections").open = true;
+      changed(); message("Corrección marcada en el texto.");
+    } catch (error) { message(`No se pudo marcar la corrección. ${error.message}`, true); }
   }
   else if (state.highlightCorrection) replaceHighlight(notes);
   else requestNamedAnnotations(notes);
@@ -684,21 +702,69 @@ function replaceHighlight(notes) {
   cancelHighlightCorrection(); changed(); message("Resalte corregido. Se han conservado el nombre y la ficha del plano.");
 }
 function hideHighlightAction() {
+  hideCorrectionAction();
   hideTitlePositionMenu();
   state.highlightAction = null;
   const action = $("#highlight-action");
   if (action.matches(":popover-open")) action.hidePopover();
 }
+function hideCorrectionAction() {
+  state.activeCorrection = null;
+  const action = $("#correction-action"); if (action.matches(":popover-open")) PlanoPopover.hide(action);
+}
+function showCorrectionAction(id, point) {
+  if (!canSelectShots() || !state.corrections.some(item => item.id === id)) return;
+  hideHighlightAction(); state.activeCorrection = id;
+  PlanoPopover.show($("#correction-action"), point); $("#delete-correction").focus({ preventScroll: true });
+}
+function removeCorrection(id) {
+  if (!canSelectShots() || !state.corrections.some(item => item.id === id)) return;
+  hideCorrectionAction(); remember(); state.corrections = state.corrections.filter(item => item.id !== id); changed();
+  message("Corrección eliminada. Puedes recuperarla con Deshacer.");
+}
+function refreshCorrections() {
+  $("#script-corrections").hidden = !state.corrections.length;
+  $("#script-correction-count").textContent = state.corrections.length;
+  const list = $("#script-correction-list"), fragment = document.createDocumentFragment();
+  for (const item of state.corrections) {
+    const card = document.createElement("div"); card.className = "script-correction-card"; card.dataset.correctionId = item.id;
+    const jump = document.createElement("button"); jump.type = "button"; jump.className = "script-correction-jump";
+    const text = document.createElement("span"); text.textContent = item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
+    jump.title = text.textContent; jump.setAttribute("aria-label", `Localizar corrección: ${text.textContent.slice(0,160)}`);
+    const pages = [...new Set(item.parts.map(part => part.page))].sort((a,b)=>a-b), meta = document.createElement("small");
+    meta.textContent = pages.length>1 ? `Páginas ${pages[0]}–${pages.at(-1)}` : `Página ${pages[0]}`;
+    jump.append(text, meta); jump.addEventListener("click", () => { if (canSelectShots()) jumpToAnnotation(PlanoCorrections.annotations([item])[0]); });
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "script-correction-remove"; remove.textContent = "×"; remove.setAttribute("aria-label", "Quitar corrección"); remove.title = "Quitar corrección"; remove.addEventListener("click", () => removeCorrection(item.id));
+    card.append(jump, remove); fragment.append(card);
+  }
+  list.replaceChildren(fragment);
+}
+$("#finish-corrections").addEventListener("click", () => setTool("select"));
+$("#delete-correction").addEventListener("click", () => removeCorrection(state.activeCorrection));
+$("#correction-action").addEventListener("toggle", () => { if (!$("#correction-action").matches(":popover-open")) state.activeCorrection = null; });
+document.addEventListener("pointerdown", event => { if (state.activeCorrection && !$("#correction-action").contains(event.target)) hideCorrectionAction(); });
 function hideTitlePositionMenu() {
   state.titleMenu = null;
   const menu = $("#title-position-menu");
   if (menu.matches(":popover-open")) PlanoPopover.hide(menu);
 }
-function showTitlePositionMenu(item, point, position) {
-  hideHighlightAction(); state.titleMenu = { id: item.id, position };
+function showTitlePositionMenu(item, point, position, linePosition) {
+  hideHighlightAction(); state.titleMenu = { id: item.id, position, linePosition };
+  $("#toggle-title-safety").textContent = item.labelUnrestricted ? "Volver a colocación protegida" : "Mover sin proteger el contenido";
+  $("#toggle-title-pin").hidden = item.type === "line";
   $("#toggle-title-pin").textContent = item.labelPinned ? "Liberar posición" : "Fijar posición";
-  PlanoPopover.show($("#title-position-menu"), point); $("#toggle-title-pin").focus({ preventScroll: true });
+  PlanoPopover.show($("#title-position-menu"), point); $("#toggle-title-safety").focus({ preventScroll: true });
 }
+$("#toggle-title-safety").addEventListener("click", () => {
+  const menu = state.titleMenu, item = state.annotations.find(note => note.id === menu?.id);
+  if (!item) return;
+  remember();
+  if (item.labelUnrestricted) delete item.labelUnrestricted;
+  else { item.labelUnrestricted = true; delete item.labelPinned; }
+  if (item.type === "line") { if (menu.linePosition) item.lineLabel = menu.linePosition; }
+  else if (menu.position) item.labelPosition = menu.position;
+  hideTitlePositionMenu(); changed(); $("#pdf-stage").focus({ preventScroll: true });
+});
 $("#toggle-title-pin").addEventListener("click", () => {
   const menu = state.titleMenu, item = state.annotations.find(note => note.id === menu?.id);
   if (!item) return;
@@ -848,11 +914,12 @@ function scheduleAnnotationDraw() {
   });
 }
 function drawAnnotations(onlyContext = null) {
+  syncTechnicalWindowLock();
   if (!onlyContext?.segment) { cancelAnimationFrame(annotationDrawFrame); annotationDrawFrame = 0; }
   syncContinueLine();
   // Los listeners pueden pasar un evento: solo se aceptan contextos de página aquí.
   const contexts = onlyContext?.segment ? [onlyContext] : Array.from(state.viewer?.contexts.values() || []);
-  const items = [...state.annotations, ...(state.pending?.items || [])].map(item => state.lineGesture && item.id === state.lineGesture.id ? state.lineGesture.draft : item);
+  const items = [...state.annotations, ...PlanoCorrections.annotations(state.corrections), ...(state.pending?.items || [])].map(item => state.lineGesture && item.id === state.lineGesture.id ? state.lineGesture.draft : item);
   const pages = new Map();
   for (const context of contexts) {
     if (!context.svg || context.status !== "ready") continue;
@@ -861,7 +928,19 @@ function drawAnnotations(onlyContext = null) {
     const annotations = pages.get(context.segment.page).filter(item => annotationInSegment(item, context.segment));
     for (const annotation of annotations.filter(item => item.page === context.segment.page)) {
       const group = svgElement("g", { "data-annotation-id": annotation.id || "pending", ...(annotation.id ? {} : { class: "pending-annotation" }) });
-      if (annotation.type === "highlight") {
+      if (annotation.correction) {
+        group.classList.add("script-correction-mark");
+        const size = state.pages[annotation.page - 1], shapes = PlanoCorrections.zigzags(annotation.rects, size);
+        for (const shape of shapes) {
+          const points = shape.map(point => `${point.x * 1000},${point.y * 1000}`).join(" ");
+          group.append(svgElement("polyline", { class: "script-correction-underline", points, fill: "none", stroke: PlanoCorrections.color, "stroke-width": .9 * context.viewport.scale, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round", "stroke-linecap": "round" }));
+          const hit = svgElement("polyline", { class: "correction-hit-target", points, tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Corrección: ${annotation.text.slice(0, 160)}` });
+          hit.addEventListener("pointerdown", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); } });
+          hit.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); showCorrectionAction(annotation.correctionId, { x: event.clientX, y: event.clientY }); });
+          hit.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); const box = hit.getBoundingClientRect(); showCorrectionAction(annotation.correctionId, { x: box.left, y: box.bottom }); } });
+          group.append(hit);
+        }
+      } else if (annotation.type === "highlight") {
         for (const rect of annotation.rects) group.append(svgElement("rect", { x: rect.x * 1000, y: rect.y * 1000, width: rect.width * 1000, height: rect.height * 1000, fill: annotation.color, "fill-opacity": 0.38, stroke: "none" }));
       } else group.append(lineElement(annotation.start, annotation.end, annotation.color), ...lineCaps(annotation.start, annotation.end, annotation.color, context.viewport, annotation));
       if (annotation.id && annotation.type === "line") {
@@ -879,7 +958,7 @@ function drawAnnotations(onlyContext = null) {
     }
     const selected = state.tool === "select" && annotations.find(item => item.id === state.selectedLine && item.type === "line");
     if (selected) drawLineHandles(selected, context);
-    if (!state.drawing) PlanoDocumentLabels.draw(context, annotations.filter(item => item.page === context.segment.page), {
+    if (!state.drawing) PlanoDocumentLabels.draw(context, annotations.filter(item => !item.correction && item.page === context.segment.page), {
       displayName: annotationDisplayName, locate: jumpToAnnotation, scenes: state.scenes,
       positionMenu: showTitlePositionMenu,
       canDrag: () => state.tool === "select" && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight,
@@ -1037,9 +1116,10 @@ function lineKeydown(event, item, context, mode) {
 }
 
 function remember() {
-  state.history.push(structuredClone(state.annotations));
+  state.history.push(documentSnapshot());
   if (state.history.length > 50) state.history.shift(); state.future = [];
 }
+function documentSnapshot() { return structuredClone({ annotations: state.annotations, corrections: state.corrections }); }
 function annotationY(annotation) { return annotation.type === "line" ? annotation.start.y : annotation.rects[0].y; }
 function annotationPages(item) { return item.type === "line" && PlanoCoverage.endPage(item) !== item.page ? `Páginas ${item.page}–${item.endPage}` : `Página ${item.page}`; }
 function annotationDisplayName(item) {
@@ -1104,6 +1184,9 @@ async function beginPastedHighlight() {
   if (!choice || state.pdf !== choice.pdf) return;
   if (state.stage !== "coverage") await switchStage("coverage");
   if (state.pdf !== choice.pdf) return;
+  startTextPlacement({ copy: choice.copy, pdf: choice.pdf });
+}
+function startTextPlacement(data) {
   hideHighlightAction();
   for (const popover of document.querySelectorAll('[popover]:popover-open')) popover.hidePopover();
   $("#project-menu").open = false;
@@ -1112,7 +1195,9 @@ async function beginPastedHighlight() {
   if (smallScreen.matches) setPanelOpen(false);
   const locks = Array.from(document.querySelectorAll('.topbar,.sidebar,#annotations-panel,.annotation-toolbar,#technical-view,.page-heading,.workspace-toolbar,.main-footer')).map(node => ({ node, inert: node.inert }));
   for (const {node} of locks) node.inert = true;
-  state.pasteHighlight = { copy: choice.copy, pdf: choice.pdf, tool, panelOpen, locks };
+  state.pasteHighlight = { ...data, tool, panelOpen, locks };
+  $("#paste-highlight-bar [role='status']").textContent = data.kind === "script-link" ? "Selecciona el texto que abarca este plano. Pulsa Listo para confirmar." : "Resalta el texto donde quieres colocar el plano copiado.";
+  $("#apply-pasted-highlight").textContent = data.kind === "script-link" ? "Listo" : "Pegar en selección";
   document.body.classList.add("pasting-shot");
   $("#paste-highlight-bar").hidden = false;
   $("#pdf-stage").classList.add("is-pasting-highlight"); $("#pdf-stage").focus({ preventScroll: true });
@@ -1127,8 +1212,49 @@ function finishPastedHighlight(cancelled = false) {
   $("#paste-highlight-bar").hidden = true; $("#pdf-stage").classList.remove("is-pasting-highlight");
   window.getSelection()?.removeAllRanges(); setTool(pending.tool);
   if (smallScreen.matches) setPanelOpen(pending.panelOpen);
-  if (cancelled) message("Pegado cancelado. No se creó ningún plano.");
+  if (cancelled && pending.kind === "script-link") restoreLinkedEditor(pending);
+  else if (cancelled) message("Pegado cancelado. No se creó ningún plano.");
 }
+function syncLinkedEditor() {
+  const item = state.annotations.find(note => note.id === state.editing?.id); if (!item) return;
+  const linked = state.editing.scriptSelection;
+  $("#line-script-status").textContent = linked ? "Texto vinculado" : "Automático";
+  $("#reset-line-script").hidden = !linked;
+  const parts = state.annotations.filter(part => (part.shotId || part.id) === (item.shotId || item.id)).map(part => {
+    const copy = { ...part }; delete copy.scriptSelection; if (linked) copy.scriptSelection = linked; return copy;
+  });
+  $("#edit-shot-text").textContent = PlanoShotScript.excerpt(parts, state.pages) || "Sin texto detectado en este tramo.";
+}
+async function beginLinkedText() {
+  const editing = state.editing, item = state.annotations.find(note => note.id === editing?.id);
+  if (!item || item.type !== "line" || state.pasteHighlight) return;
+  const draft = { ...editing, values: Array.from($("#edit-shot-form").querySelectorAll('input[id],select[id],textarea[id]')).map(input => [input.id, input.value]) };
+  const shell = $(".app-shell"), wasInert = shell.inert;
+  preparingLinkedText = true; shell.inert = true;
+  state.editing = null; $("#edit-shot-dialog").close("linking"); syncTechnicalWindowLock();
+  try {
+    if (state.stage !== "coverage") await switchStage("coverage");
+    await jumpToAnnotation(item);
+    if (state.pdf !== draft.pdf) return;
+    startTextPlacement({ kind: "script-link", pdf: draft.pdf, draft });
+  } catch (error) { restoreLinkedEditor({ pdf: draft.pdf, draft }); throw error; }
+  finally { preparingLinkedText = false; shell.inert = wasInert; syncTechnicalWindowLock(); }
+}
+function restoreLinkedEditor(pending, notes = null) {
+  if (state.pdf !== pending.pdf) return;
+  const item = state.annotations.find(note => note.id === pending.draft.id); if (!item) return;
+  openShotEditor(item, pending.draft.previousFocus);
+  for (const [id, value] of pending.draft.values) document.getElementById(id).value = value;
+  for (const key of shotValues.otherKeys) document.getElementById(shotValues.fields[key].edit).dispatchEvent(new Event("change"));
+  state.editing.scriptSelection = pending.draft.scriptSelection;
+  if (notes) {
+    try { state.editing.scriptSelection = PlanoShotScript.validateSelection(notes, state.pdf.numPages); }
+    catch (error) { message(error.message, true); }
+  }
+  colorPalette.syncLaunches(); $("#edit-color-value").textContent = $("#edit-shot-color").value.toUpperCase(); syncLinkedEditor();
+}
+$("#link-line-script").addEventListener("click", () => beginLinkedText().catch(error => message(`No se pudo seleccionar el fragmento. ${error.message}`, true)));
+$("#reset-line-script").addEventListener("click", () => { if (state.editing) { state.editing.scriptSelection = null; syncLinkedEditor(); } });
 $("#copy-selected-line").addEventListener("click", () => copyShot(state.selectedLine));
 $("#copy-highlight").addEventListener("click", () => { const id = state.highlightAction; if (copyShot(id)) hideHighlightAction(); });
 $("#copy-shot-details").addEventListener("click", () => { if (copyShot(state.details?.id)) { state.details = null; $("#shot-details-dialog").close(); } });
@@ -1174,7 +1300,7 @@ async function requestNamedAnnotations(items) {
     remember();
     const shotId = `shot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const shotOrder = Math.max(-1, ...state.annotations.map((note, i) => note.shotOrder ?? i)) + 1;
-    state.annotations.push(...items.map(item => createAnnotation({ ...item, shotName: details.name, ...details.technical, shotId, shotOrder })));
+    state.annotations.push(...items.map(item => createAnnotation({ ...item, color: details.color, shotName: details.name, ...details.technical, shotId, shotOrder })));
     changed();
   } else drawAnnotations();
 }
@@ -1187,6 +1313,8 @@ function askShotName(items) {
   dialog.returnValue = "";
   input.value = ""; input.setCustomValidity("");
   shotValues.formValues("input", {});
+  $("#new-shot-color").value = items[0].color;
+  $("#new-color-value").textContent = items[0].color.toUpperCase(); colorPalette.syncLaunches();
   $("#shot-name-form .shot-writing-section").open = false;
   const suggestion = PlanoShotNames.suggest(state.annotations, state.scenes, items[0], sceneTools.sceneAt);
   input.placeholder = suggestion;
@@ -1201,7 +1329,7 @@ function askShotName(items) {
     function close() {
       form.removeEventListener("submit", submit);
       dialog.removeEventListener("close", close);
-      resolve(dialog.returnValue.trim() ? { name: dialog.returnValue.trim(), technical: shotValues.formValues("input") } : null);
+      resolve(dialog.returnValue.trim() ? { name: dialog.returnValue.trim(), color: $("#new-shot-color").value, technical: shotValues.formValues("input") } : null);
       if (previousFocus?.isConnected && !previousFocus.closest("dialog")) previousFocus.focus({ preventScroll: true });
     }
     form.addEventListener("submit", submit);
@@ -1211,11 +1339,12 @@ function askShotName(items) {
 }
 $("#shot-name-input").addEventListener("input", event => event.target.setCustomValidity(""));
 $("#cancel-shot-name").addEventListener("click", () => $("#shot-name-dialog").close(""));
+$("#new-shot-color").addEventListener("input", event => { $("#new-color-value").textContent = event.target.value.toUpperCase(); });
 
 function openShotEditor(item, previousFocus = document.activeElement) {
   hideHighlightAction();
   if (!state.pdf || state.pending || state.editing || state.highlightCorrection || state.pasteHighlight || !state.annotations.some(note => note.id === item.id)) return;
-  state.editing = { id: item.id, pdf: state.pdf, previousFocus };
+  state.editing = { id: item.id, pdf: state.pdf, previousFocus, scriptSelection: item.scriptSelection ? structuredClone(item.scriptSelection) : null };
   $("#edit-shot-name").value = annotationDisplayName(item);
   $("#edit-shot-name").setCustomValidity("");
   shotValues.formValues("edit", item);
@@ -1223,10 +1352,12 @@ function openShotEditor(item, previousFocus = document.activeElement) {
   colorPalette.syncLaunches();
   $("#edit-color-value").textContent = item.color.toUpperCase();
   $("#edit-shot-meta").textContent = `${item.type === "line" ? "Línea de cobertura" : "Resalte"} · ${annotationPages(item)}`;
-  $("#edit-shot-excerpt").hidden = item.type !== "highlight";
+  $("#line-script-controls").hidden = item.type !== "line";
+  $("#edit-shot-excerpt").hidden = false;
   $("#edit-shot-excerpt").open = false;
-  $("#edit-shot-text").textContent = item.text || "";
+  syncLinkedEditor();
   $("#edit-shot-dialog").showModal();
+  syncTechnicalWindowLock();
   $("#edit-shot-name").focus();
 }
 $("#edit-shot-name").addEventListener("input", event => event.target.setCustomValidity(""));
@@ -1242,14 +1373,20 @@ $("#edit-shot-form").addEventListener("submit", event => {
   const shotId = item.shotId || item.id;
   for (const part of state.annotations.filter(note => (note.shotId || note.id) === shotId)) {
     part.shotName = name; Object.assign(part, shotValues.formValues("edit")); part.color = $("#edit-shot-color").value;
+    if (part.type === "line") {
+      if (state.editing.scriptSelection) part.scriptSelection = structuredClone(state.editing.scriptSelection);
+      else delete part.scriptSelection;
+    }
   }
   $("#edit-shot-dialog").close("saved");
   changed();
 });
 $("#edit-shot-dialog").addEventListener("close", () => {
+  if ($("#edit-shot-dialog").open) return;
   const previousFocus = state.editing?.previousFocus;
   const id = state.editing?.id;
   state.editing = null;
+  syncTechnicalWindowLock();
   restoreShotFocus(previousFocus, id);
 });
 function restoreShotFocus(previous, id) {
@@ -1288,18 +1425,24 @@ function openShotDetails(item) {
   const color = document.createElement("div"), term = document.createElement("dt"), value = document.createElement("dd");
   term.textContent = "Color"; value.textContent = current.color.toUpperCase(); value.className = "shot-detail-color"; value.style.setProperty("--annotation-color", current.color);
   color.append(term, value); list.append(color);
+  const duration = document.createElement("div"), durationLabel = document.createElement("dt"), durationValue = document.createElement("dd");
+  durationLabel.textContent = "Duración estimada";
+  durationValue.textContent = PlanoShotScript.format(PlanoShotScript.duration(state.annotations.filter(part => (part.shotId || part.id) === (current.shotId || current.id)), state.pages));
+  duration.append(durationLabel, durationValue); list.append(duration);
   for (const key of Object.keys(shotValues.textFields)) {
     const field = $(`#shot-details-${key}`); field.textContent = current[key]?.trim() || "Sin definir";
     field.classList.toggle("is-empty", !current[key]?.trim());
   }
-  $("#shot-details-excerpt").hidden = current.type !== "highlight"; $("#shot-details-excerpt").open = false;
-  $("#shot-details-text").textContent = current.text || "";
+  $("#shot-details-excerpt").hidden = false; $("#shot-details-excerpt").open = false;
+  $("#shot-details-text").textContent = PlanoShotScript.excerpt(state.annotations.filter(part => (part.shotId || part.id) === (current.shotId || current.id)), state.pages) || "Sin texto detectado en este tramo.";
   $("#shot-details-dialog").showModal(); $("#close-shot-details").focus();
+  syncTechnicalWindowLock();
 }
 $("#close-shot-details").addEventListener("click", () => $("#shot-details-dialog").close());
 $("#shot-details-dialog").addEventListener("close", () => {
   if ($("#shot-details-dialog").open) return;
   const previous = state.details; state.details = null;
+  syncTechnicalWindowLock();
   if (!$("#edit-shot-dialog").open && previous) restoreShotFocus(previous.previousFocus, previous.id);
 });
 $("#edit-shot-details").addEventListener("click", () => {
@@ -1313,6 +1456,7 @@ $("#locate-shot-details").addEventListener("click", () => {
   if (item) jumpToAnnotation(item);
 });
 function changed() {
+  PlanoTechnicalWindow.publish();
   const anchor = state.screen === "editor" ? capturePosition() : null;
   refreshSegments();
   const previous = Array.from(state.viewer?.contexts.values() || []);
@@ -1328,7 +1472,7 @@ function saveNotes() {
   if (!state.key) return;
   if (PlanoCloud.configured) {
     if (!state.cloudProject) { $("#save-status").textContent = "Este guion todavía no está guardado en tu cuenta."; return; }
-    const payload = { version: 1, fingerprint: state.fingerprint, annotations: state.annotations, view: { scene: state.scene, stage: state.stage } };
+    const payload = { version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, view: { scene: state.scene, stage: state.stage } };
     if (PlanoScriptPreview.valid(state.thumbnail)) {
       payload.thumbnail = state.thumbnail;
       if (new TextEncoder().encode(JSON.stringify(payload)).length > 350000) delete payload.thumbnail;
@@ -1337,7 +1481,7 @@ function saveNotes() {
     return;
   }
   try {
-    localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations }));
+    localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections }));
     $("#save-status").textContent = "✓ Notas guardadas en este navegador";
   } catch { $("#save-status").textContent = "No se pudo guardar aquí. Exporta las notas antes de cerrar."; }
 }
@@ -1369,6 +1513,7 @@ function validateNotes(value, pageCount = state.pdf.numPages) {
       if (!Number.isInteger(item.shotOrder) || item.shotOrder < 0 || item.shotOrder > 10000000) throw new Error("Hay órdenes de plano inválidos.");
       clean.shotOrder = item.shotOrder;
     }
+    if (item.scriptSelection !== undefined && item.type === "line") clean.scriptSelection = PlanoShotScript.validateSelection(item.scriptSelection, pageCount);
     if (item.lineLabel !== undefined) {
       if (!item.lineLabel || !coordinate(item.lineLabel.t) || !["left", "right"].includes(item.lineLabel.side)) throw new Error("Hay posiciones de título de línea inválidas.");
       clean.lineLabel = { t: item.lineLabel.t, side: item.lineLabel.side };
@@ -1381,6 +1526,10 @@ function validateNotes(value, pageCount = state.pdf.numPages) {
     if (item.labelPinned !== undefined) {
       if (typeof item.labelPinned !== "boolean") throw new Error("Hay estados de posición de título inválidos.");
       if (item.labelPinned) clean.labelPinned = true;
+    }
+    if (item.labelUnrestricted !== undefined) {
+      if (typeof item.labelUnrestricted !== "boolean") throw new Error("Hay modos de colocación de título inválidos.");
+      if (item.labelUnrestricted) clean.labelUnrestricted = true;
     }
     if (item.type === "line") {
       if (!point(item.start) || !point(item.end)) throw new Error("Hay coordenadas de línea inválidas.");
@@ -1404,10 +1553,15 @@ function readSavedNotes() {
     const notes = validateNotes(saved.annotations); $("#save-status").textContent = "✓ Anotaciones anteriores recuperadas"; return notes;
   } catch { $("#save-status").textContent = "No se recuperaron notas locales. Puedes importar una copia."; return []; }
 }
+function readSavedCorrections() {
+  try { return PlanoCorrections.validate(JSON.parse(localStorage.getItem(state.key) || "null")?.corrections, state.pdf.numPages); }
+  catch { message("No se recuperaron las correcciones guardadas. Puedes importar una copia de notas.", true); return []; }
+}
 function orderedShots(items, indexes = new Map(state.annotations.map((item, i) => [item.id, i]))) {
   return [...items].sort((a, b) => (a.shotOrder ?? indexes.get(a.id)) - (b.shotOrder ?? indexes.get(b.id)));
 }
 function technicalSections() {
+  const report = PlanoShotScript.report(state.annotations, state.pages);
   const indexes = new Map(state.annotations.map((item, i) => [item.id, i]));
   const groups = new Map();
   for (const item of state.annotations) {
@@ -1416,16 +1570,17 @@ function technicalSections() {
     groups.get(id).push(item);
   }
   const scenes = [...(groups.has("intro") ? [{ id: "intro", number: null, title: state.scenes.length ? "Contenido previo" : "Guion" }] : []), ...state.scenes];
-  return scenes.map(scene => ({ scene, items: orderedShots(groups.get(scene.id) || [], indexes) }));
+  return scenes.map(scene => ({ scene, items: orderedShots(groups.get(scene.id) || [], indexes).map(item => ({ ...item, ...report.get(item.shotId || item.id) })) }));
 }
 function refreshTechnicalScript() {
   for (const id of ['#export-excel', '#technical-export-excel']) $(id).disabled = !state.annotations.length || state.exporting;
   if (state.screen !== "editor" || state.stage !== "technical") return;
-  PlanoTechnicalScript.render(technicalSections(), { displayName: annotationDisplayName, open: openShotDetails, commit: commitTechnicalField, history: state.history.length, future: state.future.length });
+  PlanoTechnicalScript.render(technicalSections(), { displayName: annotationDisplayName, open: openShotDetails, commit: commitTechnicalField, remove: deleteTechnicalShot, history: state.history.length, future: state.future.length });
 }
-function commitTechnicalField(id, field, value, other = "") {
+function commitTechnicalField(id, field, value, other = "", expected = null) {
   const item = state.annotations.find(note => note.id === id);
-  if (!item || state.pending || state.editing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) return false;
+  if (!item || state.busy || state.exporting || state.pending || state.editing || state.details || state.drawing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) return false;
+  if (expected && ((item[field] || "") !== expected.value || (item[field + "Other"] || "") !== expected.other)) { message("Este campo cambió en la otra ventana. Revisa el valor actualizado antes de guardarlo.", true); return false; }
   const patch = {};
   if (field === "shotName") {
     if (typeof value !== "string" || !value.trim() || value.length > 120) return false;
@@ -1443,6 +1598,14 @@ function commitTechnicalField(id, field, value, other = "") {
   for (const part of state.annotations.filter(note => (note.shotId || note.id) === (item.shotId || item.id))) Object.assign(part, patch);
   changed(); return true;
 }
+function deleteTechnicalShot(id) {
+  if (!canSelectShots() || !PlanoTechnicalScript.finishEditing()) return false;
+  const item = state.annotations.find(note => note.id === id); if (!item) return false;
+  const shotId = item.shotId || item.id; remember();
+  state.annotations = state.annotations.filter(note => (note.shotId || note.id) !== shotId);
+  if (!state.annotations.some(note => note.id === state.selectedLine)) state.selectedLine = null;
+  changed(); message("Plano eliminado. Puedes recuperarlo con Deshacer."); return true;
+}
 function reorderShots(sceneId, source, destination, after) {
   if (source === destination || state.pending || state.editing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) return;
   const items = state.annotations.filter(item => (sceneTools.sceneAt(state.scenes, item.page, annotationY(item))?.id || "intro") === sceneId);
@@ -1457,7 +1620,7 @@ function reorderShots(sceneId, source, destination, after) {
   card?.querySelector(".shot-reorder-handle")?.focus({ preventScroll: true });
 }
 function canSelectShots() {
-  return Boolean(state.pdf) && !state.busy && !state.exporting && !state.pending && !state.editing && !state.details && !state.drawing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight;
+  return Boolean(state.pdf) && !preparingLinkedText && !state.busy && !state.exporting && !state.pending && !state.editing && !state.details && !state.drawing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight;
 }
 function syncShotSelection() {
   // Una selección representa planos completos, incluidos todos sus tramos.
@@ -1503,6 +1666,7 @@ $("#clear-shot-selection").addEventListener("click", () => { if (canSelectShots(
 $("#batch-shot-color").addEventListener("input", event => colorSelectedShots(event.target.value));
 
 function refreshAnnotations() {
+  refreshCorrections();
   refreshTechnicalScript();
   const indexes = new Map(state.annotations.map((item, i) => [item.id, i]));
   const list = $("#annotations-list"); const visible = state.annotations;
@@ -1626,10 +1790,14 @@ function undo(redo = false) {
   cancelLineGesture(false);
   const source = redo ? state.future : state.history; const target = redo ? state.history : state.future;
   if (!source.length) { if (transforming) drawAnnotations(); return; }
-  target.push(structuredClone(state.annotations)); state.annotations = source.pop(); changed();
+  target.push(documentSnapshot()); const restored = source.pop();
+  state.annotations = Array.isArray(restored) ? restored : restored.annotations;
+  state.corrections = Array.isArray(restored) ? [] : restored.corrections || []; changed();
 }
 function closeDocument() {
   if (state.exporting) return;
+  PlanoTechnicalWindow.invalidate();
+  PlanoTechnicalScript.clear();
   cancelPasteChoice(); finishPastedHighlight(); copiedShot = null;
   clearShotSelection();
   hideHighlightAction();
@@ -1644,7 +1812,8 @@ function closeDocument() {
   ++state.loadId; cancelRendering();
   state.loading?.destroy().catch(() => {}); state.pdf?.destroy().catch(() => {});
   if (state.url) URL.revokeObjectURL(state.url);
-  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, thumbnail: null, annotations: [], pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
+  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, thumbnail: null, annotations: [], corrections: [], pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
+  refreshCorrections();
   syncShotSelection();
   $("#pdf-container").replaceChildren(); $("#technical-table-body").replaceChildren(); $("#open-document").removeAttribute("href");
   busy(false); message(""); status("Sin documento"); showScreen("import"); $("#upload-button").focus();
@@ -1702,7 +1871,7 @@ async function exportCoveragePdf() {
   if (state.pending || state.editing || state.drawing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) {
     message("Termina o cancela la edición del plano antes de exportar.", true); return;
   }
-  const snapshot = { source: state.file, pdf: state.pdf, annotations: state.annotations.map(item => ({ ...structuredClone(item), shotName: annotationDisplayName(item) })), scenes: structuredClone(state.scenes), displayName: item => item.shotName, onProgress: text => message(text) };
+  const snapshot = { source: state.file, pdf: state.pdf, annotations: [...state.annotations.map(item => ({ ...structuredClone(item), shotName: annotationDisplayName(item) })), ...PlanoCorrections.annotations(structuredClone(state.corrections))], scenes: structuredClone(state.scenes), displayName: item => item.shotName, onProgress: text => message(text) };
   const name = `${state.file.name.replace(/\.pdf$/i, "")}-cobertura.pdf`, button = $("#export-pdf"), previous = button.textContent;
   state.exporting = true; busy(true); button.disabled = true; $("#remove-button").disabled = true; button.textContent = "Exportando PDF…";
   $("#project-menu").open = false; hideHighlightAction();
@@ -1752,7 +1921,7 @@ async function exportTechnicalExcel() {
 }
 for (const id of ["#export-excel", "#technical-export-excel"]) $(id).addEventListener("click", exportTechnicalExcel);
 $("#save-backup").addEventListener("click", () => {
-  const payload = { app: "PLANO", version: 1, fingerprint: state.fingerprint, fileName: state.file.name, annotations: state.annotations };
+  const payload = { app: "PLANO", version: 1, fingerprint: state.fingerprint, fileName: state.file.name, annotations: state.annotations, corrections: state.corrections };
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
   const link = document.createElement("a"); link.href = url; link.download = `${state.file.name.replace(/\.pdf$/i, "")}-notas-plano.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -1765,9 +1934,10 @@ $("#backup-input").addEventListener("change", async event => {
     if (file.size > 10 * 1024 * 1024) throw new Error("La copia supera los 10 MB.");
     const data = JSON.parse(await file.text()); if (state.pdf !== pdf) return;
     if (data.app !== "PLANO" || data.version !== 1 || data.fingerprint !== state.fingerprint) throw new Error("Estas notas no corresponden al PDF abierto.");
-    const imported = validateNotes(data.annotations); remember();
+    const imported = validateNotes(data.annotations), corrections = PlanoCorrections.validate(data.corrections, state.pdf.numPages); remember();
     const existingIds = new Set(state.annotations.map(item => item.id)); const added = imported.filter(item => !existingIds.has(item.id));
-    state.annotations.push(...added); changed(); message(`${added.length} anotaciones importadas. Las notas que ya tenías se conservaron.`);
+    const correctionIds = new Set(state.corrections.map(item => item.id)), newCorrections = corrections.filter(item => !correctionIds.has(item.id));
+    state.annotations.push(...added); state.corrections.push(...newCorrections); changed(); message(`${added.length} anotaciones${newCorrections.length ? ` y ${newCorrections.length} correcciones` : ""} importadas. Las notas que ya tenías se conservaron.`);
   } catch (error) { message(`No se pudieron importar las notas: ${error.message}`, true); }
   finally { event.target.value = ""; }
 });
@@ -1776,6 +1946,7 @@ document.addEventListener("keydown", event => {
   if (document.querySelector("dialog[open]")) return;
   if (event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (event.key === "Escape") {
+    if (state.activeCorrection) { hideCorrectionAction(); $("#pdf-stage").focus({ preventScroll: true }); return; }
     if (state.highlightAction) { hideHighlightAction(); $("#pdf-stage").focus({ preventScroll: true }); return; }
     if (state.highlightCorrection) { cancelHighlightCorrection(); window.getSelection()?.removeAllRanges(); return; }
     $("#project-menu").open = false;
@@ -1784,7 +1955,7 @@ document.addEventListener("keydown", event => {
   }
   if (!state.pdf || state.screen !== "editor") return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); undo(event.shiftKey); }
-  else if (state.stage === "coverage" && !event.ctrlKey && !event.metaKey && !event.altKey) { const tools = { v: "select", h: "highlight", l: "line" }; if (tools[event.key.toLowerCase()]) setTool(tools[event.key.toLowerCase()]); }
+  else if (state.stage === "coverage" && !event.ctrlKey && !event.metaKey && !event.altKey) { const tools = { v: "select", h: "highlight", l: "line", r: "correction" }; if (tools[event.key.toLowerCase()]) setTool(tools[event.key.toLowerCase()]); }
 });
 let resizeTimer; let previousWidth = 0;
 new ResizeObserver(entries => {
@@ -1807,6 +1978,31 @@ workspace.addEventListener("drop", event => {
 for (const name of ["dragover", "drop"]) window.addEventListener(name, event => { if (hasFiles(event)) event.preventDefault(); if (name === "drop") clearDrag(); });
 window.addEventListener("blur", () => { clearDrag(); cancelLineGesture(); }); window.addEventListener("dragend", clearDrag);
 window.addEventListener("beforeunload", () => { if (state.url) URL.revokeObjectURL(state.url); });
+
+function syncTechnicalWindowLock() { PlanoTechnicalWindow.lock(!canSelectShots()); }
+PlanoTechnicalWindow.configure({
+  key: () => state.pdf,
+  canEdit: () => Boolean(PlanoAccounts.getUser()) && canSelectShots(),
+  snapshot: () => ({
+    name: state.file?.name || "Guion técnico", sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })),
+    history: state.history.length, future: state.future.length, locked: !canSelectShots(),
+    theme: { style: document.documentElement.style.cssText, mode: document.documentElement.dataset.theme, palette: document.documentElement.dataset.palette }
+  }),
+  commit: commitTechnicalField, remove: deleteTechnicalShot, undo: redo => { undo(redo); return true; },
+  open: item => { window.focus(); openShotDetails(item); syncTechnicalWindowLock(); }, export: exportTechnicalExcel
+});
+const technicalWindowMenu = document.createElement("div"); technicalWindowMenu.id = "technical-window-menu"; technicalWindowMenu.className = "technical-window-menu compact-popover"; technicalWindowMenu.setAttribute("popover", "auto"); technicalWindowMenu.setAttribute("role", "menu");
+const openTechnicalWindow = document.createElement("button"); openTechnicalWindow.type = "button"; openTechnicalWindow.textContent = "Abrir en otra ventana"; openTechnicalWindow.setAttribute("role", "menuitem"); technicalWindowMenu.append(openTechnicalWindow); document.body.append(technicalWindowMenu);
+$("#stage-tabs [data-stage='technical']").title = "Guion técnico · Clic derecho para abrir en otra ventana";
+$("#stage-tabs [data-stage='technical']").addEventListener("contextmenu", event => {
+  event.preventDefault(); if (!state.pdf || state.pasteHighlight) return;
+  PlanoPopover.show(technicalWindowMenu, { x: event.clientX, y: event.clientY }); openTechnicalWindow.focus();
+});
+openTechnicalWindow.addEventListener("click", () => {
+  PlanoPopover.hide(technicalWindowMenu);
+  if (!PlanoTechnicalScript.finishEditing()) return;
+  if (!PlanoTechnicalWindow.open()) message("No se pudo abrir la ventana. Termina la edición pendiente o permite las ventanas emergentes para este sitio.", true);
+});
 
 // Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
 PlanoAccounts.connectWorkspace({
@@ -1835,6 +2031,6 @@ PlanoCloudLibrary.init({
   renameLocal: name => { renameDocumentFile(name); return currentLibraryProject(); },
   renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; renameDocumentFile(project.name); },
   deleted: id => { if (state.cloudProject?.id === id) closeDocument(); },
-  reload: project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; const notes = validateNotes(project.payload.annotations); state.annotations = notes; state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
+  reload: project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; const notes = validateNotes(project.payload.annotations), corrections = PlanoCorrections.validate(project.payload.corrections, state.pdf.numPages); state.annotations = notes; state.corrections = corrections; state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); PlanoTechnicalWindow.publish(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
   exportDraft: () => { if (!state.pdf) return false; $("#save-backup").click(); return true; }
 });

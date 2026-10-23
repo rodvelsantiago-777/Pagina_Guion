@@ -48,7 +48,7 @@
       textLayer = new pdfjsLib.TextLayer({ textContentSource: await pdfPage.getTextContent(), container: text, viewport }); await textLayer.render();
       const context = { viewport, segment: { page: pdfPage.pageNumber, top: 0, bottom: 1 }, content, crop, slot, labelLayer: layer };
       PlanoDocumentLabels.prepare(context);
-      PlanoDocumentLabels.draw(context, annotations, { scenes, displayName, pageOnly: true, canDrag: () => false, locate: () => {} });
+      PlanoDocumentLabels.draw(context, annotations.filter(item => !item.correction), { scenes, displayName, pageOnly: true, canDrag: () => false, locate: () => {} });
       const labels = context.labelPlacements.map(placement => {
         const tag = Array.from(slot.querySelectorAll(".document-shot-tag")).find(node => node.dataset.annotationId === placement.id);
         return { ...placement, image: titleImage(tag), item: annotations.find(item => item.id === placement.id) };
@@ -61,7 +61,7 @@
   function drawMarks(target, natural, annotations, scale) {
     const { width, height } = natural;
     const point = p => ({ x: p.x * width, y: (1 - p.y) * height });
-    for (const item of annotations.filter(item => item.type === "highlight")) for (const rect of item.rects) {
+    for (const item of annotations.filter(item => item.type === "highlight" && !item.correction)) for (const rect of item.rects) {
       target.drawRectangle({ x: rect.x * width, y: (1 - rect.y - rect.height) * height, width: rect.width * width, height: rect.height * height, color: color(item.color), opacity: .38, blendMode: PDFLib.BlendMode.Multiply });
     }
     for (const item of annotations.filter(item => item.type === "line")) {
@@ -70,6 +70,9 @@
       target.drawLine({ start, end, ...style });
       const nx = -dy / length * 6 / scale, ny = dx / length * 6 / scale;
       for (const p of [...(item.continuesBefore ? [] : [start]), ...(item.continuesAfter ? [] : [end])]) target.drawLine({ start: { x: p.x - nx, y: p.y - ny }, end: { x: p.x + nx, y: p.y + ny }, ...style });
+    }
+    for (const item of annotations.filter(item => item.correction)) for (const points of PlanoCorrections.zigzags(item.rects, natural)) {
+      for (let index=1;index<points.length;index++) target.drawLine({start:point(points[index-1]),end:point(points[index]),color:color(PlanoCorrections.color),thickness:.9,lineCap:PDFLib.LineCapStyle.Round});
     }
   }
   async function references(document, labels) {

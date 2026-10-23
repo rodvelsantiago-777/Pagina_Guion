@@ -1,4 +1,4 @@
-/* Colocación de rótulos en píxeles del visor. Nunca se acepta una colisión. */
+/* Colocación protegida por defecto; las superposiciones requieren una elección explícita. */
 (function (root) {
   "use strict";
   function intersects(a, b, gap = 0) {
@@ -16,14 +16,60 @@
     }
     return true;
   }
-  function isClear(rect, { width, top, bottom, contentTop = top, contentBottom = bottom, allowExternal = true, textBoxes = [], shapes = [], inkBlocked = () => false }, occupied = [], allowMargin = false) {
+  function withinBounds(rect, { width, top, bottom, allowExternal = true }, allowMargin = false) {
     if (rect.x < 6 || rect.y < top + 5 || rect.y + rect.height > bottom - 5) return false;
     const inPaper = rect.x + rect.width <= width - 6;
     if (!inPaper && (!allowExternal || !allowMargin || rect.x < width + 18 || rect.x + rect.width > width * 4)) return false;
+    return true;
+  }
+  function isClear(rect, { width, top, bottom, contentTop = top, contentBottom = bottom, allowExternal = true, textBoxes = [], shapes = [], inkBlocked = () => false }, occupied = [], allowMargin = false) {
+    if (!withinBounds(rect, { width, top, bottom, allowExternal }, allowMargin)) return false;
+    const inPaper = rect.x + rect.width <= width - 6;
     const visibleTop = Math.max(rect.y, contentTop), visibleBottom = Math.min(rect.y + rect.height, contentBottom);
     const visible = visibleBottom > visibleTop ? { x: rect.x, y: visibleTop, width: rect.width, height: visibleBottom - visibleTop } : null;
     const clearContent = !visible || (!textBoxes.some(box => intersects(visible, box, 4) && box.y < contentBottom && box.y + box.height > contentTop) && !shapes.some(shape => shape.type === "line" ? lineIntersects(visible, shape) : intersects(visible, shape, 6)) && (!inPaper || !inkBlocked({ x: visible.x - 3, y: Math.max(contentTop, visible.y - 3), width: visible.width + 6, height: Math.min(contentBottom, visible.y + visible.height + 3) - Math.max(contentTop, visible.y - 3) })));
     return clearContent && !occupied.some(label => !label.sceneFallback && intersects(rect, label, 9));
+  }
+  function boundedRect(rect, options, allowMargin = false) {
+    const { width, top, bottom, allowExternal = true } = options;
+    const minX = allowMargin && allowExternal && rect.x > width ? width + 18 : 6;
+    const maxX = minX === 6 ? width - rect.width - 6 : width * 4 - rect.width;
+    const minY = top + 5, maxY = bottom - rect.height - 5;
+    if (maxX < minX || maxY < minY) return null;
+    return { ...rect, x: Math.max(minX, Math.min(maxX, rect.x)), y: Math.max(minY, Math.min(maxY, rect.y)) };
+  }
+  function nearestClear(rect, options, occupied = [], allowMargin = false) {
+    if (isClear(rect, options, occupied, allowMargin)) return rect;
+    const base = boundedRect(rect, options, allowMargin); if (!base) return null;
+    let best = null, distance = Infinity;
+    const consider = (x, y) => {
+      if (x < minX || x > maxX || y < minY || y > maxY) return;
+      const squared = (x - rect.x) ** 2 + (y - rect.y) ** 2;
+      if (squared >= distance) return;
+      const candidate = { ...rect, x, y };
+      if (isClear(candidate, options, occupied, allowMargin)) { best = candidate; distance = squared; }
+    };
+    const minX = base.x > options.width ? options.width + 18 : 6;
+    const maxX = base.x > options.width ? options.width * 4 - rect.width : options.width - rect.width - 6;
+    const minY = options.top + 5, maxY = options.bottom - rect.height - 5;
+    consider(base.x, base.y);
+    for (const x of [minX, maxX]) consider(x, base.y);
+    for (const y of [minY, maxY]) consider(base.x, y);
+    // Candidatos en bordes de texto y rótulos encuentran rápidamente huecos estrechos.
+    for (const box of [...(options.textBoxes || []), ...occupied.filter(item => !item.sceneFallback)]) {
+      consider(box.x - rect.width - 10, base.y); consider(box.x + box.width + 10, base.y);
+      consider(base.x, box.y - rect.height - 10); consider(base.x, box.y + box.height + 10);
+    }
+    const delta = Math.hypot(base.x - rect.x, base.y - rect.y);
+    const limit = Math.max(base.x - minX, maxX - base.x, base.y - minY, maxY - base.y);
+    // Búsqueda local por anillos, con resolución de 8 px del visor y salida temprana.
+    for (let radius = 8; radius <= limit + 8 && radius <= Math.sqrt(distance) + delta + 8; radius += 8) {
+      for (let offset = -radius; offset <= radius; offset += 8) {
+        consider(base.x + offset, base.y - radius); consider(base.x + offset, base.y + radius);
+        if (Math.abs(offset) !== radius) { consider(base.x - radius, base.y + offset); consider(base.x + radius, base.y + offset); }
+      }
+    }
+    return best;
   }
   function lineLabelRect(label, t, side = "right") {
     const { start, end } = label.line;
@@ -38,24 +84,33 @@
     const side = (center.x - start.x) * dy - (center.y - start.y) * dx >= 0 ? "right" : "left";
     return lineLabelRect(label, t, side);
   }
+  function resolveLineLabel(label, preferred, options, occupied = []) {
+    const opposite = preferred.side === "right" ? "left" : "right";
+    const positions = [preferred, { t: preferred.t, side: opposite }];
+    const length = Math.hypot(label.line.end.x - label.line.start.x, label.line.end.y - label.line.start.y);
+    const steps = Math.max(1, Math.ceil(length / 8));
+    for (let i = 0; i <= steps; i++) for (const side of [preferred.side, opposite]) positions.push({ t: i / steps, side });
+    const origin = lineLabelRect(label, preferred.t, preferred.side);
+    const rects = positions.map(({ t, side }) => lineLabelRect(label, t, side));
+    if (label.lineLabel || label.unrestricted) rects.sort((a, b) => (a.x - origin.x) ** 2 + (a.y - origin.y) ** 2 - (b.x - origin.x) ** 2 - (b.y - origin.y) ** 2);
+    else rects.splice(2, rects.length - 2, ...rects.slice(2).sort((a, b) => Math.abs(a.lineT - preferred.t) - Math.abs(b.lineT - preferred.t)));
+    return rects.find(rect => label.unrestricted ? withinBounds(rect, options, true) : isClear(rect, options, occupied, true)) || null;
+  }
   function placeLabels(options) {
     const { width, top, labels, inlineAllowed = true } = options;
     const placements = [], remaining = [];
     // Las líneas reservan su espacio antes incluso de los títulos manuales de resaltes.
     for (const label of labels.filter(label => label.type === "line" && label.line)) {
       const preferred = label.lineLabel || { t: 0, side: "right" };
-      const positions = [preferred, { t: preferred.t, side: preferred.side === "right" ? "left" : "right" }];
-      const length = Math.hypot(label.line.end.x - label.line.start.x, label.line.end.y - label.line.start.y);
-      const steps = Math.max(1, Math.ceil(length / 8));
-      const ts = Array.from({ length: steps + 1 }, (_, i) => i / steps).sort((a, b) => Math.abs(a - preferred.t) - Math.abs(b - preferred.t));
-      for (const t of ts) for (const side of [preferred.side, preferred.side === "right" ? "left" : "right"]) positions.push({ t, side });
-      const safe = positions.map(({ t, side }) => lineLabelRect(label, t, side)).find(rect => isClear(rect, options, placements, true));
+      const safe = resolveLineLabel(label, preferred, options, placements);
       if (safe) placements.push({ ...safe, id: label.id, type: "line", manual: Boolean(label.lineLabel && Math.abs(safe.lineT - preferred.t) < 1e-6 && safe.lineSide === preferred.side), tier: "line", external: safe.x > width });
       else placements.push({ id: label.id, type: "line", width: label.width, height: label.height, external: true, sceneFallback: true, sceneId: label.sceneId || "intro", x: 0, y: top - label.height - 12 });
     }
     for (const label of labels.filter(label => label.type !== "line" || !label.line)) {
       const manual = label.manual && { ...label.manual, width: label.width, height: label.height };
-      if (manual && isClear(manual, { ...options, ...options.manualBounds }, placements, true)) placements.push({ ...manual, id: label.id, manual: true, external: manual.x > width });
+      const bounds = { ...options, ...options.manualBounds };
+      const target = manual && (label.unrestricted ? boundedRect(manual, bounds, true) : nearestClear(manual, bounds, placements, true));
+      if (target) placements.push({ ...target, id: label.id, manual: true, external: target.x > width });
       else remaining.push(label);
     }
     for (const label of remaining) {
@@ -90,7 +145,7 @@
     }
     return placements;
   }
-  const api = { intersects, lineIntersects, isClear, placeLabels, lineLabelRect, constrainedLineLabel };
+  const api = { intersects, lineIntersects, isClear, withinBounds, boundedRect, nearestClear, placeLabels, lineLabelRect, constrainedLineLabel, resolveLineLabel };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.PlanoLabels = api;
 })(globalThis);

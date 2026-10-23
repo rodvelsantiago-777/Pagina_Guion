@@ -303,7 +303,7 @@ body:not(.is-editing) .page-footer>span:last-child{font-size:8px;letter-spacing:
 [aria-checked="true"]>.view-menu-check{visibility:visible}
 /* Etiquetas del documento: relleno del plano y tinta independiente del tema. */
 .document-shot-tag{background:var(--shot-color);border:1px solid var(--shot-color);border-radius:3px;box-shadow:none;color:var(--shot-ink)}
-.document-shot-tag>.document-shot-label,.document-shot-tag>.document-shot-label:hover{background:transparent;color:var(--shot-ink);font:700 13px/1.4 "Courier New",Courier,monospace;border-radius:2px;padding:5px 8px;box-shadow:none}
+.document-shot-tag>.document-shot-label,.document-shot-tag>.document-shot-label:hover{background:transparent;color:var(--shot-ink);font:bold 14px/1.4 "Courier New",Courier,monospace;font-synthesis:weight;border-radius:2px;padding:5px 8px;box-shadow:none}
 .document-shot-tag:hover{box-shadow:0 1px 4px #00000025}
 /* Guion técnico: bandas de escena, cabeceras de tinta y filas de lectura. */
 #technical-table{border-radius:6px;border-color:var(--line-strong)}

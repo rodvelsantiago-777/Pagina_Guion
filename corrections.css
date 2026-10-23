@@ -1,0 +1,16 @@
+.script-corrections{flex-shrink:0;border-bottom:1px solid var(--line);margin:0 14px 8px;padding-bottom:8px}
+.script-corrections>summary{cursor:pointer;display:flex;align-items:center;gap:7px;padding:6px 0;font:600 12px var(--sans);color:var(--ink)}
+.script-corrections>summary::before{content:'›';font-size:16px;color:var(--muted)}.script-corrections[open]>summary::before{transform:rotate(90deg)}
+.script-corrections>summary span{color:#d94f54;font-weight:700}
+.script-correction-list{max-height:170px;overflow:auto;scrollbar-width:thin}
+.script-correction-card{display:flex;align-items:flex-start;gap:6px;padding:6px 0;border-top:1px solid var(--line)}
+.script-correction-jump{min-width:0;flex:1;text-align:left;border:0;background:transparent;color:var(--ink);cursor:pointer;padding:2px 0;font:12px/1.45 var(--sans)}
+.script-correction-jump span{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.script-correction-jump small{font-size:10px;color:var(--muted)}
+.script-correction-remove{border:0;border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;padding:2px 5px;font-size:17px;line-height:1.3}.script-correction-remove:hover{color:#d94f54;background:var(--surface-hover)}
+.correction-tool-bar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 14px;border-bottom:1px solid var(--line);background:var(--paper);color:var(--muted);font:12px/1.5 var(--sans)}
+.correction-tool-bar strong{font-weight:600;color:var(--ink)}.correction-tool-bar button{border:0;background:none;color:var(--accent);font:600 12px var(--sans);cursor:pointer;padding:3px}
+.pdf-stage[data-tool="correction"] .textLayer{user-select:text;touch-action:auto;cursor:text}
+.correction-hit-target{pointer-events:none;fill:none;stroke:transparent;stroke-width:10;vector-effect:non-scaling-stroke}
+.pdf-stage[data-tool="select"] .correction-hit-target{pointer-events:stroke;cursor:pointer}
+@media(max-width:620px){.annotation-toolbar{flex-wrap:wrap}.annotation-toolbar .zoom-controls{margin-left:auto}}
+@media(max-width:540px){.correction-tool-bar{padding:6px 10px;font-size:11px}.script-correction-list{max-height:130px}}

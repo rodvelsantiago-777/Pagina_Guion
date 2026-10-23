@@ -4,7 +4,7 @@
   const columns = [
     {field:'scene',col:1,span:2}, {field:'shotName',col:3}, {field:'shotValue',col:4},
     {field:'shotAngle',col:5}, {field:'shotLens',col:6}, {field:'shotMovement',col:7},
-    {field:'grip',col:8,span:2}, {field:'sound',col:10}, {field:'description',col:11}, {field:'note',col:12,span:2}
+    {field:'grip',col:8,span:2}, {field:'sound',col:10}, {field:'description',col:11}, {field:'note',col:12,span:2}, {field:'estimatedSeconds',col:14}
   ];
   const palette = { ink: '242424', border: 'B5B5B5', paper: 'F5F5F5', scene: 'E2E2E2', section: '686868' };
   function rowsFrom(sections, displayName, values) {
@@ -18,6 +18,7 @@
         const row = [scene.number ?? '', displayName(item), item.shotValue || ''];
         for (const key of ['shotAngle', 'shotLens', 'shotMovement']) row.push(item[key] ? values.display(item, key) : '');
         for (const key of ['grip', 'sound', 'description', 'note']) row.push(item[key] || '');
+        row.push(root.PlanoShotScript.format(item.estimatedSeconds || 0));
         rows.push({ sceneId: scene.id, id, data: row });
       }
     }
@@ -71,6 +72,9 @@
     book.creator = 'PLANO'; book.lastModifiedBy = 'PLANO'; book.created = exportedAt; book.modified = exportedAt;
     book.title = 'Guion técnico'; book.subject = fileName; book.description = 'Guion técnico exportado desde las líneas de cobertura.';
     const sheet = book.getWorksheet('Guion técnico');
+    sheet.getColumn(14).width = 13;
+    sheet.getCell('N14').style = structuredClone(sheet.getCell('G14').style); sheet.getCell('N14').value = 'DURACIÓN EST.';
+    for (let number=1;number<14;number++) sheet.getCell(number,14).style = structuredClone(sheet.getCell(number,13).style);
     sheet.getCell('D3').value = fileName.replace(/\.pdf$/i, '');
     // Fecha civil del usuario, almacenada como fecha y no como texto.
     sheet.getCell('J3').style={...sheet.getCell('J3').style};
@@ -114,7 +118,7 @@
         // Siempre valores de texto: '=...', '+...' y nombres como '01A' no son fórmulas ni números.
         cell.numFmt = i === 0 && typeof entry.data[i] === 'number' ? '0' : '@';
         cell.font = { name: 'Arial', size: 11, color: { argb: palette.ink }, bold: i < 2 };
-        cell.alignment = { horizontal: i<6 ? 'center' : 'left', vertical: 'middle', wrapText: true };
+        cell.alignment = { horizontal: i<6 || field==='estimatedSeconds' ? 'center' : 'left', vertical: 'middle', wrapText: true };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i===0 ? palette.scene : palette.paper } };
         const thin={style:'thin',color:{argb:palette.border}};
         cell.border = { bottom:thin,left:thin,right:thin,top:newScene ? {style:'medium',color:{argb:palette.section}} : thin };
@@ -125,7 +129,7 @@
       row.height = Math.min(409, Math.max(30, lineCount * 14 + 10));
       if (index && index % 150 === 0) { onProgress(`Preparando ${index} de ${outputRows.length} filas…`); await new Promise(resolve => setTimeout(resolve, 0)); }
     }
-    for(const group of shotGroups)if(group.last>group.first)for(const col of [3,4,5,6,7])sheet.mergeCells(group.first,col,group.last,col);
+    for(const group of shotGroups)if(group.last>group.first)for(const col of [3,4,5,6,7,14])sheet.mergeCells(group.first,col,group.last,col);
     for(const group of sceneGroups){
       sheet.mergeCells(group.first,1,group.last,2);
       sheet.getCell(group.first,1).numFmt=typeof sheet.getCell(group.first,1).value==='number'?'0':'@';
@@ -133,7 +137,7 @@
     const last = outputRows.length + 14;
     sheet.autoFilter = undefined;
     sheet.views = [{ state: 'frozen', xSplit: 3, ySplit: 14, topLeftCell: 'D15', activeCell: 'C15', showGridLines: false, zoomScale: 85 }];
-    sheet.pageSetup = { orientation: 'landscape', paperSize: 8, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '14:14', printArea: `A1:M${last}`, margins: { left: .25, right: .25, top: .35, bottom: .4, header: .15, footer: .2 } };
+    sheet.pageSetup = { orientation: 'landscape', paperSize: 8, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '14:14', printArea: `A1:N${last}`, margins: { left: .25, right: .25, top: .35, bottom: .4, header: .15, footer: .2 } };
     sheet.headerFooter = { oddFooter: '&LPLANO · Guion técnico&R Página &P de &N' };
     onProgress('Generando archivo .xlsx…');
     return { bytes: await book.xlsx.writeBuffer(), shots: unique, rows: entries.length, scenes };

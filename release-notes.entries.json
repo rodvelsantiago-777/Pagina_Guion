@@ -7,6 +7,12 @@
     { "id": "technical-full-text", "category": "improved", "text": "Las filas del guion técnico y sus campos crecen con el contenido: sonido, descripción y notas se muestran completos." },
     { "id": "release-notes", "category": "new", "text": "Recibe las novedades de cada actualización y vuelve a consultarlas desde Notas de parche, en el inicio o el menú del editor. El aviso de lectura se guarda en tu cuenta." },
     { "id": "performance-review", "category": "improved", "text": "Inicio más ligero, trazado de líneas con menos redibujados y mejor gestión de memoria al cambiar de vista. La biblioteca evita consultas simultáneas repetidas y la tabla técnica se prepara cuando la abres." },
-    { "id": "empty-scenes-ready", "category": "fixed", "text": "Los documentos sin escenas detectadas terminan correctamente la carga y permiten pasar a la vista de impresión." }
+    { "id": "empty-scenes-ready", "category": "fixed", "text": "Los documentos sin escenas detectadas terminan correctamente la carga y permiten pasar a la vista de impresión." },
+    { "id": "shot-duration", "category": "new", "text": "Duración estimada automática de cada plano en la tabla y el Excel, calculada según su cobertura con la referencia de una página por minuto." },
+    { "id": "linked-script-excerpts", "category": "new", "text": "Vincula el texto exacto a una línea desde su ficha. Consulta el fragmento con el ojito del guion técnico: vista previa al pasar el ratón y lectura completa al hacer clic." },
+    { "id": "technical-detached-window", "category": "new", "text": "Clic derecho en Guion técnico permite abrir una ventana separada, editable y sincronizada con el editor al instante." },
+    { "id": "shot-tools", "category": "improved", "text": "Títulos del documento en Courier New negrita más legible, color al crear el plano y opción de borrar planos desde la tabla técnica con deshacer." },
+    { "id": "title-safety", "category": "new", "text": "Clic derecho en un título para permitir superposiciones o volver a la colocación protegida con ajuste al hueco más cercano. Los títulos de línea conservan su vínculo con la raya y los del recuadro sin espacio pueden arrastrarse a la página." },
+    { "id": "script-corrections", "category": "new", "text": "Nueva herramienta Correcciones: selecciona texto para marcar errores de redacción con un subrayado rojo en zigzag. Incluye lista propia, localización, borrado, historial, guardado de cuenta y exportación al PDF." }
   ]
 }

@@ -41,8 +41,10 @@ function writeSite(root,output,feed,sha){
  fs.mkdirSync(output,{recursive:true});
  for(const name of fs.readdirSync(root))if(/^[\w.-]+\.(html|css|js)$/.test(name)&&fs.statSync(path.join(root,name)).isFile())fs.copyFileSync(path.join(root,name),path.join(output,name));
  fs.cpSync(path.join(root,'vendor'),path.join(output,'vendor'),{recursive:true});
- const index=path.join(output,'index.html');
- fs.writeFileSync(index,fs.readFileSync(index,'utf8').replace(/\b(src|href)="((?!https?:|data:)[^"#?]+\.(?:css|js))(?:\?[^\"]*)?"/g,(_,attr,url)=>`${attr}="${url}?v=${sha}"`));
+ for(const name of fs.readdirSync(output).filter(name=>name.endsWith('.html'))){
+  const html=path.join(output,name);
+  fs.writeFileSync(html,fs.readFileSync(html,'utf8').replace(/\b(src|href)="((?!https?:|data:)[^"#?]+\.(?:css|js))(?:\?[^\"]*)?"/g,(_,attr,url)=>`${attr}="${url}?v=${sha}"`));
+ }
  fs.writeFileSync(path.join(output,'release-notes.json'),JSON.stringify(feed));fs.writeFileSync(path.join(output,'.nojekyll'),'');
 }
 async function main(){

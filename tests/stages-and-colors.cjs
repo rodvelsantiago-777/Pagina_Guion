@@ -27,10 +27,10 @@ async function notes(page){return page.evaluate(()=>JSON.parse(localStorage.getI
     const records=[{...common,id:'line',shotId:'line',shotName:'1B',shotOrder:1,type:'line',page:1,start:{x:.8,y:.15},end:{x:.8,y:.30}},{...common,id:'highlight-1',shotId:'highlight',shotName:'1A',shotOrder:0,type:'highlight',page:1,text:'Ana abre la puerta.',rects:[{x:.11,y:.15,width:.3,height:.02}]},{...common,id:'highlight-2',shotId:'highlight',shotName:'1A',shotOrder:0,type:'highlight',page:2,text:'La calle permanece vacia.',rects:[{x:.11,y:.15,width:.3,height:.02}]},{...common,id:'scene-2',shotId:'scene-2',shotName:'2A',shotOrder:0,type:'line',page:2,start:{x:.8,y:.6},end:{x:.8,y:.7}}];
     const fingerprint=await page.evaluate(()=>state.fingerprint);await page.locator('#backup-input').setInputFiles({name:'fichas.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({app:'PLANO',version:1,fingerprint,annotations:records}))});await page.waitForFunction(()=>document.querySelector('#annotation-count').textContent==='4');
     const viewer=await page.evaluate(()=>state.viewer.id);await stage(page,'technical');
-    assert.deepEqual(await page.locator('#technical-table thead th').allTextContents(),['Plano','Valor','Angulación','Óptica','Movimiento','Descripción','Grip','Sonido','Notas']);assert.equal(await page.locator('#technical-table-body tr[data-shot-id]').count(),3,'Una fila por plano, sin duplicar sus partes entre páginas');
+    assert.deepEqual(await page.locator('#technical-table thead th').allTextContents(),['Plano','Valor','Angulación','Óptica','Movimiento','Duración est.','Descripción','Grip','Sonido','Notas']);assert.equal(await page.locator('#technical-table-body tr[data-shot-id]').count(),3,'Una fila por plano, sin duplicar sus partes entre páginas');
     assert.deepEqual(await page.locator('.technical-shot-name').allTextContents(),['1A','1B','2A']);assert.equal(await page.locator('.technical-scene-row').count(),2);
     const first=page.locator('#technical-table-body tr[data-shot-id="highlight"]');
-    assert.deepEqual(await first.locator('td').allTextContents(),['PM','Picada oblicua','Angular (moderado)','Dolly in',description,common.grip,common.sound,common.note]);
+    assert.deepEqual(await first.locator('td').allTextContents(),['PM','Picada oblicua','Angular (moderado)','Dolly in','0:02',description,common.grip,common.sound,common.note]);
     assert((await first.boundingBox()).height>90,'La fila crece para mostrar el texto completo');
     assert(await first.locator('[data-field="description"] .technical-cell-value').evaluate(el=>el.scrollHeight<=el.clientHeight+1),'La descripción no se recorta');
     const cell=field=>first.locator(`[data-field="${field}"]`);
@@ -49,10 +49,10 @@ async function notes(page){return page.evaluate(()=>JSON.parse(localStorage.getI
     for(const [id,value] of [['red','64'],['green','128'],['blue','192']])await page.locator('#custom-color-'+id).fill(value);
     assert.equal(await page.locator('#custom-color-hex').inputValue(),'#4080C0');assert.equal(await page.locator('#custom-color-preview').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(64, 128, 192)');
     await page.screenshot({path:path.join(output,'editor-color-visual.png'),fullPage:true});await page.locator('#save-custom-color').click();assert(await page.locator('#edit-shot-dialog').isVisible());await page.locator('#edit-shot-form button[type="submit"]').click();
-    assert.equal(await page.locator('#stage-tabs [data-stage="technical"]').getAttribute('aria-selected'),'true');assert.equal(await first.locator('td').nth(4).textContent(),'Descripción actualizada desde el guion técnico.');
+    assert.equal(await page.locator('#stage-tabs [data-stage="technical"]').getAttribute('aria-selected'),'true');assert.equal(await cell('description').textContent(),'Descripción actualizada desde el guion técnico.');
     assert((await notes(page)).filter(item=>item.shotId==='highlight').every(item=>item.note==='Nueva nota'&&item.color==='#4080c0'));
     assert.equal(await page.evaluate(()=>state.viewer.id),viewer,'Editar la tabla no intenta renderizar un PDF oculto');
-    await page.locator('#technical-undo').click();assert.equal(await first.locator('td').nth(4).textContent(),description);await page.locator('#technical-redo').click();assert.equal(await first.locator('td').nth(7).textContent(),'Nueva nota');
+    await page.locator('#technical-undo').click();assert.equal(await cell('description').textContent(),description);await page.locator('#technical-redo').click();assert.equal(await cell('note').textContent(),'Nueva nota');
     const beforeInline=await notes(page),geometry=items=>items.map(({id,start,end,rects,page,color,shotId,shotOrder})=>({id,start,end,rects,page,color,shotId,shotOrder}));
     await cell('shotName').locator('.technical-cell-value').click();await cell('shotName').locator('input').fill('   ');await page.keyboard.press('Enter');
     assert(await cell('shotName').locator('input').isVisible());assert.equal((await notes(page))[1].shotName,'1A','No guarda un nombre vacío');
@@ -90,6 +90,6 @@ async function notes(page){return page.evaluate(()=>JSON.parse(localStorage.getI
     await stage(page,'technical');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await page.locator('.technical-table-scroll').evaluate(el=>el.scrollWidth>el.clientWidth),'La tabla se desplaza dentro de su contenedor');
     await page.screenshot({path:path.join(output,'guion-tecnico-movil.png'),fullPage:true});await stage(page,'coverage');await page.locator('[data-color-target="annotation-color"]').click();await page.locator('#choose-custom-color').click();
     assert(await page.locator('#color-picker-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));await page.screenshot({path:path.join(output,'editor-color-visual-movil.png'),fullPage:true});await page.keyboard.press('Escape');
-    assert.deepEqual(errors,[]);console.log('OK: tres botones de etapa, escritura bloqueada, tabla compacta de nueve columnas, edición directa de todos los campos, Otro obligatorio, cancelar/Tab/Ctrl+Enter, grupos, historial, persistencia, colores y móvil.');
+    assert.deepEqual(errors,[]);console.log('OK: tres botones de etapa, escritura bloqueada, tabla de diez columnas con duración automática, edición directa de todos los campos, Otro obligatorio, cancelar/Tab/Ctrl+Enter, grupos, historial, persistencia, colores y móvil.');
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -9,7 +9,7 @@
   }
   function properties(copy,type){
     const data=structuredClone(copy.base);
-    for(const key of ['id','shotId','shotName','shotOrder','createdAt','type','page','endPage','start','end','rects','text','labelPosition','labelPinned','lineLabel'])delete data[key];
+    for(const key of ['id','shotId','shotName','shotOrder','createdAt','type','page','endPage','start','end','rects','text','labelPosition','labelPinned','lineLabel','scriptSelection'])delete data[key];
     if(type==='line'&&copy.base.type==='line'&&copy.base.lineLabel)data.lineLabel=structuredClone(copy.base.lineLabel);
     return data;
   }

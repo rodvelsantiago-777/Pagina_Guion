@@ -81,12 +81,10 @@
       const placement = placements.find(p => p.id === item.id);
       if (!placement) return;
       const rect = button.getBoundingClientRect();
-      callbacks.positionMenu(item, { x: event.clientX || rect.left + rect.width / 2, y: event.clientY || rect.bottom }, placement.sceneFallback ? null : { x: placement.x / context.viewport.width, y: placement.y / context.viewport.height });
+      callbacks.positionMenu(item, { x: event.clientX || rect.left + rect.width / 2, y: event.clientY || rect.bottom }, placement.sceneFallback ? null : { x: placement.x / context.viewport.width, y: placement.y / context.viewport.height }, placement.lineT !== undefined ? { t: placement.lineT, side: placement.lineSide } : null);
     }
-    if (item.type === "highlight") {
-      button.addEventListener("contextmenu", positionMenu);
-      button.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") positionMenu(event); });
-    }
+    button.addEventListener("contextmenu", positionMenu);
+    button.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") positionMenu(event); });
     button.addEventListener("pointerdown", event => {
       if (event.button !== 0 || !callbacks.canDrag() || item.labelPinned) return;
       event.preventDefault(); event.stopPropagation();
@@ -94,9 +92,9 @@
       const pageTop = context.segment.top * context.viewport.height;
       const origin = { x: bounds.left - layer.left, y: bounds.top - layer.top + pageTop };
       const occupied = placements.filter(p => p.id !== item.id && (item.type !== "line" || p.type === "line"));
-      let ghost, candidate, moved = false, ended = false;
+      let ghost, candidate, moved = false, ended = false, frame = 0, lastPoint = event;
       button.setPointerCapture(event.pointerId);
-      function update(e) {
+      function render(e) {
         const dx = e.clientX - event.clientX, dy = e.clientY - event.clientY;
         if (!moved && Math.hypot(dx, dy) < 5) return;
         moved = true;
@@ -106,13 +104,26 @@
           ghost.style.width = `${bounds.width}px`; ghost.style.height = `${bounds.height}px`;
           context.labelLayer.append(ghost); tag.classList.add("drag-source");
         }
-        candidate = { x: origin.x + dx, y: origin.y + dy, width: bounds.width, height: bounds.height };
-        if (item.type === "line") candidate = geometry.constrainedLineLabel(descriptor, { x: candidate.x + bounds.width / 2, y: candidate.y + bounds.height / 2 });
-        ghost.style.left = `${candidate.x}px`; ghost.style.top = `${candidate.y - pageTop}px`;
-        ghost.dataset.valid = String(geometry.isClear(candidate, item.type === "highlight" ? { ...options, ...options.manualBounds } : options, occupied, true));
+        const requested = { x: origin.x + dx, y: origin.y + dy, width: bounds.width, height: bounds.height };
+        if (item.type === "line") {
+          const projected = geometry.constrainedLineLabel(descriptor, { x: requested.x + bounds.width / 2, y: requested.y + bounds.height / 2 });
+          const preferred = { t: projected.lineT, side: projected.lineSide };
+          candidate = geometry.resolveLineLabel({ ...descriptor, lineLabel: preferred }, preferred, options, occupied);
+        } else {
+          const limits = { ...options, ...options.manualBounds };
+          candidate = item.labelUnrestricted ? geometry.boundedRect(requested, limits, true) : geometry.nearestClear(requested, limits, occupied, true);
+        }
+        const preview = candidate || requested;
+        ghost.style.left = `${preview.x}px`; ghost.style.top = `${preview.y - pageTop}px`;
+        ghost.dataset.valid = String(Boolean(candidate));
+      }
+      function update(e) {
+        lastPoint = e;
+        if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (!ended) render(lastPoint); });
       }
       function finish(e, save = false) {
         if (ended) return; ended = true;
+        cancelAnimationFrame(frame);
         const valid = moved && candidate && ghost?.dataset.valid === "true";
         suppressClick = moved;
         setTimeout(() => { suppressClick = false; }, 0);
@@ -125,7 +136,7 @@
           else callbacks.move(item, { x: candidate.x / context.viewport.width, y: candidate.y / context.viewport.height });
         }
       }
-      const up = e => { update(e); finish(e, true); };
+      const up = e => { cancelAnimationFrame(frame); render(e); finish(e, true); };
       const cancel = e => finish(e);
       const escape = e => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); finish(e); } };
       button.addEventListener("pointermove", update); button.addEventListener("pointerup", up); button.addEventListener("pointercancel", cancel); button.addEventListener("lostpointercapture", cancel);
@@ -148,12 +159,12 @@
     for (const item of annotations.filter(item => item.id)) {
       const anchor = anchorFor(item, context); if (!anchor) continue;
       const tag = document.createElement("div"); tag.className = "document-shot-tag";
-      tag.dataset.annotationId = item.id; tag.dataset.pinned = String(Boolean(item.labelPinned)); tag.style.setProperty("--shot-color", item.color);
+      tag.dataset.annotationId = item.id; tag.dataset.pinned = String(Boolean(item.labelPinned)); tag.dataset.unrestricted = String(Boolean(item.labelUnrestricted)); tag.style.setProperty("--shot-color", item.color);
       tag.style.setProperty("--shot-ink", titleInk(item.color));
       const button = document.createElement("button");
       button.type = "button"; button.className = "document-shot-label";
       button.dataset.annotationId = item.id; button.style.setProperty("--shot-color", item.color);
-      button.textContent = displayName(item); button.title = `${displayName(item)} · Clic para localizar; ${item.type === "line" ? "arrastra a lo largo de la línea o al otro lado" : item.labelPinned ? "posición fijada; clic derecho para liberar" : "arrastra en Seleccionar; clic derecho para fijar"}. Los destinos en rojo no se guardan.`;
+      button.textContent = displayName(item); button.title = `${displayName(item)} · ${item.type === "line" ? "Arrastra a lo largo de la línea o al otro lado" : item.labelPinned ? "Posición fijada" : "Arrastra en Seleccionar"}. ${item.labelUnrestricted ? "Puede superponerse al contenido" : "Se ajusta al lugar seguro más cercano"}. Clic derecho para cambiar la colocación.`;
       button.setAttribute("aria-label", `Localizar plano: ${displayName(item)}. Arrastrar en Seleccionar para mover su título.`);
       tag.style.visibility = "hidden";
       tag.append(button); fragment.append(tag); buttons.set(item.id, tag);
@@ -162,6 +173,7 @@
         sceneAnchor: scene?.start.page === item.page && scene.heading && scene.heading.y >= segment.top && scene.heading.y < segment.bottom ? { ...toPixels(scene.heading, viewport), rightLimit: scene.heading.rightLimit * viewport.width } : null,
         line: item.type === "line" ? { start: { x: item.start.x * viewport.width, y: item.start.y * viewport.height }, end: { x: item.end.x * viewport.width, y: item.end.y * viewport.height } } : null,
         lineLabel: item.lineLabel || null,
+        unrestricted: Boolean(item.labelUnrestricted),
         manual: item.type !== "line" && item.labelPosition ? { x: item.labelPosition.x * viewport.width, y: item.labelPosition.y * viewport.height } : null });
     }
     labelLayer.append(fragment);
