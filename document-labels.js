@@ -94,8 +94,12 @@
       const occupied = placements.filter(p => p.id !== item.id && (item.type !== "line" || p.type === "line"));
       let ghost, candidate, moved = false, ended = false, frame = 0, lastPoint = event;
       button.setPointerCapture(event.pointerId);
+      context.draggingTitle = true;
       function render(e) {
-        const dx = e.clientX - event.clientX, dy = e.clientY - event.clientY;
+        // El puntero puede quedarse quieto mientras la rueda desplaza la página.
+        const currentLayer = context.labelLayer.getBoundingClientRect();
+        const dx = e.clientX - event.clientX + layer.left - currentLayer.left;
+        const dy = e.clientY - event.clientY + layer.top - currentLayer.top;
         if (!moved && Math.hypot(dx, dy) < 5) return;
         moved = true;
         if (!ghost) {
@@ -121,8 +125,10 @@
         lastPoint = e;
         if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (!ended) render(lastPoint); });
       }
+      const scroll = () => update(lastPoint);
       function finish(e, save = false) {
         if (ended) return; ended = true;
+        context.draggingTitle = false;
         cancelAnimationFrame(frame);
         const valid = moved && candidate && ghost?.dataset.valid === "true";
         suppressClick = moved;
@@ -130,6 +136,7 @@
         ghost?.remove(); tag.classList.remove("drag-source");
         button.removeEventListener("pointermove", update); button.removeEventListener("pointerup", up); button.removeEventListener("pointercancel", cancel); button.removeEventListener("lostpointercapture", cancel);
         window.removeEventListener("keydown", escape, true); window.removeEventListener("blur", cancel);
+        window.removeEventListener("scroll", scroll, true);
         if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
         if (save && valid) {
           if (item.type === "line") callbacks.moveLineTitle(item, { t: candidate.lineT, side: candidate.lineSide });
@@ -141,6 +148,7 @@
       const escape = e => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); finish(e); } };
       button.addEventListener("pointermove", update); button.addEventListener("pointerup", up); button.addEventListener("pointercancel", cancel); button.addEventListener("lostpointercapture", cancel);
       window.addEventListener("keydown", escape, true); window.addEventListener("blur", cancel);
+      window.addEventListener("scroll", scroll, { capture: true, passive: true });
     });
   }
   function draw(context, annotations, callbacks) {

@@ -580,7 +580,7 @@ function releaseDistantPages(viewer) {
   const stageTop = $("#pdf-stage").getBoundingClientRect().top;
   const selection = window.getSelection();
   const range = selection && !selection.isCollapsed && selection.rangeCount ? selection.getRangeAt(0) : null;
-  const candidates = ready.filter(context => !viewer.nearby.has(context) && state.drawing?.context !== context && state.lineGesture?.context !== context && !range?.intersectsNode(context.content)).sort((a, b) => Math.abs(b.slot.getBoundingClientRect().top - stageTop) - Math.abs(a.slot.getBoundingClientRect().top - stageTop));
+  const candidates = ready.filter(context => !viewer.nearby.has(context) && !context.draggingTitle && state.drawing?.context !== context && state.lineGesture?.context !== context && !range?.intersectsNode(context.content)).sort((a, b) => Math.abs(b.slot.getBoundingClientRect().top - stageTop) - Math.abs(a.slot.getBoundingClientRect().top - stageTop));
   for (const context of candidates.slice(0, ready.length - 8)) {
     context.textLayer?.cancel();
     const canvas = context.content?.querySelector("canvas");

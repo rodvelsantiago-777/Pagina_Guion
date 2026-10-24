@@ -1,5 +1,6 @@
 {
   "entries": [
+    { "id": "title-drag-scroll", "category": "fixed", "text": "Los títulos siguen al cursor al desplazar el documento con la rueda durante el arrastre, conservando las restricciones de las líneas y la colocación protegida." },
     { "id": "copy-paste-shots", "category": "new", "text": "Copia y pega planos como líneas o resaltados, conservando su ficha técnica y con numeración automática." },
     { "id": "batch-shot-colors", "category": "new", "text": "Selecciona varios planos en Anotaciones para cambiar su color en conjunto." },
     { "id": "script-library", "category": "new", "text": "Encuentra todos tus guiones en el inicio con miniatura y título. Añade otro con el botón +." },
