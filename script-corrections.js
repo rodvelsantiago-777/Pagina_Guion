@@ -10,9 +10,11 @@
   return value.map(item=>{
    if(!item||typeof item.id!=='string'||!item.id||item.id.length>120||ids.has(item.id))throw new Error('Hay correcciones inválidas o repetidas.');
    const clean={id:item.id,createdAt:String(item.createdAt||'').slice(0,100),parts:script.validateSelection(item.parts,pageCount)};
-   if(item.source==='spelling'){
+   if(item.source==='spelling'||item.source==='syntax'){
     if(typeof item.word!=='string'||!item.word||item.word.length>60)throw Error('Hay una palabra de revisión inválida.');
-    clean.source='spelling';clean.word=item.word;
+    clean.source=item.source;clean.word=item.word;
+    if(item.ignoreKey!==undefined){if(typeof item.ignoreKey!=='string'||item.ignoreKey.length>60)throw Error('Hay un identificador de revisión inválido.');clean.ignoreKey=item.ignoreKey;}
+    if(item.message!==undefined){if(typeof item.message!=='string'||item.message.length>220)throw Error('Hay un aviso de revisión inválido.');clean.message=item.message;}
    }
    ids.add(item.id);return clean;
   });
@@ -40,5 +42,7 @@
    });
   });
  }
- const api={color,validate,create,annotations,zigzags};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PlanoCorrections=api;
+ const automatic=item=>item.source==='spelling'||item.source==='syntax';
+ const ignoreKey=item=>item.ignoreKey||item.word;
+ const api={color,validate,create,annotations,zigzags,automatic,ignoreKey};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PlanoCorrections=api;
 })(globalThis);

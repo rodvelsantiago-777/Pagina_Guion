@@ -62,6 +62,31 @@
     }
     parts.push(remaining); return parts;
   }
+  function crewHeader(sheet, crew, measure) {
+    const roles = root.PlanoCrew.entries(crew), headerRow = 6 + Math.max(4, Math.ceil(roles.length / 2)) * 2;
+    const heading = Array.from({length:14}, (_,i) => ({ value:sheet.getCell(14,i+1).value, style:structuredClone(sheet.getCell(14,i+1).style) }));
+    const blank = Array.from({length:14}, (_,i) => structuredClone(sheet.getCell(6,i+1).style));
+    const labelStyle = structuredClone(sheet.getCell('B7').style), nameStyle = structuredClone(sheet.getCell('E7').style);
+    // Recrear solo la cabecera del equipo, sin desplazar fusiones ni validaciones de la tabla.
+    for (const range of [...sheet.model.merges]) if (+range.match(/\d+/)[0] >= 5) sheet.unMergeCells(range);
+    for (let row=5;row<=headerRow;row++) {
+      sheet.getRow(row).height = row === headerRow-1 ? 14 : row % 2 ? 24 : 9;
+      for (let col=1;col<=14;col++) { const cell=sheet.getCell(row,col); cell.value=null; cell.style=structuredClone(blank[col-1]); }
+    }
+    function width(first,last) { let result=0;for(let col=first;col<=last;col++)result+=sheet.getColumn(col).width||9;return result; }
+    for (const [index,role] of roles.entries()) {
+      const row=5+Math.floor(index/2)*2, right=index%2, first=right?9:2, labelEnd=right?9:row===5?3:4, nameFirst=right?10:labelEnd+1, nameEnd=right?12:7;
+      if(first<labelEnd)sheet.mergeCells(row,first,row,labelEnd);sheet.mergeCells(row,nameFirst,row,nameEnd);
+      const label=sheet.getCell(row,first),name=sheet.getCell(row,nameFirst);
+      label.style=structuredClone(labelStyle);label.value=role.label+':';label.font={...label.font,size:10};label.alignment={horizontal:'left',vertical:'middle',wrapText:true};label.numFmt='@';
+      name.style=structuredClone(nameStyle);name.value=role.name||null;name.numFmt='@';name.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+      sheet.getRow(row).height=Math.max(sheet.getRow(row).height||24,visualLines(role.label+':',width(first,labelEnd),measure)*14+10,visualLines(role.name,width(nameFirst,nameEnd),measure)*14+10);
+    }
+    for(let col=1;col<=14;col++){const cell=sheet.getCell(headerRow,col);cell.style=heading[col-1].style;cell.value=heading[col-1].value;}
+    for(const [first,last]of [[1,2],[8,9],[12,13]])sheet.mergeCells(headerRow,first,headerRow,last);
+    sheet.getRow(headerRow).height=26;
+    return headerRow;
+  }
   async function workbook({ sections, fileName, displayName, values, crew = {}, exportedAt = new Date(), onProgress = () => {}, allowEmpty = false }) {
     if (!root.ExcelJS || !root.PlanoExcelTemplate) throw new Error('No se pudo cargar el motor de Excel.');
     const entries = rowsFrom(sections, displayName, values);
@@ -80,22 +105,11 @@
     sheet.getCell('J3').style={...sheet.getCell('J3').style};
     sheet.getCell('J3').value = new Date(Date.UTC(exportedAt.getFullYear(), exportedAt.getMonth(), exportedAt.getDate()));
     sheet.getCell('J3').numFmt = 'dd/mm/yyyy';
-    const team = root.PlanoCrew.validate(crew);
-    sheet.getCell('I7').style = structuredClone(sheet.getCell('I5').style); sheet.getCell('I7').value = 'PRODUCTOR/A:';
-    sheet.getCell('I7').font = { ...sheet.getCell('I7').font, size: 9 };
-    sheet.mergeCells('J7:L7'); sheet.getCell('J7').style = structuredClone(sheet.getCell('J5').style);
-    for (const [key, cell] of Object.entries({ director:'D5', producer:'J7', productionCompany:'J5', assistantDirector:'E7', cinematographer:'E9', productionDesigner:'E11', soundMixer:'J9' })) {
-      sheet.getCell(cell).value = team[key] || null;
-      sheet.getCell(cell).alignment = { ...sheet.getCell(cell).alignment, wrapText: true };
-    }
     const unique = new Set(entries.map(entry => entry.id)).size;
     const scenes = new Set(entries.map(entry => entry.sceneId)).size;
     const canvas = document.createElement('canvas'), context = canvas.getContext('2d');
     context.font = '11pt Arial'; const measure = text => context.measureText(text).width;
-    for(const [key,row,first,last]of [['director',5,4,7],['producer',7,10,12],['productionCompany',5,10,12],['assistantDirector',7,5,7],['cinematographer',9,5,7],['productionDesigner',11,5,7],['soundMixer',9,10,12]]){
-      const width=Array.from({length:last-first+1},(_,i)=>sheet.getColumn(first+i).width||9).reduce((sum,value)=>sum+value,0);
-      sheet.getRow(row).height=Math.max(sheet.getRow(row).height||24,visualLines(team[key]||'',width,measure)*14+10);
-    }
+    const headerRow = crewHeader(sheet, crew, measure);
     const lists = {};
     for (const key of values.keys) {
       const options = values.fields[key].options.filter(([code]) => code !== 'other').map(([code, label]) => key === 'shotValue' ? code : label);
@@ -115,7 +129,7 @@
     let previousScene;
     const sceneGroups=[],shotGroups=[];
     for (const [index, entry] of outputRows.entries()) {
-      const number = index + 15, row = sheet.getRow(number), newScene = entry.sceneId !== previousScene;
+      const number = index + headerRow + 1, row = sheet.getRow(number), newScene = entry.sceneId !== previousScene;
       if (newScene) { sceneGroups.push({first:number,last:number}); previousScene = entry.sceneId; }
       else sceneGroups.at(-1).last=number;
       if (!entry.continuation) shotGroups.push({first:number,last:number}); else shotGroups.at(-1).last=number;
@@ -146,12 +160,12 @@
       sheet.mergeCells(group.first,1,group.last,2);
       sheet.getCell(group.first,1).numFmt=typeof sheet.getCell(group.first,1).value==='number'?'0':'@';
     }
-    const last = outputRows.length + 14;
+    const last = outputRows.length + headerRow;
     sheet.autoFilter = undefined;
-    sheet.views = [{ state: 'frozen', xSplit: 3, ySplit: 14, topLeftCell: 'D15', activeCell: 'C15', showGridLines: false, zoomScale: 85 }];
-    sheet.pageSetup = { orientation: 'landscape', paperSize: 8, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '14:14', printArea: `A1:N${last}`, margins: { left: .25, right: .25, top: .35, bottom: .4, header: .15, footer: .2 } };
+    sheet.views = [{ state: 'frozen', xSplit: 3, ySplit: headerRow<=14?headerRow:0, topLeftCell: headerRow<=14?`D${headerRow+1}`:'D1', activeCell: `C${headerRow+1}`, showGridLines: false, zoomScale: 85 }];
+    sheet.pageSetup = { orientation: 'landscape', paperSize: 8, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: `${headerRow}:${headerRow}`, printArea: `A1:N${last}`, margins: { left: .25, right: .25, top: .35, bottom: .4, header: .15, footer: .2 } };
     sheet.headerFooter = { oddFooter: '&LPLANO · Guion técnico&R Página &P de &N' };
-    return { book, sheet, last, shots: unique, rows: entries.length, scenes };
+    return { book, sheet, last, headerRow, shots: unique, rows: entries.length, scenes };
   }
   async function run(options) {
     const { book, shots, rows, scenes } = await workbook(options);

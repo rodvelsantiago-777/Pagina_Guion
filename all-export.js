@@ -34,7 +34,7 @@
     return lines;
   }
   async function append(document, model, { fileName, onProgress }) {
-    const { sheet, last } = model, { StandardFonts } = root.PDFLib;
+    const { sheet, last, headerRow = 14 } = model, { StandardFonts } = root.PDFLib;
     const fonts = {
       normal: await document.embedFont(StandardFonts.Helvetica),
       bold: await document.embedFont(StandardFonts.HelveticaBold),
@@ -73,10 +73,17 @@
       const height = rowHeights[number] * scale;
       current.rows.push({ number, y: current.top, height }); current.top += height;
     }
-    for (let row = 1; row <= 14; row++) addRow(row);
-    for (let row = 15; row <= last; row++) {
+    function nextPage(repeatColumns) {
+      pages.push(current);current={rows:[],top:bodyTop,continued:true};if(repeatColumns)addRow(headerRow);
+    }
+    for (let row=1;row<=headerRow;row++) {
+      if(current.top+rowHeights[row]*scale>contentBottom)nextPage(false);
+      if(current.top+rowHeights[row]*scale>contentBottom)throw new Error('Un cargo del equipo ocupa más de una página. Acorta su título o nombre.');
+      addRow(row);
+    }
+    for (let row = headerRow+1; row <= last; row++) {
       if (current.top + rowHeights[row] * scale > contentBottom) {
-        pages.push(current); current = { rows: [], top: bodyTop, continued: true }; addRow(14);
+        nextPage(true);
       }
       if (current.top + rowHeights[row] * scale > contentBottom) throw new Error('Una fila del guion técnico es demasiado alta para la hoja horizontal. Divide su texto en párrafos más cortos.');
       addRow(row);
@@ -149,7 +156,7 @@
           await drawCell(page, cell, layout.rows);
           if (++drawn % 150 === 0) await pause();
         }
-        if (!model.rows) await drawText(page, 'Todavía no hay planos definidos en este guion.', fonts.normal, 11, '#686868', margin + 6, layout.top + 24);
+        if (!model.rows && index===pages.length-1) await drawText(page, 'Todavía no hay planos definidos en este guion.', fonts.normal, 11, '#686868', margin + 6, layout.top + 24);
         await drawText(page, 'PLANO · GUION TÉCNICO', fonts.normal, 8, '#686868', margin, pageSize[1] - margin);
         const number = `${index + 1} / ${pages.length}`;
         await drawText(page, number, fonts.normal, 8, '#686868', pageSize[0] - margin - measure(number, fonts.normal, 8), pageSize[1] - margin);

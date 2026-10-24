@@ -16,5 +16,9 @@ const first=commit([a]),one=makeRelease({root,after:first,previous:{schema:1,rel
 const second=commit([a,b]),two=makeRelease({root,before:first,after:second,previous:one,publishedAt:stamp(24,'02')});
 assert.equal(two.releases.length,1);assert.equal(two.releases[0].commit,second);assert(two.releases[0].sections.flatMap(g=>g.items).includes(a.text));assert(two.releases[0].sections.flatMap(g=>g.items).includes(b.text));
 assert.deepEqual(makeRelease({root,after:second,previous:two,publishedAt:stamp(24,'06')}),two,'Reintentar no mueve el commit a otro día');
-const third=commit([a,b,{id:'c',category:'fixed',text:'Siguiente día'}]);const three=makeRelease({root,before:second,after:third,previous:two,publishedAt:stamp(24,'07')});assert.equal(three.releases.length,2);assert.deepEqual(three.releases[0].sections,[{category:'fixed',items:['Siguiente día']}]);
+const revised={...b,text:'Segundo cambio corregido'},edit=commit([a,revised]);
+const corrected=makeRelease({root,before:second,after:edit,previous:two,publishedAt:stamp(24,'03')});
+const notes=corrected.releases[0].sections.flatMap(section=>section.items);
+assert.equal(corrected.releases.length,1);assert(notes.includes(revised.text));assert(!notes.includes(b.text),'Corregir una nota sustituye su redacción anterior dentro del día');assert(notes.includes(a.text));
+const third=commit([a,revised,{id:'c',category:'fixed',text:'Siguiente día'}]);const three=makeRelease({root,before:edit,after:third,previous:corrected,publishedAt:stamp(24,'07')});assert.equal(three.releases.length,2);assert.deepEqual(three.releases[0].sections,[{category:'fixed',items:['Siguiente día']}]);
 console.log('OK: 20 pushes en una versión diaria, Colombia/medianoche UTC, notas acumuladas sin duplicados, migración del historial anterior, avisos e idempotencia por commit.');

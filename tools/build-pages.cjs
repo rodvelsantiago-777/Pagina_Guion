@@ -15,7 +15,10 @@ function makeRelease({root,before,after,previous,publishedAt=new Date().toISOStr
  const last=history[0]?.commit;
  if(exists(root,last)){try{git(root,['merge-base','--is-ancestor',last,after]);base=last;}catch{}}
  const prior=new Map((base?readEntries(root,base):[]).map(item=>[item.id,item.text]));
- let entries=readEntries(root,after).filter(item=>item&&typeof item.id==='string'&&categories.includes(item.category)&&typeof item.text==='string'&&item.text.trim()&&prior.get(item.id)!==item.text).map(item=>({category:item.category,text:item.text.slice(0,500)})).slice(0,40);
+ const editorial=readEntries(root,after);
+ const replaced=new Set(editorial.filter(item=>item&&prior.has(item.id)&&typeof item.text==='string'&&prior.get(item.id)!==item.text).map(item=>prior.get(item.id).slice(0,500)));
+ const historyForDay=history.map(item=>item.day===releaseDay(publishedAt)?{...item,sections:item.sections.map(section=>({...section,items:section.items.filter(text=>!replaced.has(text))}))}:item);
+ let entries=editorial.filter(item=>item&&typeof item.id==='string'&&categories.includes(item.category)&&typeof item.text==='string'&&item.text.trim()&&prior.get(item.id)!==item.text).map(item=>({category:item.category,text:item.text.slice(0,500)})).slice(0,40);
  if(!entries.length){
   const args=base?['diff','--name-only',base,after,'--']:['show','--format=','--name-only',after,'--'];
   const files=git(root,args).split('\n'),groups=[
@@ -32,7 +35,7 @@ function makeRelease({root,before,after,previous,publishedAt=new Date().toISOStr
   if(!entries.length)entries=[{category:'improved',text:'Actualización de mantenimiento de la aplicación.'}];
  }
  const current={id:after,commit:after,publishedAt:new Date(publishedAt).toISOString(),version:releaseDay(publishedAt).replaceAll('-','.'),sections:categories.map(category=>({category,items:entries.filter(item=>item.category===category).map(item=>item.text)})).filter(section=>section.items.length)};
- const feed={schema:1,releases:releases({schema:1,releases:[current,...history]})};
+ const feed={schema:1,releases:releases({schema:1,releases:[current,...historyForDay]})};
  while(JSON.stringify(feed).length>140000&&feed.releases.length>1)feed.releases.pop();
  return feed;
 }

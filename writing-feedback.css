@@ -1,0 +1,11 @@
+.writing-feedback{grid-column:1/-1;margin:7px 0 2px;min-width:0;font:12px/1.5 var(--sans);color:var(--muted);text-align:left}
+.writing-feedback>summary{cursor:pointer;list-style:none;padding:3px 0;font-weight:500;font-size:12px}
+.writing-feedback[data-errors="true"]>summary{color:var(--danger)}
+.writing-feedback-list{border-left:2px solid var(--line-strong);padding:0 0 0 9px;margin-top:6px}
+.writing-feedback-issue{padding:5px 0;display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 7px;overflow-wrap:anywhere}
+.writing-feedback-issue+.writing-feedback-issue{border-top:1px solid var(--line);margin-top:4px}
+.writing-feedback button{font:inherit;border:0;min-height:0;min-width:0;width:auto;background:none;padding:0 2px;color:var(--accent);cursor:pointer;text-align:left}
+.writing-feedback .writing-feedback-fragment{font-weight:600;color:var(--ink);text-decoration:underline wavy var(--danger);text-underline-offset:3px}
+.writing-feedback-fixes{display:flex;flex-wrap:wrap;gap:4px 10px;width:100%}
+.writing-feedback-fixes button:hover{color:var(--ink);text-decoration:underline}
+.writing-feedback-list>button{padding:3px 0}

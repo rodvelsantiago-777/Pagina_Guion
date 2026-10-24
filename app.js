@@ -723,18 +723,19 @@ function showCorrectionAction(id, point) {
   if (!canSelectShots() || !state.corrections.some(item => item.id === id)) return;
   hideHighlightAction(); state.activeCorrection = id;
   const item = state.corrections.find(item => item.id === id);
-  $("#correction-word").hidden = item.source !== "spelling";
-  $("#correction-word").textContent = item.source === "spelling" ? `Posible error: ${item.word}` : "";
-  $("#delete-correction").textContent = item.source === "spelling" ? "Ignorar esta palabra" : "Quitar corrección";
+  $("#correction-word").hidden = !PlanoCorrections.automatic(item);
+  $("#correction-word").textContent = PlanoCorrections.automatic(item) ? `«${item.word}» · ${item.message || "Posible error ortográfico."}` : "";
+  $("#delete-correction").textContent = item.source === "syntax" ? "Ignorar esta incidencia" : item.source === "spelling" ? "Ignorar esta palabra" : "Quitar corrección";
   PlanoPopover.show($("#correction-action"), point); $("#delete-correction").focus({ preventScroll: true });
 }
 function removeCorrection(id) {
   if (!canSelectShots() || !state.corrections.some(item => item.id === id)) return;
   const correction = state.corrections.find(item => item.id === id);
   hideCorrectionAction(); remember();
-  if (correction.source === "spelling") {
-    if (state.proofreading.ignored.length < 500 && !state.proofreading.ignored.includes(correction.word)) state.proofreading.ignored.push(correction.word);
-    state.corrections = state.corrections.filter(item => item.source !== "spelling" || item.word !== correction.word);
+  if (PlanoCorrections.automatic(correction)) {
+    const key = PlanoCorrections.ignoreKey(correction);
+    if (state.proofreading.ignored.length < 500 && !state.proofreading.ignored.includes(key)) state.proofreading.ignored.push(key);
+    state.corrections = state.corrections.filter(item => !PlanoCorrections.automatic(item) || PlanoCorrections.ignoreKey(item) !== key);
   } else state.corrections = state.corrections.filter(item => item.id !== id);
   changed();
   message("Corrección eliminada. Puedes recuperarla con Deshacer.");
@@ -746,7 +747,7 @@ function refreshCorrections() {
   for (const item of state.corrections) {
     const card = document.createElement("div"); card.className = "script-correction-card"; card.dataset.correctionId = item.id;
     const jump = document.createElement("button"); jump.type = "button"; jump.className = "script-correction-jump";
-    const text = document.createElement("span"); text.textContent = item.source === "spelling" ? `Posible error: ${item.word}` : item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
+    const text = document.createElement("span"); text.textContent = PlanoCorrections.automatic(item) ? `${item.source === "syntax" ? "Revisar redacción" : "Posible error"}: ${item.word}` : item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
     jump.title = text.textContent; jump.setAttribute("aria-label", `Localizar corrección: ${text.textContent.slice(0,160)}`);
     const pages = [...new Set(item.parts.map(part => part.page))].sort((a,b)=>a-b), meta = document.createElement("small");
     meta.textContent = pages.length>1 ? `Páginas ${pages[0]}–${pages.at(-1)}` : `Página ${pages[0]}`;
@@ -1585,31 +1586,33 @@ function readSavedProofreading() {
 let spellingJob = null;
 function refreshSpelling(text = "") {
   $("#toggle-spelling").setAttribute("aria-pressed", String(state.proofreading.enabled));
-  $("#toggle-spelling").textContent = `Ortografía del PDF: ${state.proofreading.enabled ? "automática" : "desactivada"}`;
+  $("#toggle-spelling").textContent = `Ortografía y redacción del PDF: ${state.proofreading.enabled ? "activadas" : "desactivadas"}`;
   $("#spelling-status").textContent = text; $("#spelling-status").hidden = !text;
 }
 function cancelSpelling() { spellingJob?.controller.abort(); spellingJob = null; $("#retry-spelling").hidden = true; }
 async function startSpelling() {
   if (!state.pdf || !state.proofreading.enabled || state.proofreading.dictionary === PlanoSpelling.version || spellingJob || globalThis.PlanoTestDisableSpelling) return;
-  const job = { pdf: state.pdf, owner: PlanoAccounts.getUser()?.id, controller: new AbortController() }; spellingJob = job; refreshSpelling("Revisando el texto en español…");
+  const job = { pdf: state.pdf, owner: PlanoAccounts.getUser()?.id, controller: new AbortController() }; spellingJob = job; refreshSpelling("Revisando ortografía y redacción en español…");
   const current = () => spellingJob === job && state.pdf === job.pdf && PlanoAccounts.getUser()?.id === job.owner && !job.controller.signal.aborted;
   try {
     const version = new URL($("script[src^='app.js']").src).search;
     const found = await PlanoSpelling.scan({ pages: state.pages, scenes: state.scenes, ignored: state.proofreading.ignored, signal: job.controller.signal, load: () => loadScript(`vendor/spanish-spelling.js${version}`) });
     while (current() && (!canSelectShots() || document.querySelector('dialog[open]'))) await new Promise(resolve => setTimeout(resolve, 300));
     if (!current()) return;
-    const ids = new Set(state.corrections.map(item => item.id)), additions = [];
-    let size = new TextEncoder().encode(JSON.stringify({ annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading })).length;
+    const manual = state.corrections.filter(item => !PlanoCorrections.automatic(item));
+    const ids = new Set(manual.map(item => item.id)), additions = [];
+    let size = new TextEncoder().encode(JSON.stringify({ annotations: state.annotations, corrections: manual, crew: state.crew, proofreading: state.proofreading })).length;
     for (const item of found) {
-      if (ids.has(item.id) || additions.length >= 200 || state.corrections.length + additions.length >= 1000) continue;
-      const correction = PlanoCorrections.validate([{ ...item, source: "spelling", createdAt: new Date().toISOString() }], state.pdf.numPages)[0];
+      if (ids.has(item.id) || additions.length >= 200 || manual.length + additions.length >= 1000) continue;
+      const correction = PlanoCorrections.validate([{ ...item, source: item.source || "spelling", createdAt: new Date().toISOString() }], state.pdf.numPages)[0];
       size += new TextEncoder().encode(JSON.stringify(correction)).length;
       if (size > 310000) break;
       additions.push(correction);
     }
-    if (additions.length) remember();
-    state.proofreading.dictionary = PlanoSpelling.version; state.corrections.push(...additions);
-    additions.length ? changed() : saveNotes();
+    const changes = additions.length || manual.length !== state.corrections.length;
+    if (changes) remember();
+    state.proofreading.dictionary = PlanoSpelling.version; state.corrections = [...manual,...additions];
+    changes ? changed() : saveNotes();
     refreshSpelling(additions.length ? `${additions.length} posibles errores señalados. Los nombres propios pueden ignorarse.` : "Revisión terminada.");
   } catch (error) {
     if (current() && error.name !== "AbortError") { refreshSpelling("No se pudo completar la revisión. Puedes reintentar."); $("#retry-spelling").hidden = false; }
@@ -1618,7 +1621,7 @@ async function startSpelling() {
 $("#toggle-spelling").addEventListener("click", () => {
   if (!canSelectShots()) return;
   cancelSpelling(); remember(); state.proofreading.enabled = !state.proofreading.enabled; state.proofreading.dictionary = "";
-  if (!state.proofreading.enabled) state.corrections = state.corrections.filter(item => item.source !== "spelling");
+  if (!state.proofreading.enabled) state.corrections = state.corrections.filter(item => !PlanoCorrections.automatic(item));
   changed(); refreshSpelling(); if (state.proofreading.enabled) startSpelling();
 });
 $("#retry-spelling").addEventListener("click", startSpelling);
@@ -1871,6 +1874,7 @@ function closeDocument() {
   PlanoTechnicalWindow.invalidate();
   crewEditor.close();
   cancelSpelling();
+  PlanoSpelling.stop();
   PlanoTechnicalScript.clear();
   cancelPasteChoice(); finishPastedHighlight(); copiedShot = null;
   clearShotSelection();
