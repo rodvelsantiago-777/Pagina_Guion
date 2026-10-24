@@ -39,10 +39,10 @@
   <script src="label-layout.js?v=20261023-title-safety-1" defer></script>
   <script src="document-labels.js?v=20261023-title-safety-1" defer></script>
   <script src="pdf-export.js?v=20261023-bold-titles-2" defer></script>
-  <script src="excel-export.js" defer></script>
+  <script src="excel-export.js?v=20261023-all-1" defer></script>
   <script src="script-preview.js?v=20261022-library-1" defer></script>
-  <script src="app.js?v=20261023-corrections-1" defer></script>
-  <script src="patch-notes.js?v=20261022-history-1" defer></script>
+  <script src="app.js?v=20261023-all-1" defer></script>
+  <script src="patch-notes.js?v=20261023-full-history-2" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -133,7 +133,7 @@
         <div class="editor-actions editor-only">
           
           <div class="view-mode-control" title="Vista del guion"><button id="view-mode-button" class="header-icon" type="button" aria-label="Vista del guion" aria-haspopup="menu" aria-controls="view-mode-menu" aria-expanded="false"><svg aria-hidden="true"><use href="#i-grid"/></svg></button><select id="scene-select" hidden aria-label="Vista del guion"><option value="all">Guion completo</option><option value="editing">Vista de edición</option><option value="print">Vista de impresión</option></select></div>
-          <details id="project-menu" class="project-menu"><summary class="header-icon" aria-label="Menú del proyecto" title="Menú del proyecto"><svg><use href="#i-menu"/></svg></summary><div class="project-menu-content"><span class="menu-caption">GUION</span><button id="menu-home" type="button">Volver al inicio</button><button id="menu-patch-notes" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="rename-file-menu" type="button">Cambiar nombre</button><button id="replace-button" type="button">Cambiar PDF</button><a id="open-document" target="_blank" rel="noopener">Abrir PDF original <svg><use href="#i-external"/></svg></a><hr><button id="export-pdf" type="button">Exportar PDF con cobertura</button><button id="export-excel" type="button" disabled>Exportar guion técnico a Excel</button><button id="save-backup" type="button">Exportar notas</button><button id="restore-backup" type="button">Importar notas</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></details>
+          <details id="project-menu" class="project-menu"><summary class="header-icon" aria-label="Menú del proyecto" title="Menú del proyecto"><svg><use href="#i-menu"/></svg></summary><div class="project-menu-content"><span class="menu-caption">GUION</span><button id="menu-home" type="button">Volver al inicio</button><button id="menu-patch-notes" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="rename-file-menu" type="button">Cambiar nombre</button><button id="replace-button" type="button">Cambiar PDF</button><a id="open-document" target="_blank" rel="noopener">Abrir PDF original <svg><use href="#i-external"/></svg></a><hr><button id="export-pdf" type="button">Exportar PDF con cobertura</button><button id="export-all" type="button" title="Guion con cobertura y guion técnico en hojas horizontales, en un único PDF">Exportar todo (PDF)</button><button id="export-excel" type="button" disabled>Exportar guion técnico a Excel</button><button id="save-backup" type="button">Exportar notas</button><button id="restore-backup" type="button">Importar notas</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></details>
         </div>
       </header>
       <main id="main-content">

@@ -63,7 +63,7 @@
  function render(items){
   const content=$('#patch-notes-content');content.replaceChildren();
   for(const item of items){
-   const section=document.createElement('section');section.className='patch-release';
+   const section=document.createElement('section');section.className='patch-release';section.dataset.releaseId=item.id;
    const meta=document.createElement('div');meta.className='patch-release-meta';
    const version=document.createElement('strong');version.textContent=item.version;
    const date=document.createElement('time');date.dateTime=item.publishedAt;date.textContent=new Date(item.publishedAt).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});meta.append(version,date);section.append(meta);
@@ -73,36 +73,36 @@
    }
    content.append(section);
   }
-  $('#patch-notes-description').textContent=items.length>1?'Las mejoras publicadas desde tu última visita.':'Las mejoras de esta actualización.';
+  $('#patch-notes-description').textContent=items.length>1?'Historial de actualizaciones, de la más reciente a la más antigua.':'Las mejoras de esta actualización.';
  }
  function show(manual=false){
   if(manual){openHistory();return;}
   if(!owner||!current||!feed.length||root.PlanoAccounts.getUser()?.id!==owner||document.body.classList.contains('auth-locked'))return;
   if(dialog.open||document.querySelector('dialog[open],[popover]:popover-open')||$('.app-shell').inert)return;
   if(!manual&&(!current.ready||document.body.classList.contains('is-editing')))return;
-  const items=manual?feed:unseen(feed,current.seen);if(!items.length)return;
-  automatic=true;render(items);displayed={owner,release:items[0]};
+  if(!unseen(feed,current.seen).length)return;
+  automatic=true;render(feed);displayed={owner,release:feed[0]};
   $('#patch-notes-title').textContent='Lo nuevo en PLANO';$('#patch-notes-eyebrow').textContent='EL ESTUDIO, AL DÍA';$('#patch-notes-state').hidden=true;
-  $('#patch-notes-footer').textContent='El estudio sigue mejorando.';$('#accept-patch-notes').textContent='Entendido';
-  dialog.showModal();$('#accept-patch-notes').focus({preventScroll:true});
+  $('#patch-notes-footer').textContent=`${feed.length} ${feed.length===1?'publicación disponible':'publicaciones disponibles'}`;$('#accept-patch-notes').textContent='Entendido';
+  dialog.showModal();dialog.scrollTop=0;$('#accept-patch-notes').focus({preventScroll:true});
  }
  function renderHistory(){
   render(feed);$('#patch-notes-title').textContent='Notas de parche';$('#patch-notes-eyebrow').textContent='HISTORIAL DEL ESTUDIO';
-  $('#patch-notes-description').textContent='Consulta las novedades, mejoras y correcciones de cada publicación.';
+  $('#patch-notes-description').textContent='Consulta cada publicación, de la más reciente a la más antigua.';
   $('#accept-patch-notes').textContent='Cerrar';$('#patch-notes-state').hidden=Boolean(feed.length);
   $('#patch-notes-state-message').textContent=feedStatus==='loading'?'Cargando las notas de parche…':feedStatus==='error'?'No pudimos cargar las notas. Puedes volver a intentarlo.':'Todavía no hay notas de parche publicadas.';
   $('#retry-patch-notes').hidden=feedStatus==='loading';
   $('#patch-notes-footer').textContent=feed.length?`${feed.length} ${feed.length===1?'publicación disponible':'publicaciones disponibles'}`:'Historial de actualizaciones';
   displayed=feed.length?{owner,release:feed[0]}:null;
  }
- async function openHistory(refresh=false){
+ async function openHistory(refresh=true){
   if(!owner||root.PlanoAccounts.getUser()?.id!==owner||document.body.classList.contains('auth-locked')||$('.app-shell').inert)return;
   if(!dialog.open&&document.querySelector('dialog[open],[popover]:popover-open'))return;
   const expected=epoch;automatic=false;
   const loading=loadFeed(refresh);renderHistory();
-  if(!dialog.open){dialog.showModal();$('#accept-patch-notes').focus({preventScroll:true});}
+  if(!dialog.open){dialog.showModal();dialog.scrollTop=0;$('#accept-patch-notes').focus({preventScroll:true});}
   const loaded=await loading;if(expected!==epoch)return;feed=loaded;
-  if(dialog.open&&!automatic)renderHistory();
+  if(dialog.open&&!automatic){renderHistory();dialog.scrollTop=0;}
  }
  async function changeAccount(){
   const next=root.PlanoAccounts.getUser()?.id||'';if(next===owner)return;

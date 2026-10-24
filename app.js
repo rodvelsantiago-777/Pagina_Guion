@@ -1865,49 +1865,62 @@ $("#undo-button").addEventListener("click", () => undo()); $("#redo-button").add
 for (const [id, delta] of [["#zoom-in", 0.2], ["#zoom-out", -0.2]]) $(id).addEventListener("click", () => { state.fit = false; state.zoom = Math.max(0.25, Math.min(3, state.zoom + delta)); renderDocument({ preservePosition: true }); });
 $("#fit-width").addEventListener("click", () => { state.fit = true; renderDocument({ preservePosition: true }); });
 let exportEngine;
-async function exportCoveragePdf() {
+async function exportCoveragePdf(includeTechnical = false) {
   if (!state.pdf || state.busy || state.exporting) return;
   if (!PlanoTechnicalScript.finishEditing()) return;
   if (state.pending || state.editing || state.drawing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) {
     message("Termina o cancela la edición del plano antes de exportar.", true); return;
   }
   const snapshot = { source: state.file, pdf: state.pdf, annotations: [...state.annotations.map(item => ({ ...structuredClone(item), shotName: annotationDisplayName(item) })), ...PlanoCorrections.annotations(structuredClone(state.corrections))], scenes: structuredClone(state.scenes), displayName: item => item.shotName, onProgress: text => message(text) };
-  const name = `${state.file.name.replace(/\.pdf$/i, "")}-cobertura.pdf`, button = $("#export-pdf"), previous = button.textContent;
-  state.exporting = true; busy(true); button.disabled = true; $("#remove-button").disabled = true; button.textContent = "Exportando PDF…";
+  const technical = includeTechnical ? technicalExportSnapshot() : null;
+  const name = `${state.file.name.replace(/\.pdf$/i, "")}-${includeTechnical ? "completo" : "cobertura"}.pdf`, button = $(includeTechnical ? "#export-all" : "#export-pdf"), previous = button.textContent;
+  state.exporting = true; busy(true); $("#export-pdf").disabled = true; $("#export-all").disabled = true; $("#remove-button").disabled = true; button.textContent = "Exportando PDF…";
   $("#project-menu").open = false; hideHighlightAction();
   try {
     message("Preparando PDF con cobertura…");
-    if (snapshot.annotations.length && !window.PDFLib) {
+    if ((includeTechnical || snapshot.annotations.length) && !window.PDFLib) {
       if (!exportEngine) exportEngine = loadScript("vendor/pdf-lib.min.js").catch(error => { exportEngine = null; throw error; });
       await exportEngine;
     }
-    const result = await PlanoPdfExport.run(snapshot), url = URL.createObjectURL(new Blob([result.bytes], { type: "application/pdf" }));
+    if (includeTechnical) {
+      const version = new URL($("script[src^='app.js']").src).search;
+      await Promise.all([prepareExcelExport(), loadScript(`all-export.js${version}`)]);
+    }
+    const result = includeTechnical ? await PlanoAllExport.run({ coverage: snapshot, technical, onProgress: snapshot.onProgress }) : await PlanoPdfExport.run(snapshot);
+    const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/pdf" }));
     const link = document.createElement("a"); link.href = url; link.download = name; link.hidden = true; document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    message(result.references ? "PDF descargado. Los nombres sin espacio libre están en las referencias al final." : "PDF con cobertura descargado.");
+    message(includeTechnical ? `PDF completo descargado: guion con cobertura y ${result.technicalPages} ${result.technicalPages === 1 ? "página horizontal" : "páginas horizontales"} de guion técnico.` : result.references ? "PDF descargado. Los nombres sin espacio libre están en las referencias al final." : "PDF con cobertura descargado.");
   } catch (error) {
-    message(`No se pudo exportar el PDF. ${error.message || "Inténtalo de nuevo."}`, true);
+    message(`No se pudo exportar el PDF${includeTechnical ? " completo" : ""}. ${error.message || "Inténtalo de nuevo."}`, true);
   } finally {
-    state.exporting = false; busy(false); button.disabled = false; $("#remove-button").disabled = false; button.textContent = previous;
+    state.exporting = false; busy(false); $("#export-pdf").disabled = false; $("#export-all").disabled = false; $("#remove-button").disabled = false; button.textContent = previous;
     for (const id of ['#export-excel', '#technical-export-excel']) $(id).disabled = !state.annotations.length;
   }
 }
-$("#export-pdf").addEventListener("click", exportCoveragePdf);
+$("#export-pdf").addEventListener("click", () => exportCoveragePdf());
+$("#export-all").addEventListener("click", () => exportCoveragePdf(true));
 let excelEngine;
+function prepareExcelExport() {
+  if (!excelEngine) excelEngine = Promise.all([loadScript("vendor/exceljs.min.js"), loadScript("vendor/excel-template.js")]).catch(error => { excelEngine = null; throw error; });
+  return excelEngine;
+}
+function technicalExportSnapshot() {
+  return { sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })), fileName: state.file.name, displayName: item => item.shotName, values: shotValues, onProgress: text => message(text) };
+}
 async function exportTechnicalExcel() {
   if (!state.pdf || state.busy || state.exporting || !PlanoTechnicalScript.finishEditing()) return;
   if (state.pending || state.editing || state.drawing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) {
     message("Termina o cancela la edición del plano antes de exportar.", true); return;
   }
   if (!state.annotations.length) { message("Añade al menos un plano para exportar el guion técnico.", true); return; }
-  const snapshot = { sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })), fileName: state.file.name, displayName: item => item.shotName, values: shotValues, onProgress: text => message(text) };
+  const snapshot = technicalExportSnapshot();
   const buttons = [$("#export-excel"), $("#technical-export-excel")];
   state.exporting = true; busy(true); buttons.forEach(button => button.disabled = true); $("#remove-button").disabled = true;
   $("#project-menu").open = false; hideHighlightAction();
   try {
     message("Preparando guion técnico en Excel…");
-    if (!excelEngine) excelEngine = Promise.all([loadScript("vendor/exceljs.min.js"), loadScript("vendor/excel-template.js")]).catch(error => { excelEngine = null; throw error; });
-    await excelEngine;
+    await prepareExcelExport();
     const result = await PlanoExcelExport.run(snapshot);
     const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     const link = document.createElement("a"); link.href = url; link.download = `${snapshot.fileName.replace(/\.pdf$/i, "")}-guion-tecnico.xlsx`; link.hidden = true;

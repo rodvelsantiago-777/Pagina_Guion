@@ -20,6 +20,12 @@ Los títulos se colocan en los espacios seguros de las páginas originales y res
 
 El proceso se ejecuta en el navegador, sin subir el documento ni depender de Internet. La lectura y el historial no cambian; se usan los planos guardados al iniciar la exportación. La interfaz muestra el progreso y evita cambiar o cerrar el archivo durante la preparación. **Exportar notas** sigue generando una copia JSON para recuperar o continuar editando los planos en PLANO; el PDF exportado es la copia visual para compartir o imprimir.
 
+## Exportar todo en un PDF
+
+**Exportar todo (PDF)**, en el menú del editor, descarga un único archivo: primero el PDF original con cobertura y correcciones, y después el guion técnico en hojas A3 horizontales. La segunda parte usa el mismo libro y plantilla que la exportación Excel: columnas, cabecera, datos, agrupación, colores neutros y duración estimada. Los encabezados se repiten al continuar en otra hoja; los campos largos se reparten sin perder contenido. El texto habitual se mantiene seleccionable; los glifos Unicode que no admiten las fuentes estándar se incrustan como pequeñas imágenes. Si aún no hay planos se incluye la cabecera técnica con una indicación de que está vacía.
+
+La exportación completa se prepara localmente y carga su motor solo al usarla. Respeta todas las escenas, aunque el visor muestre solo una, guarda la celda técnica que esté editándose y conserva la vista y el historial. `tests/all-export.cjs` comprueba una descarga real sin red, el orden de las páginas, su orientación, cobertura, textos extensos, edición pendiente, errores recuperables y ausencia de cambios por tema o vista. `all-export.js` genera las páginas técnicas desde el modelo compartido de `excel-export.js`.
+
 ## Apariencia del estudio
 
 La interfaz utiliza superficies sólidas, tipografía editorial, bordes finos y una paleta de cobre y neutros. El inicio, la cobertura, las fichas, los formularios, la paleta de anotaciones y la tabla técnica comparten este diseño. No se aplican filtros al documento.

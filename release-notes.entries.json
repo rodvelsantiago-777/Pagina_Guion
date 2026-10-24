@@ -1,5 +1,7 @@
 {
   "entries": [
+    { "id": "patch-history-in-notice", "category": "improved", "text": "Las notas de parche muestran el historial disponible tanto en el aviso de novedades como al consultarlas: la publicación más reciente arriba y cada parche anterior debajo." },
+    { "id": "export-all", "category": "new", "text": "Exportar todo reúne el guion con sus líneas, resaltados y correcciones y, a continuación, la plantilla del guion técnico en páginas horizontales dentro de un único PDF." },
     { "id": "visible-bold-titles", "category": "fixed", "text": "Nombres de plano con trazos más gruesos y negrita claramente visible en el documento y el PDF exportado, manteniendo Courier New." },
     { "id": "title-drag-scroll", "category": "fixed", "text": "Los títulos siguen al cursor al desplazar el documento con la rueda durante el arrastre, conservando las restricciones de las líneas y la colocación protegida." },
     { "id": "copy-paste-shots", "category": "new", "text": "Copia y pega planos como líneas o resaltados, conservando su ficha técnica y con numeración automática." },

@@ -62,10 +62,10 @@
     }
     parts.push(remaining); return parts;
   }
-  async function run({ sections, fileName, displayName, values, exportedAt = new Date(), onProgress = () => {} }) {
+  async function workbook({ sections, fileName, displayName, values, exportedAt = new Date(), onProgress = () => {}, allowEmpty = false }) {
     if (!root.ExcelJS || !root.PlanoExcelTemplate) throw new Error('No se pudo cargar el motor de Excel.');
     const entries = rowsFrom(sections, displayName, values);
-    if (!entries.length) throw new Error('Añade al menos un plano antes de exportar el guion técnico.');
+    if (!entries.length && !allowEmpty) throw new Error('Añade al menos un plano antes de exportar el guion técnico.');
     onProgress('Preparando guion técnico en Excel…');
     const book = new root.ExcelJS.Workbook();
     await book.xlsx.load(root.PlanoExcelTemplate, { base64: true });
@@ -139,8 +139,12 @@
     sheet.views = [{ state: 'frozen', xSplit: 3, ySplit: 14, topLeftCell: 'D15', activeCell: 'C15', showGridLines: false, zoomScale: 85 }];
     sheet.pageSetup = { orientation: 'landscape', paperSize: 8, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '14:14', printArea: `A1:N${last}`, margins: { left: .25, right: .25, top: .35, bottom: .4, header: .15, footer: .2 } };
     sheet.headerFooter = { oddFooter: '&LPLANO · Guion técnico&R Página &P de &N' };
-    onProgress('Generando archivo .xlsx…');
-    return { bytes: await book.xlsx.writeBuffer(), shots: unique, rows: entries.length, scenes };
+    return { book, sheet, last, shots: unique, rows: entries.length, scenes };
   }
-  root.PlanoExcelExport = { run, rowsFrom };
+  async function run(options) {
+    const { book, shots, rows, scenes } = await workbook(options);
+    options.onProgress?.('Generando archivo .xlsx…');
+    return { bytes: await book.xlsx.writeBuffer(), shots, rows, scenes };
+  }
+  root.PlanoExcelExport = { run, rowsFrom, workbook };
 })(globalThis);
