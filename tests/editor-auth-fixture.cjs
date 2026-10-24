@@ -1,6 +1,7 @@
 /* Aísla el editor en sus pruebas anteriores. No se carga desde la aplicación.
  * La autenticación obligatoria y el SDK real se prueban aparte en accounts.cjs. */
 const fixture=`(function(){
+ globalThis.PlanoTestDisableSpelling=${process.env.PLANO_TEST_SPELL!=="1"};
  globalThis.PlanoAccounts={ready:Promise.resolve(),configured:true,getUser:()=>({id:'editor-test',name:'Prueba',email:'editor@example.invalid'}),notesKey:fingerprint=>'plano-notes-v1:'+fingerprint,connectWorkspace:()=>{},open:()=>{}};
  function showEditor(){document.body.classList.remove('auth-locked');document.querySelector('#auth-entry').hidden=true;const shell=document.querySelector('.app-shell');shell.inert=false;shell.setAttribute('aria-hidden','false');}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showEditor);else showEditor();

@@ -9,7 +9,12 @@
   const ids=new Set();
   return value.map(item=>{
    if(!item||typeof item.id!=='string'||!item.id||item.id.length>120||ids.has(item.id))throw new Error('Hay correcciones inválidas o repetidas.');
-   ids.add(item.id);return{id:item.id,createdAt:String(item.createdAt||'').slice(0,100),parts:script.validateSelection(item.parts,pageCount)};
+   const clean={id:item.id,createdAt:String(item.createdAt||'').slice(0,100),parts:script.validateSelection(item.parts,pageCount)};
+   if(item.source==='spelling'){
+    if(typeof item.word!=='string'||!item.word||item.word.length>60)throw Error('Hay una palabra de revisión inválida.');
+    clean.source='spelling';clean.word=item.word;
+   }
+   ids.add(item.id);return clean;
   });
  }
  function create(parts,pageCount){

@@ -80,7 +80,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   browser=await chromium.launch(process.env.PLANO_BROWSER==='brave'?{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true}:{channel:'msedge',headless:true});
   const errors=[];
   async function newDevice(owner='ana',options={}){
-   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();
+   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();await page.addInitScript(()=>globalThis.PlanoTestDisableSpelling=true);
    page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
    if(options.initialSettings)await page.addInitScript(settings=>localStorage.setItem('plano-appearance-v2',JSON.stringify(settings)),options.initialSettings);
    await page.route(base+'**',route=>{
@@ -148,7 +148,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
    await page.evaluate(name=>{state.annotations=[{id:'test-line',shotId:'test-line',type:'line',page:1,endPage:2,color:'#e8b83f',start:{x:.85,y:.2},end:{x:.85,y:.4},shotName:name,description:'Una descripción de prueba',grip:'Trípode',sound:'Ambiente',note:'Nota privada',scriptSelection:[{page:1,text:'La historia comienza.',rects:[{x:.11,y:.15,width:.3,height:.02}]}]}];changed();},name);
   }
   await edit(one.page,'Plano A');await one.page.waitForFunction(()=>PlanoCloud.info().status==='saved');
-  await one.page.evaluate(()=>{state.annotations[0].labelUnrestricted=true;state.corrections=[PlanoCorrections.create([{page:1,text:'La historia comienza.',rects:[{x:.11,y:.15,width:.3,height:.02}]}],state.pdf.numPages)];changed();});await one.page.waitForFunction(()=>PlanoCloud.info().status==='saved');
+  await one.page.evaluate(()=>{state.annotations[0].labelUnrestricted=true;state.crew={director:"Ana Ruiz",producer:"Luis Pérez",productionCompany:"Luz Films"};state.proofreading={enabled:false,dictionary:"",ignored:["planosecuencia"]};state.corrections=[PlanoCorrections.create([{page:1,text:'La historia comienza.',rects:[{x:.11,y:.15,width:.3,height:.02}]}],state.pdf.numPages)];changed();});await one.page.waitForFunction(()=>PlanoCloud.info().status==='saved');
   assert.equal(uploads,1,'Los cambios de notas no vuelven a subir el PDF');
   assert.equal(await one.page.evaluate(()=>Object.keys(localStorage).some(key=>key.startsWith('plano-notes'))),false,'Los cambios de nube no se guardan en el dispositivo');
   const two=await newDevice();await two.page.locator('#open-cloud').click();await two.page.getByRole('button',{name:'Historia.pdf',exact:true}).click();await two.page.waitForFunction(()=>state.cloudProject&&!state.busy);
@@ -156,6 +156,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   assert.equal(await two.page.evaluate(()=>state.annotations[0].scriptSelection[0].text),'La historia comienza.','La cuenta conserva el fragmento vinculado a la línea');
   assert.equal(await two.page.evaluate(()=>state.annotations[0].labelUnrestricted),true,'La cuenta conserva el permiso de colocar el título sobre contenido');
   assert.equal(await two.page.evaluate(()=>state.corrections[0].parts[0].text),'La historia comienza.','Las correcciones editoriales se recuperan en otro dispositivo');
+  assert.deepEqual(await two.page.evaluate(()=>state.crew),{director:"Ana Ruiz",producer:"Luis Pérez",productionCompany:"Luz Films"},"El equipo se recupera desde otra cuenta/dispositivo");assert.deepEqual(await two.page.evaluate(()=>state.proofreading),{enabled:false,dictionary:"",ignored:["planosecuencia"]},"La configuración de revisión se guarda con el guion");
   await one.context.setOffline(true);await edit(one.page,'Sin conexión');await one.page.evaluate(()=>PlanoCloud.flush().catch(()=>{}));assert.equal(await one.page.evaluate(()=>PlanoCloud.info().status),'error');
   assert.equal((await rpc('ana','read',id,{})).payload.annotations[0].shotName,'Plano A');
   await assert.rejects(one.page.evaluate(()=>cloudTestHooks.beforeChange()),/Cloud save pending/,'No se cierra sesión fingiendo que se guardó');

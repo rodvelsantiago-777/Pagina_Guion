@@ -9,7 +9,7 @@ const MAX_SIZE = 100 * 1024 * 1024;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const state = {
   pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, thumbnail: null, pages: [], scenes: [],
-  annotations: [], corrections: [], activeCorrection: null, history: [], future: [], selectedShots: new Set(), scene: "all", segmentIndex: 0,
+  annotations: [], corrections: [], crew: {}, proofreading: PlanoSpelling.validate(), crewEditing: false, activeCorrection: null, history: [], future: [], selectedShots: new Set(), scene: "all", segmentIndex: 0,
   tool: "select", zoom: 1, fit: true, renderId: 0, loadId: 0,
   viewer: null, panelOpen: null, viewAnchor: null, pending: null, editing: null, details: null, highlightCorrection: null, highlightAction: null, stage: "coverage", selectedLine: null, lineGesture: null,
   segments: [], drawing: null, rendered: false, renderWidth: 0, busy: false, screen: "import", titleMenu: null, exporting: false, pasteChoice: null, pasteHighlight: null
@@ -183,19 +183,23 @@ async function upload(file, options = {}) {
     }
     if (id !== state.loadId) { await candidate.destroy(); return; }
     let cloudProject = options.project || null;
-    let incomingPayload = null, incomingNotes = null, incomingCorrections = null;
+    let incomingPayload = null, incomingNotes = null, incomingCorrections = null, incomingCrew = null, incomingProofreading = null;
     if (PlanoCloud.configured) {
       if (!cloudProject) cloudProject = await PlanoCloud.importFile(file);
       if (cloudProject.fingerprint !== hash) throw new Error("La huella del PDF no coincide con el proyecto. Vuelve a descargarlo.");
       incomingPayload = PlanoCloud.preview(cloudProject);
       incomingNotes = validateNotes(incomingPayload.annotations, pdf.numPages);
       incomingCorrections = PlanoCorrections.validate(incomingPayload.corrections, pdf.numPages);
+      incomingCrew = PlanoCrew.validate(incomingPayload.crew);
+      incomingProofreading = PlanoSpelling.validate(incomingPayload.proofreading);
       await PlanoCloud.flush();
       if (id !== state.loadId) { await candidate.destroy(); return; }
     }
     cancelRendering();
     clearShotSelection();
     PlanoTechnicalScript.clear(); $("#technical-table-body").replaceChildren(); PlanoTechnicalWindow.invalidate();
+    crewEditor.close();
+    cancelSpelling();
     const previousPdf = state.pdf;
     if (state.url) URL.revokeObjectURL(state.url);
     state.pdf = pdf; state.loading = null; state.file = cloudProject ? new File([file], cloudProject.name, { type: 'application/pdf' }) : file;
@@ -208,6 +212,8 @@ async function upload(file, options = {}) {
     state.thumbnail = PlanoScriptPreview.valid(cloudPayload?.thumbnail) ? cloudPayload.thumbnail : null;
     state.annotations = cloudPayload && !cloudProject.created ? incomingNotes : readSavedNotes();
     state.corrections = cloudPayload && !cloudProject.created ? incomingCorrections : readSavedCorrections();
+    state.crew = cloudPayload && !cloudProject.created ? incomingCrew : readSavedCrew();
+    state.proofreading = cloudPayload && !cloudProject.created ? incomingProofreading : readSavedProofreading(); refreshSpelling();
     state.history = []; state.future = []; state.scene = "all"; state.stage = "coverage";
     state.segmentIndex = 0; state.fit = true; state.zoom = 1; state.drawing = null; state.viewAnchor = null;
     if (cloudPayload?.view && !cloudProject.created) {
@@ -225,6 +231,7 @@ async function upload(file, options = {}) {
     if (cloudProject?.created && state.annotations.length) saveNotes();
     else if (cloudProject) PlanoCloudLibrary.refreshStatus();
     message("");
+    setTimeout(() => { if (state.pdf === pdf) startSpelling(); }, 0);
     return true;
   } catch (error) {
     if (id !== state.loadId) return;
@@ -715,11 +722,21 @@ function hideCorrectionAction() {
 function showCorrectionAction(id, point) {
   if (!canSelectShots() || !state.corrections.some(item => item.id === id)) return;
   hideHighlightAction(); state.activeCorrection = id;
+  const item = state.corrections.find(item => item.id === id);
+  $("#correction-word").hidden = item.source !== "spelling";
+  $("#correction-word").textContent = item.source === "spelling" ? `Posible error: ${item.word}` : "";
+  $("#delete-correction").textContent = item.source === "spelling" ? "Ignorar esta palabra" : "Quitar corrección";
   PlanoPopover.show($("#correction-action"), point); $("#delete-correction").focus({ preventScroll: true });
 }
 function removeCorrection(id) {
   if (!canSelectShots() || !state.corrections.some(item => item.id === id)) return;
-  hideCorrectionAction(); remember(); state.corrections = state.corrections.filter(item => item.id !== id); changed();
+  const correction = state.corrections.find(item => item.id === id);
+  hideCorrectionAction(); remember();
+  if (correction.source === "spelling") {
+    if (state.proofreading.ignored.length < 500 && !state.proofreading.ignored.includes(correction.word)) state.proofreading.ignored.push(correction.word);
+    state.corrections = state.corrections.filter(item => item.source !== "spelling" || item.word !== correction.word);
+  } else state.corrections = state.corrections.filter(item => item.id !== id);
+  changed();
   message("Corrección eliminada. Puedes recuperarla con Deshacer.");
 }
 function refreshCorrections() {
@@ -729,7 +746,7 @@ function refreshCorrections() {
   for (const item of state.corrections) {
     const card = document.createElement("div"); card.className = "script-correction-card"; card.dataset.correctionId = item.id;
     const jump = document.createElement("button"); jump.type = "button"; jump.className = "script-correction-jump";
-    const text = document.createElement("span"); text.textContent = item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
+    const text = document.createElement("span"); text.textContent = item.source === "spelling" ? `Posible error: ${item.word}` : item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
     jump.title = text.textContent; jump.setAttribute("aria-label", `Localizar corrección: ${text.textContent.slice(0,160)}`);
     const pages = [...new Set(item.parts.map(part => part.page))].sort((a,b)=>a-b), meta = document.createElement("small");
     meta.textContent = pages.length>1 ? `Páginas ${pages[0]}–${pages.at(-1)}` : `Página ${pages[0]}`;
@@ -1119,7 +1136,7 @@ function remember() {
   state.history.push(documentSnapshot());
   if (state.history.length > 50) state.history.shift(); state.future = [];
 }
-function documentSnapshot() { return structuredClone({ annotations: state.annotations, corrections: state.corrections }); }
+function documentSnapshot() { return structuredClone({ annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading }); }
 function annotationY(annotation) { return annotation.type === "line" ? annotation.start.y : annotation.rects[0].y; }
 function annotationPages(item) { return item.type === "line" && PlanoCoverage.endPage(item) !== item.page ? `Páginas ${item.page}–${item.endPage}` : `Página ${item.page}`; }
 function annotationDisplayName(item) {
@@ -1472,7 +1489,7 @@ function saveNotes() {
   if (!state.key) return;
   if (PlanoCloud.configured) {
     if (!state.cloudProject) { $("#save-status").textContent = "Este guion todavía no está guardado en tu cuenta."; return; }
-    const payload = { version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, view: { scene: state.scene, stage: state.stage } };
+    const payload = { version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading, view: { scene: state.scene, stage: state.stage } };
     if (PlanoScriptPreview.valid(state.thumbnail)) {
       payload.thumbnail = state.thumbnail;
       if (new TextEncoder().encode(JSON.stringify(payload)).length > 350000) delete payload.thumbnail;
@@ -1481,7 +1498,7 @@ function saveNotes() {
     return;
   }
   try {
-    localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections }));
+    localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading }));
     $("#save-status").textContent = "✓ Notas guardadas en este navegador";
   } catch { $("#save-status").textContent = "No se pudo guardar aquí. Exporta las notas antes de cerrar."; }
 }
@@ -1557,6 +1574,54 @@ function readSavedCorrections() {
   try { return PlanoCorrections.validate(JSON.parse(localStorage.getItem(state.key) || "null")?.corrections, state.pdf.numPages); }
   catch { message("No se recuperaron las correcciones guardadas. Puedes importar una copia de notas.", true); return []; }
 }
+function readSavedCrew() {
+  try { return PlanoCrew.validate(JSON.parse(localStorage.getItem(state.key) || "null")?.crew); }
+  catch { return {}; }
+}
+function readSavedProofreading() {
+  try { return PlanoSpelling.validate(JSON.parse(localStorage.getItem(state.key) || "null")?.proofreading); }
+  catch { return PlanoSpelling.validate(); }
+}
+let spellingJob = null;
+function refreshSpelling(text = "") {
+  $("#toggle-spelling").setAttribute("aria-pressed", String(state.proofreading.enabled));
+  $("#toggle-spelling").textContent = `Ortografía del PDF: ${state.proofreading.enabled ? "automática" : "desactivada"}`;
+  $("#spelling-status").textContent = text; $("#spelling-status").hidden = !text;
+}
+function cancelSpelling() { spellingJob?.controller.abort(); spellingJob = null; $("#retry-spelling").hidden = true; }
+async function startSpelling() {
+  if (!state.pdf || !state.proofreading.enabled || state.proofreading.dictionary === PlanoSpelling.version || spellingJob || globalThis.PlanoTestDisableSpelling) return;
+  const job = { pdf: state.pdf, owner: PlanoAccounts.getUser()?.id, controller: new AbortController() }; spellingJob = job; refreshSpelling("Revisando el texto en español…");
+  const current = () => spellingJob === job && state.pdf === job.pdf && PlanoAccounts.getUser()?.id === job.owner && !job.controller.signal.aborted;
+  try {
+    const version = new URL($("script[src^='app.js']").src).search;
+    const found = await PlanoSpelling.scan({ pages: state.pages, scenes: state.scenes, ignored: state.proofreading.ignored, signal: job.controller.signal, load: () => loadScript(`vendor/spanish-spelling.js${version}`) });
+    while (current() && (!canSelectShots() || document.querySelector('dialog[open]'))) await new Promise(resolve => setTimeout(resolve, 300));
+    if (!current()) return;
+    const ids = new Set(state.corrections.map(item => item.id)), additions = [];
+    let size = new TextEncoder().encode(JSON.stringify({ annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading })).length;
+    for (const item of found) {
+      if (ids.has(item.id) || additions.length >= 200 || state.corrections.length + additions.length >= 1000) continue;
+      const correction = PlanoCorrections.validate([{ ...item, source: "spelling", createdAt: new Date().toISOString() }], state.pdf.numPages)[0];
+      size += new TextEncoder().encode(JSON.stringify(correction)).length;
+      if (size > 310000) break;
+      additions.push(correction);
+    }
+    if (additions.length) remember();
+    state.proofreading.dictionary = PlanoSpelling.version; state.corrections.push(...additions);
+    additions.length ? changed() : saveNotes();
+    refreshSpelling(additions.length ? `${additions.length} posibles errores señalados. Los nombres propios pueden ignorarse.` : "Revisión terminada.");
+  } catch (error) {
+    if (current() && error.name !== "AbortError") { refreshSpelling("No se pudo completar la revisión. Puedes reintentar."); $("#retry-spelling").hidden = false; }
+  } finally { if (spellingJob === job) spellingJob = null; }
+}
+$("#toggle-spelling").addEventListener("click", () => {
+  if (!canSelectShots()) return;
+  cancelSpelling(); remember(); state.proofreading.enabled = !state.proofreading.enabled; state.proofreading.dictionary = "";
+  if (!state.proofreading.enabled) state.corrections = state.corrections.filter(item => item.source !== "spelling");
+  changed(); refreshSpelling(); if (state.proofreading.enabled) startSpelling();
+});
+$("#retry-spelling").addEventListener("click", startSpelling);
 function orderedShots(items, indexes = new Map(state.annotations.map((item, i) => [item.id, i]))) {
   return [...items].sort((a, b) => (a.shotOrder ?? indexes.get(a.id)) - (b.shotOrder ?? indexes.get(b.id)));
 }
@@ -1620,8 +1685,15 @@ function reorderShots(sceneId, source, destination, after) {
   card?.querySelector(".shot-reorder-handle")?.focus({ preventScroll: true });
 }
 function canSelectShots() {
-  return Boolean(state.pdf) && !preparingLinkedText && !state.busy && !state.exporting && !state.pending && !state.editing && !state.details && !state.drawing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight;
+  return Boolean(state.pdf) && !state.crewEditing && !preparingLinkedText && !state.busy && !state.exporting && !state.pending && !state.editing && !state.details && !state.drawing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight;
 }
+const crewEditor = PlanoCrew.setup({
+  get: () => state.crew,
+  canEdit: () => canSelectShots() && PlanoTechnicalScript.finishEditing(),
+  toggle: open => { state.crewEditing = open; syncTechnicalWindowLock(); },
+  save: crew => { remember(); state.crew = crew; changed(); message("Equipo guardado en este guion."); }
+});
+for (const id of ["#edit-crew", "#technical-crew"]) $(id).addEventListener("click", () => crewEditor.open());
 function syncShotSelection() {
   // Una selección representa planos completos, incluidos todos sus tramos.
   const ids = new Set(state.annotations.map(item => item.shotId || item.id));
@@ -1792,11 +1864,13 @@ function undo(redo = false) {
   if (!source.length) { if (transforming) drawAnnotations(); return; }
   target.push(documentSnapshot()); const restored = source.pop();
   state.annotations = Array.isArray(restored) ? restored : restored.annotations;
-  state.corrections = Array.isArray(restored) ? [] : restored.corrections || []; changed();
+  cancelSpelling(); state.corrections = Array.isArray(restored) ? [] : restored.corrections || []; state.crew = restored.crew || state.crew; state.proofreading = restored.proofreading || state.proofreading; refreshSpelling(); changed();
 }
 function closeDocument() {
   if (state.exporting) return;
   PlanoTechnicalWindow.invalidate();
+  crewEditor.close();
+  cancelSpelling();
   PlanoTechnicalScript.clear();
   cancelPasteChoice(); finishPastedHighlight(); copiedShot = null;
   clearShotSelection();
@@ -1812,7 +1886,7 @@ function closeDocument() {
   ++state.loadId; cancelRendering();
   state.loading?.destroy().catch(() => {}); state.pdf?.destroy().catch(() => {});
   if (state.url) URL.revokeObjectURL(state.url);
-  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, thumbnail: null, annotations: [], corrections: [], pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
+  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, thumbnail: null, annotations: [], corrections: [], crew: {}, proofreading: PlanoSpelling.validate(), crewEditing: false, pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
   refreshCorrections();
   syncShotSelection();
   $("#pdf-container").replaceChildren(); $("#technical-table-body").replaceChildren(); $("#open-document").removeAttribute("href");
@@ -1906,7 +1980,7 @@ function prepareExcelExport() {
   return excelEngine;
 }
 function technicalExportSnapshot() {
-  return { sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })), fileName: state.file.name, displayName: item => item.shotName, values: shotValues, onProgress: text => message(text) };
+  return { sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })), crew: structuredClone(state.crew), fileName: state.file.name, displayName: item => item.shotName, values: shotValues, onProgress: text => message(text) };
 }
 async function exportTechnicalExcel() {
   if (!state.pdf || state.busy || state.exporting || !PlanoTechnicalScript.finishEditing()) return;
@@ -1934,7 +2008,7 @@ async function exportTechnicalExcel() {
 }
 for (const id of ["#export-excel", "#technical-export-excel"]) $(id).addEventListener("click", exportTechnicalExcel);
 $("#save-backup").addEventListener("click", () => {
-  const payload = { app: "PLANO", version: 1, fingerprint: state.fingerprint, fileName: state.file.name, annotations: state.annotations, corrections: state.corrections };
+  const payload = { app: "PLANO", version: 1, fingerprint: state.fingerprint, fileName: state.file.name, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading };
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
   const link = document.createElement("a"); link.href = url; link.download = `${state.file.name.replace(/\.pdf$/i, "")}-notas-plano.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -1947,10 +2021,10 @@ $("#backup-input").addEventListener("change", async event => {
     if (file.size > 10 * 1024 * 1024) throw new Error("La copia supera los 10 MB.");
     const data = JSON.parse(await file.text()); if (state.pdf !== pdf) return;
     if (data.app !== "PLANO" || data.version !== 1 || data.fingerprint !== state.fingerprint) throw new Error("Estas notas no corresponden al PDF abierto.");
-    const imported = validateNotes(data.annotations), corrections = PlanoCorrections.validate(data.corrections, state.pdf.numPages); remember();
+    const imported = validateNotes(data.annotations), corrections = PlanoCorrections.validate(data.corrections, state.pdf.numPages), crew = data.crew === undefined ? state.crew : PlanoCrew.validate(data.crew), proofreading = data.proofreading === undefined ? state.proofreading : PlanoSpelling.validate(data.proofreading); cancelSpelling(); remember();
     const existingIds = new Set(state.annotations.map(item => item.id)); const added = imported.filter(item => !existingIds.has(item.id));
     const correctionIds = new Set(state.corrections.map(item => item.id)), newCorrections = corrections.filter(item => !correctionIds.has(item.id));
-    state.annotations.push(...added); state.corrections.push(...newCorrections); changed(); message(`${added.length} anotaciones${newCorrections.length ? ` y ${newCorrections.length} correcciones` : ""} importadas. Las notas que ya tenías se conservaron.`);
+    state.annotations.push(...added); state.corrections.push(...newCorrections); state.crew = crew; state.proofreading = proofreading; refreshSpelling(); changed(); message(`${added.length} anotaciones${newCorrections.length ? ` y ${newCorrections.length} correcciones` : ""} importadas. Las notas que ya tenías se conservaron.`);
   } catch (error) { message(`No se pudieron importar las notas: ${error.message}`, true); }
   finally { event.target.value = ""; }
 });
@@ -2002,7 +2076,7 @@ PlanoTechnicalWindow.configure({
     theme: { style: document.documentElement.style.cssText, mode: document.documentElement.dataset.theme, palette: document.documentElement.dataset.palette }
   }),
   commit: commitTechnicalField, remove: deleteTechnicalShot, undo: redo => { undo(redo); return true; },
-  open: item => { window.focus(); openShotDetails(item); syncTechnicalWindowLock(); }, export: exportTechnicalExcel
+  open: item => { window.focus(); openShotDetails(item); syncTechnicalWindowLock(); }, export: exportTechnicalExcel, crew: () => { window.focus(); crewEditor.open(); }
 });
 const technicalWindowMenu = document.createElement("div"); technicalWindowMenu.id = "technical-window-menu"; technicalWindowMenu.className = "technical-window-menu compact-popover"; technicalWindowMenu.setAttribute("popover", "auto"); technicalWindowMenu.setAttribute("role", "menu");
 const openTechnicalWindow = document.createElement("button"); openTechnicalWindow.type = "button"; openTechnicalWindow.textContent = "Abrir en otra ventana"; openTechnicalWindow.setAttribute("role", "menuitem"); technicalWindowMenu.append(openTechnicalWindow); document.body.append(technicalWindowMenu);
@@ -2044,6 +2118,6 @@ PlanoCloudLibrary.init({
   renameLocal: name => { renameDocumentFile(name); return currentLibraryProject(); },
   renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; renameDocumentFile(project.name); },
   deleted: id => { if (state.cloudProject?.id === id) closeDocument(); },
-  reload: project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; const notes = validateNotes(project.payload.annotations), corrections = PlanoCorrections.validate(project.payload.corrections, state.pdf.numPages); state.annotations = notes; state.corrections = corrections; state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); PlanoTechnicalWindow.publish(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
+  reload: project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; const notes = validateNotes(project.payload.annotations), corrections = PlanoCorrections.validate(project.payload.corrections, state.pdf.numPages), crew = PlanoCrew.validate(project.payload.crew), proofreading = PlanoSpelling.validate(project.payload.proofreading); cancelSpelling(); state.annotations = notes; state.corrections = corrections; state.crew = crew; state.proofreading = proofreading; refreshSpelling(); state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); PlanoTechnicalWindow.publish(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
   exportDraft: () => { if (!state.pdf) return false; $("#save-backup").click(); return true; }
 });

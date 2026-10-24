@@ -28,6 +28,7 @@
    document.getElementById('technical-undo').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.undo(false);});
    document.getElementById('technical-redo').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.undo(true);});
    document.getElementById('technical-export-excel').disabled=false;document.getElementById('technical-export-excel').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.export();});
+   document.getElementById('technical-crew').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.crew();});
    document.getElementById('back-to-coverage').addEventListener('click',()=>connection?.focus());
    document.getElementById('focus-main-editor').addEventListener('click',()=>connection?.focus());
    root.addEventListener('beforeunload',()=>{PlanoTechnicalScript.finishEditing(false);connection?.detach();});
@@ -62,7 +63,7 @@
    const key=documentKey;
    const valid=()=>usable()&&child===target&&hooks.key()===key;
    const mutate=action=>(...args)=>valid()&&hooks.canEdit()&&action(...args);
-   return{snapshot:()=>valid()?hooks.snapshot():null,commit:mutate(hooks.commit),remove:mutate(hooks.remove),undo:mutate(hooks.undo),open:mutate(hooks.open),export:mutate(hooks.export),focus:()=>{if(valid())root.focus();},detach:()=>{if(valid())invalidate();}};
+   return{snapshot:()=>valid()?hooks.snapshot():null,commit:mutate(hooks.commit),remove:mutate(hooks.remove),undo:mutate(hooks.undo),open:mutate(hooks.open),export:mutate(hooks.export),crew:mutate(hooks.crew),focus:()=>{if(valid())root.focus();},detach:()=>{if(valid())invalidate();}};
   }
  };
  root.addEventListener('beforeunload',invalidate);

@@ -6,20 +6,39 @@
   return value&&typeof value.releaseId==='string'&&/^[a-zA-Z0-9._-]{1,100}$/.test(value.releaseId)&&typeof value.publishedAt==='string'&&Number.isFinite(Date.parse(value.publishedAt))?{releaseId:value.releaseId,publishedAt:value.publishedAt}:null;
  }
  function later(a,b){return !a?b:!b?a:Date.parse(b.publishedAt)>=Date.parse(a.publishedAt)?b:a;}
+ function releaseDay(value){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));
+  return ['year','month','day'].map(key=>parts.find(part=>part.type===key).value).join('-');
+ }
  function releases(value){
   if(value?.schema!==1||!Array.isArray(value.releases))return [];
-  const ids=new Set();
-  return value.releases.slice(0,20).filter(item=>{
+  const ids=new Set(),days=new Map();
+  for(const item of value.releases.slice(0,2000)){
    const clean=receipt({releaseId:item?.id,publishedAt:item?.publishedAt});
-   if(!clean||ids.has(item.id)||!Array.isArray(item.sections))return false;
-   ids.add(item.id);return true;
-  }).map(item=>({id:item.id,publishedAt:item.publishedAt,version:String(item.version||'Actualización').slice(0,60),sections:item.sections.slice(0,3).filter(section=>Object.hasOwn(categories,section.category)&&Array.isArray(section.items)).map(section=>({category:section.category,items:section.items.filter(text=>typeof text==='string'&&text.trim()).slice(0,40).map(text=>text.slice(0,500))})).filter(section=>section.items.length)})).filter(item=>item.sections.length).sort((a,b)=>Date.parse(b.publishedAt)-Date.parse(a.publishedAt));
+   const key=item?.id+'|'+item?.publishedAt;
+   if(!clean||ids.has(key)||!Array.isArray(item.sections))continue;
+   ids.add(key);const day=releaseDay(item.publishedAt);
+   let group=days.get(day);
+   const commit=/^[a-f0-9]{40}$/.test(item.commit||'')?item.commit:/^[a-f0-9]{40}$/.test(item.id)?item.id:null;
+   if(!group){group={id:'day-'+day,day,commit,publishedAt:item.publishedAt,version:day.replaceAll('-','.'),sections:[]};days.set(day,group);}
+   if(Date.parse(item.publishedAt)>Date.parse(group.publishedAt)){group.publishedAt=item.publishedAt;group.commit=commit;}
+   for(const section of item.sections.slice(0,3)){
+    if(!Object.hasOwn(categories,section?.category)||!Array.isArray(section.items))continue;
+    let target=group.sections.find(part=>part.category===section.category);
+    if(!target){target={category:section.category,items:[]};group.sections.push(target);}
+    for(const text of section.items.slice(0,200))if(typeof text==='string'&&text.trim()){
+     const content=text.trim().slice(0,500);
+     if(group.sections.reduce((count,part)=>count+part.items.length,0)<200&&!target.items.includes(content))target.items.push(content);
+    }
+   }
+  }
+  return [...days.values()].map(item=>({...item,sections:item.sections.filter(section=>section.items.length).sort((a,b)=>Object.keys(categories).indexOf(a.category)-Object.keys(categories).indexOf(b.category))})).filter(item=>item.sections.length).sort((a,b)=>Date.parse(b.publishedAt)-Date.parse(a.publishedAt)).slice(0,20);
  }
  function unseen(feed,seen){
   if(!seen)return feed.slice(0,1);
   return feed.filter(item=>item.id!==seen.releaseId&&Date.parse(item.publishedAt)>Date.parse(seen.publishedAt));
  }
- root.PlanoPatchNotes={releases,unseen};
+ root.PlanoPatchNotes={releases,unseen,releaseDay};
  if(typeof module==='object'&&module.exports)module.exports=root.PlanoPatchNotes;
  if(typeof document==='undefined')return;
  const $=selector=>document.querySelector(selector),dialog=$('#patch-notes-dialog'),cloud=root.PlanoCloud,key=uid=>'plano-release-seen-v1:'+encodeURIComponent(uid);
@@ -66,7 +85,7 @@
    const section=document.createElement('section');section.className='patch-release';section.dataset.releaseId=item.id;
    const meta=document.createElement('div');meta.className='patch-release-meta';
    const version=document.createElement('strong');version.textContent=item.version;
-   const date=document.createElement('time');date.dateTime=item.publishedAt;date.textContent=new Date(item.publishedAt).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});meta.append(version,date);section.append(meta);
+   const date=document.createElement('time');date.dateTime=item.publishedAt;date.textContent=new Date(item.publishedAt).toLocaleDateString('es',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric'});meta.append(version,date);section.append(meta);
    for(const group of item.sections){
     const heading=document.createElement('h3');heading.textContent=categories[group.category];
     const list=document.createElement('ul');for(const text of group.items){const li=document.createElement('li');li.textContent=text;list.append(li);}section.append(heading,list);

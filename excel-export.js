@@ -62,7 +62,7 @@
     }
     parts.push(remaining); return parts;
   }
-  async function workbook({ sections, fileName, displayName, values, exportedAt = new Date(), onProgress = () => {}, allowEmpty = false }) {
+  async function workbook({ sections, fileName, displayName, values, crew = {}, exportedAt = new Date(), onProgress = () => {}, allowEmpty = false }) {
     if (!root.ExcelJS || !root.PlanoExcelTemplate) throw new Error('No se pudo cargar el motor de Excel.');
     const entries = rowsFrom(sections, displayName, values);
     if (!entries.length && !allowEmpty) throw new Error('Añade al menos un plano antes de exportar el guion técnico.');
@@ -80,10 +80,22 @@
     sheet.getCell('J3').style={...sheet.getCell('J3').style};
     sheet.getCell('J3').value = new Date(Date.UTC(exportedAt.getFullYear(), exportedAt.getMonth(), exportedAt.getDate()));
     sheet.getCell('J3').numFmt = 'dd/mm/yyyy';
+    const team = root.PlanoCrew.validate(crew);
+    sheet.getCell('I7').style = structuredClone(sheet.getCell('I5').style); sheet.getCell('I7').value = 'PRODUCTOR/A:';
+    sheet.getCell('I7').font = { ...sheet.getCell('I7').font, size: 9 };
+    sheet.mergeCells('J7:L7'); sheet.getCell('J7').style = structuredClone(sheet.getCell('J5').style);
+    for (const [key, cell] of Object.entries({ director:'D5', producer:'J7', productionCompany:'J5', assistantDirector:'E7', cinematographer:'E9', productionDesigner:'E11', soundMixer:'J9' })) {
+      sheet.getCell(cell).value = team[key] || null;
+      sheet.getCell(cell).alignment = { ...sheet.getCell(cell).alignment, wrapText: true };
+    }
     const unique = new Set(entries.map(entry => entry.id)).size;
     const scenes = new Set(entries.map(entry => entry.sceneId)).size;
     const canvas = document.createElement('canvas'), context = canvas.getContext('2d');
     context.font = '11pt Arial'; const measure = text => context.measureText(text).width;
+    for(const [key,row,first,last]of [['director',5,4,7],['producer',7,10,12],['productionCompany',5,10,12],['assistantDirector',7,5,7],['cinematographer',9,5,7],['productionDesigner',11,5,7],['soundMixer',9,10,12]]){
+      const width=Array.from({length:last-first+1},(_,i)=>sheet.getColumn(first+i).width||9).reduce((sum,value)=>sum+value,0);
+      sheet.getRow(row).height=Math.max(sheet.getRow(row).height||24,visualLines(team[key]||'',width,measure)*14+10);
+    }
     const lists = {};
     for (const key of values.keys) {
       const options = values.fields[key].options.filter(([code]) => code !== 'other').map(([code, label]) => key === 'shotValue' ? code : label);

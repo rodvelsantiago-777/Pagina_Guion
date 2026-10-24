@@ -1,6 +1,6 @@
 /* Publicación estática y notas del rango Git. Sin claves ni servicios de IA. */
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const {releases}=require('../patch-notes.js');
+const {releases,releaseDay}=require('../patch-notes.js');
 const categories=['new','improved','fixed'];
 function git(root,args){return execFileSync('git',args,{cwd:root,encoding:'utf8',maxBuffer:5*1024*1024,stdio:['ignore','pipe','pipe']}).trim();}
 function readEntries(root,ref){
@@ -9,10 +9,10 @@ function readEntries(root,ref){
 function exists(root,sha){try{return /^[a-f0-9]{40}$/.test(sha)&&Boolean(git(root,['cat-file','-e',`${sha}^{commit}`])==='');}catch{return false;}}
 function makeRelease({root,before,after,previous,publishedAt=new Date().toISOString(),runNumber=1}){
  if(!exists(root,after))throw new Error('La publicación necesita un commit Git válido.');
- const history=releases(previous),same=history.find(item=>item.id===after);
- if(same)return {schema:1,releases:[same,...history.filter(item=>item.id!==after)].slice(0,20)};
+ const history=releases(previous),same=history.find(item=>item.commit===after);
+ if(same)return {schema:1,releases:history};
  let base=exists(root,before)?before:null;
- const last=history[0]?.id;
+ const last=history[0]?.commit;
  if(exists(root,last)){try{git(root,['merge-base','--is-ancestor',last,after]);base=last;}catch{}}
  const prior=new Map((base?readEntries(root,base):[]).map(item=>[item.id,item.text]));
  let entries=readEntries(root,after).filter(item=>item&&typeof item.id==='string'&&categories.includes(item.category)&&typeof item.text==='string'&&item.text.trim()&&prior.get(item.id)!==item.text).map(item=>({category:item.category,text:item.text.slice(0,500)})).slice(0,40);
@@ -31,8 +31,8 @@ function makeRelease({root,before,after,previous,publishedAt=new Date().toISOStr
   for(const text of [...new Set(subjects)].filter(text=>text.length>14&&!/^Merge\b/.test(text)).slice(0,12))entries.push({category:/^(fix|corrige|corrección)\b/i.test(text)?'fixed':'improved',text:text.replace(/^(feat|fix|chore)(\([^)]*\))?:\s*/,'').slice(0,250)});
   if(!entries.length)entries=[{category:'improved',text:'Actualización de mantenimiento de la aplicación.'}];
  }
- const current={id:after,publishedAt:new Date(publishedAt).toISOString(),version:`${publishedAt.slice(0,10).replaceAll('-','.')} · ${runNumber}`,sections:categories.map(category=>({category,items:entries.filter(item=>item.category===category).map(item=>item.text)})).filter(section=>section.items.length)};
- const feed={schema:1,releases:[current,...history].slice(0,20)};
+ const current={id:after,commit:after,publishedAt:new Date(publishedAt).toISOString(),version:releaseDay(publishedAt).replaceAll('-','.'),sections:categories.map(category=>({category,items:entries.filter(item=>item.category===category).map(item=>item.text)})).filter(section=>section.items.length)};
+ const feed={schema:1,releases:releases({schema:1,releases:[current,...history]})};
  while(JSON.stringify(feed).length>140000&&feed.releases.length>1)feed.releases.pop();
  return feed;
 }

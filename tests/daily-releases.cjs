@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
+const {releases,releaseDay,unseen}=require('../patch-notes.js'),{makeRelease}=require('../tools/build-pages.cjs');
+const stamp=(day,hour)=>`2026-10-${day}T${hour}:00:00.000Z`;
+assert.equal(releaseDay(stamp(24,'02')),'2026-10-23','La medianoche UTC no cambia el día de Colombia');
+assert.equal(releaseDay(stamp(24,'06')),'2026-10-24');
+const raw=Array.from({length:20},(_,i)=>({id:String(i+1).padStart(40,'a'),publishedAt:`2026-10-23T${String(6+Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}:00Z`,version:'push '+i,sections:[{category:'new',items:['Mejora '+i,'Común']}]}));
+const folded=releases({schema:1,releases:raw});assert.equal(folded.length,1);assert.equal(folded[0].version,'2026.10.23');assert.equal(folded[0].sections[0].items.length,21);assert.equal(folded[0].commit,raw.at(-1).id);
+assert.deepEqual(releases({schema:1,releases:folded}),folded,'Agrupar otra vez no duplica las notas');
+assert.equal(unseen(folded,{releaseId:folded[0].id,publishedAt:raw[0].publishedAt}).length,0,'Veinte pushes no provocan veinte avisos diarios');
+const next=releases({schema:1,releases:[{...raw[0],id:'b'.repeat(40),publishedAt:stamp(24,'06'),sections:[{category:'fixed',items:['Nueva jornada']}]},...folded]});assert.equal(next.length,2);assert.equal(next[0].id,'day-2026-10-24');
+const folder=path.join(__dirname,'.output');fs.mkdirSync(folder,{recursive:true});const root=fs.mkdtempSync(path.join(folder,'daily-git-'));
+const git=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();git(['init']);git(['config','user.name','Prueba']);git(['config','user.email','test@example.invalid']);
+function commit(entries){fs.writeFileSync(path.join(root,'release-notes.entries.json'),JSON.stringify({entries}));git(['add','.']);git(['commit','-m','Actualización de prueba']);return git(['rev-parse','HEAD']);}
+const a={id:'a',category:'new',text:'Primer cambio'},b={id:'b',category:'improved',text:'Segundo cambio'};
+const first=commit([a]),one=makeRelease({root,after:first,previous:{schema:1,releases:[]},publishedAt:stamp(23,'18')});
+const second=commit([a,b]),two=makeRelease({root,before:first,after:second,previous:one,publishedAt:stamp(24,'02')});
+assert.equal(two.releases.length,1);assert.equal(two.releases[0].commit,second);assert(two.releases[0].sections.flatMap(g=>g.items).includes(a.text));assert(two.releases[0].sections.flatMap(g=>g.items).includes(b.text));
+assert.deepEqual(makeRelease({root,after:second,previous:two,publishedAt:stamp(24,'06')}),two,'Reintentar no mueve el commit a otro día');
+const third=commit([a,b,{id:'c',category:'fixed',text:'Siguiente día'}]);const three=makeRelease({root,before:second,after:third,previous:two,publishedAt:stamp(24,'07')});assert.equal(three.releases.length,2);assert.deepEqual(three.releases[0].sections,[{category:'fixed',items:['Siguiente día']}]);
+console.log('OK: 20 pushes en una versión diaria, Colombia/medianoche UTC, notas acumuladas sin duplicados, migración del historial anterior, avisos e idempotencia por commit.');

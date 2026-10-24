@@ -1,0 +1,8 @@
+.crew-dialog{width:min(600px,calc(100vw - 28px));max-height:calc(100dvh - 36px);overflow:auto}
+.crew-dialog h2{font-size:27px}.crew-hint{font-size:13px;line-height:1.6;color:var(--muted);margin:12px 0 22px}
+.crew-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px}.crew-fields>div:last-child{grid-column:1/-1}
+.crew-fields label{font-size:13px;margin:0 0 7px}.crew-fields input{width:100%;min-width:0;padding:10px 11px;background:var(--paper);color:var(--ink);border:1px solid var(--line-strong);border-radius:4px;font:15px var(--sans)}
+@media(max-width:540px){.crew-fields{grid-template-columns:1fr}.crew-fields input{font-size:16px}}
+.project-menu-content{max-height:calc(100dvh - 90px);overflow-y:auto;overscroll-behavior:contain}
+.project-menu-content .spelling-status{padding:5px 12px;font-size:11px;line-height:1.5;color:var(--muted)}
+#correction-word{display:block;padding:5px 10px;font-size:12px}

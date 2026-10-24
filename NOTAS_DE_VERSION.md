@@ -10,7 +10,7 @@ El flujo usa la rama `main`, el repositorio existente y GitHub Pages. No añade 
 
 ## Qué sucede con cada Push origin
 
-`tools/build-pages.cjs` identifica el commit de la publicación y el rango de cambios desde la última versión publicada. Si no existe un historial anterior, usa el rango del Push. Agrupa las novedades en **Novedades**, **Mejoras** y **Correcciones**, genera la fecha y el número de publicación y conserva hasta veinte versiones. Reintentar el mismo commit conserva su nota y no crea otro aviso. Una publicación posterior incluye los cambios de una ejecución que hubiera quedado cancelada, si el commit publicado anterior está disponible en el historial.
+`tools/build-pages.cjs` identifica el commit de la publicación y el rango de cambios desde la última versión publicada. Si no existe un historial anterior, usa el rango del Push. Agrupa las novedades en **Novedades**, **Mejoras** y **Correcciones** y reúne todos los pushes del mismo día en una única versión `AAAA.MM.DD`, según `America/Bogota`. Conserva hasta veinte jornadas. La medianoche UTC no crea una versión nueva en Colombia. Reintentar el mismo commit conserva su nota y no lo mueve a otro día. El último commit queda registrado como referencia para calcular los cambios siguientes; los textos repetidos de la jornada se muestran una sola vez.
 
 El sitio recibe un `release-notes.json` generado, con un máximo de 140 KB. Cada recurso JS/CSS del HTML usa el identificador del commit para evitar que una actualización cargue archivos antiguos de la caché. Los errores de publicación no cambian el sitio que ya estaba disponible.
 
@@ -32,7 +32,7 @@ El `release-notes.json` vacío de la carpeta de trabajo es intencional: un cambi
 
 ## Lectura por cuenta
 
-Después de iniciar sesión con correo verificado, el inicio muestra un aviso cuando hay publicaciones pendientes. La ventana incluye todo el historial disponible: la versión más reciente arriba y cada publicación anterior debajo, con su fecha y sus cambios, también para cuentas nuevas. Al cerrarla se registra como leída la versión más reciente; las antiguas siguen disponibles y no vuelven a provocar avisos. No interrumpe una edición ni se superpone a otro diálogo.
+Después de iniciar sesión con correo verificado, el inicio muestra un aviso cuando hay una jornada nueva. Los pushes posteriores de ese mismo día actualizan sus notas sin crear otro aviso diario. La ventana incluye todo el historial disponible: la jornada más reciente arriba y cada día anterior debajo, con su fecha y sus cambios, también para cuentas nuevas. El historial antiguo por push se agrupa automáticamente por fecha. Al cerrarla se registra como leída la versión más reciente; las antiguas siguen disponibles y no vuelven a provocar avisos. No interrumpe una edición ni se superpone a otro diálogo.
 
 **Entendido**, la cruz o **Esc** registran la lectura. El recibo se guarda por UID en Supabase y se recupera desde otro navegador o equipo. Una pestaña antigua no puede retroceder la fecha de lectura de una versión más reciente. **Notas de parche**, en el inicio, en la barra lateral y en el menú del editor, abre el historial con todas las versiones conservadas, sus fechas y sus cambios, aunque ya se hayan leído. Cada apertura consulta el historial publicado y comienza por la versión más reciente. Este acceso sigue visible cuando el historial está vacío o falla la carga; muestra un mensaje y permite volver a cargarlo con **Actualizar**.
 
