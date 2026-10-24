@@ -17,6 +17,8 @@
     const ink = canvas.getContext("2d"); ink.scale(density, density);
     ink.fillStyle = tag.style.getPropertyValue("--shot-color"); ink.beginPath(); ink.roundRect(0, 0, width, height, 3); ink.fill();
     ink.font = `700 ${parseFloat(style.fontSize)}px ${style.fontFamily}`; ink.fillStyle = style.color; ink.textBaseline = "alphabetic";
+    const stroke = parseFloat(style.webkitTextStrokeWidth) || 0;
+    ink.strokeStyle = style.color; ink.lineWidth = stroke; ink.lineJoin = "round";
     const ascent = ink.measureText("Mg").fontBoundingBoxAscent || parseFloat(style.fontSize) * .85;
     const node = button.firstChild, range = document.createRange(), lines = []; let offset = 0;
     // Medir las líneas del DOM conserva los saltos y los nombres Unicode de la interfaz.
@@ -27,7 +29,11 @@
       if (!line || Math.abs(line.top - rect.top) > 1) { line = { top: rect.top, left: rect.left, text: "" }; lines.push(line); }
       line.text += character;
     }
-    for (const line of lines) ink.fillText(line.text, line.left - box.left, line.top - box.top + ascent);
+    for (const line of lines) {
+      const x = line.left - box.left, y = line.top - box.top + ascent;
+      if (stroke) ink.strokeText(line.text, x, y);
+      ink.fillText(line.text, x, y);
+    }
     const data = canvas.toDataURL("image/png"); canvas.width = canvas.height = 0;
     return { data, width, height };
   }

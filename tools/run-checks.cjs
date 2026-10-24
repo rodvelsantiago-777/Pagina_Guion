@@ -1,7 +1,7 @@
 /* Suite funcional sin cuentas reales ni correos; limita a dos navegadores simultáneos. */
 const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'tests/.output');fs.mkdirSync(out,{recursive:true});
-const names=['run','shot-values','compact-scenes','scenes-view','presentation','refinements','title-safety','title-scroll','script-corrections','workspace-interactions','stages-and-colors','line-editing','multipage-lines','line-continuation','shot-copy','batch-colors','shot-tools','pdf-export','excel-export','appearance','accounts','accounts-input','cloud','patch-notes'];
+const names=['run','shot-values','compact-scenes','scenes-view','presentation','refinements','title-safety','title-scroll','title-weight','script-corrections','workspace-interactions','stages-and-colors','line-editing','multipage-lines','line-continuation','shot-copy','batch-colors','shot-tools','pdf-export','excel-export','appearance','accounts','accounts-input','cloud','patch-notes'];
 const results=[];let next=0;
 function run(name){return new Promise(resolve=>{
  const start=Date.now(),child=spawn(process.execPath,[path.join(root,'tests',name+'.cjs')],{cwd:root,env:process.env,windowsHide:true,stdio:['ignore','pipe','pipe']});let output='';
