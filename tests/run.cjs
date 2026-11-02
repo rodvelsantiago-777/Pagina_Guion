@@ -126,7 +126,7 @@ async function assertLabelClearance(page) {
     await page.locator('#scene-select').selectOption('print', {force:true}); await ready(page);
     assert.equal(await page.locator('#breadcrumb-current').textContent(),'guion','La cabecera identifica el proyecto abierto');
     assert(!(await page.locator('.sidebar').isVisible()),'Sin barra izquierda en el guion técnico');
-    assert.equal(await page.locator('.editor-actions #scene-select').count(),1,'Vista del guion fija en la cabecera derecha');
+    assert.equal(await page.locator('.coverage-status #scene-select').count(),1,'Vista del guion reunida con el zoom en la barra inferior');
     const panelBox=await page.locator('#annotations-panel').boundingBox(); const viewerBox=await page.locator('#pdf-stage').boundingBox();
     assert(panelBox.x+panelBox.width<=viewerBox.x+1,'Escenas y anotaciones a la izquierda del visor');
     assert(await page.locator('#scene-select').evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=16),'Opciones de vista con texto legible');

@@ -6,7 +6,7 @@ const {chromium}=load('playwright'),{PDFDocument,StandardFonts}=load('pdf-lib'),
 const out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
 const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document.querySelector('#render-status').hidden);
 const reviewed=page=>page.waitForFunction(()=>state.proofreading.dictionary===PlanoSpelling.version,null,{timeout:30000});
-async function download(page,button,name){const pending=page.waitForEvent('download');if(button==='#save-backup')await page.locator(button).evaluate(b=>b.click());else{await page.locator('#open-export').click();await page.locator(button).click();}const file=await pending;const target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
+async function download(page,button,name){const pending=page.waitForEvent('download');if(button==='#save-backup')await page.locator(button).evaluate(b=>b.click());else{await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator(button).click();}const file=await pending;const target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
 (async()=>{
  assert.deepEqual(crew.validate(),{});assert.throws(()=>crew.validate({director:'a'.repeat(161)}));assert.throws(()=>crew.validate([]));
  const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Courier);
@@ -44,8 +44,8 @@ async function download(page,button,name){const pending=page.waitForEvent('downl
   await page.locator('.script-correction-mark').first().click();assert((await page.locator('#correction-word').textContent()).includes('herror'));await page.locator('#delete-correction').click();assert.equal(await page.evaluate(()=>state.corrections.length),0);assert.deepEqual(await page.evaluate(()=>state.proofreading.ignored),['herror']);
   await page.locator('#undo-button').click();assert.equal(await page.evaluate(()=>state.corrections.length),2);await page.locator('#redo-button').click();
   await page.evaluate(()=>{state.corrections.push(PlanoCorrections.create([{page:1,text:'puerta',rects:[{x:.2,y:.16,width:.1,height:.02}]}],state.pdf.numPages));changed();});
-  await page.locator('#project-menu summary').click();await page.locator('#toggle-spelling').click();assert.equal(await page.evaluate(()=>state.proofreading.enabled),false);assert.equal(await page.evaluate(()=>state.corrections.length),1,'Conserva las correcciones manuales');
-  await page.locator('#project-menu summary').click();await page.locator('#toggle-spelling').click();await reviewed(page);assert.equal(await page.evaluate(()=>state.corrections.length),1,'Respeta las palabras ignoradas al revisar');
+  await page.locator('#toggle-spelling').click();assert.equal(await page.evaluate(()=>state.proofreading.enabled),false);assert.equal(await page.evaluate(()=>state.corrections.length),1,'Conserva las correcciones manuales');
+  await page.locator('#toggle-spelling').click();await reviewed(page);assert.equal(await page.evaluate(()=>state.corrections.length),1,'Respeta las palabras ignoradas al revisar');
   // Un trabajo antiguo no añade marcas después de cerrar el guion.
   await page.evaluate(()=>{state.proofreading.dictionary='';globalThis.actualScan=PlanoSpelling.scan;PlanoSpelling.scan=()=>new Promise(resolve=>globalThis.finishOldScan=resolve);startSpelling();closeDocument();finishOldScan([{id:'late',word:'herror',parts:[{page:1,text:'herror',rects:[{x:.2,y:.2,width:.1,height:.02}]}]}]);PlanoSpelling.scan=actualScan;});
   await page.waitForFunction(()=>!state.pdf);assert.equal(await page.evaluate(()=>state.corrections.length),0);assert.deepEqual(await page.evaluate(()=>state.crew),{});

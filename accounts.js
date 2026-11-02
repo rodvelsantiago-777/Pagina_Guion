@@ -59,9 +59,10 @@
     $('#account-form-intro').hidden=view!=='forgot';$('#account-form-intro').textContent='Te enviaremos un enlace para elegir una nueva contraseña.';
     $('#account-local-note').hidden=view==='profile';
     const name=current?.displayName?.trim()||current?.email?.split('@')[0]||'Mi cuenta';
-    $('#open-account span').textContent=active?name.split(' ')[0]:current?'Verificar correo':'Mi cuenta';
+    $('#open-account span').textContent=active?'Mi cuenta':current?'Verificar correo':'Iniciar sesión';
     $('#open-account').setAttribute('aria-label',active?`Abrir cuenta de ${name}`:current?'Verificar correo':'Abrir mi cuenta');
     $('#open-account').title=active?`Mi cuenta · ${current.email}`:current?'Verificar correo':'Mi cuenta';
+    root.PlanoHeader?.refreshIdentity();
     $('#account-profile-name').textContent=name;$('#account-profile-email').textContent=current?.email||'';$('#account-avatar').textContent=Array.from(name)[0]?.toUpperCase()||'P';$('#account-verify-email').textContent=current?.email||'';
     for(const button of $('#account-card').querySelectorAll('button'))button.disabled=working;
     $('#account-submit').disabled=working||connecting||!client;
@@ -74,7 +75,7 @@
     if(!document.body.classList.contains('auth-locked')&&!$('#account-dialog').open)$('#account-dialog').showModal();
     (configured&&!unavailable&&!current?(view==='signup'?$('#account-name'):$('#account-email')):document.body.classList.contains('auth-locked')?$('#account-title'):$('#close-account')).focus();
   }
-  function close(){if(working||document.body.classList.contains('auth-locked'))return;$('#account-dialog').close();$('#account-password').value='';$('#account-confirm').value='';$('#open-account').focus({preventScroll:true});clearTimeout(resendTimer);}
+  function close(){if(working||document.body.classList.contains('auth-locked'))return;$('#account-dialog').close();$('#account-password').value='';$('#account-confirm').value='';($('#open-account').closest('details:not([open])')?.querySelector('summary')||$('#open-account')).focus({preventScroll:true});clearTimeout(resendTimer);}
   function updateResend(){
     clearTimeout(resendTimer);
     const seconds=Math.max(0,Math.ceil((resendAt-Date.now())/1000));

@@ -12,6 +12,7 @@
     if (document.querySelector('#report-dialog')) return;
     const button = document.createElement('button');
     button.id = 'report-launch'; button.className = 'report-launch'; button.type = 'button';
+    button.setAttribute('popover', 'manual');
     button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-controls', 'report-dialog');
     button.setAttribute('aria-label', 'Reportar un error'); button.title = 'Reportar un error';
     button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 2 3m6-3-2 3M3 9h4m10 0h4M3 15h4m10 0h4M6 21l3-3m9 3-3-3M12 10v9"/><rect x="7" y="6" width="10" height="14" rx="5"/></svg><span>Reportar un error</span>';
@@ -44,18 +45,23 @@
     function placeButton() {
       // La ventana técnica puede clonar un diálogo del editor que contenga este acceso.
       for (const copy of document.querySelectorAll('#report-launch')) if (copy !== button) copy.remove();
-      const active = stack.filter(item => item.isConnected && item.open && item !== dialog).at(-1);
-      button.hidden = dialog.open;
+      const active = dialog.open ? dialog : stack.filter(item => item.isConnected && item.open && item !== dialog).at(-1);
       const parent = active || document.body;
-      button.classList.toggle('is-in-dialog', Boolean(active));
-      if (button.parentElement !== parent) parent.append(button);
+      if (button.parentElement !== parent) {
+        if (button.matches(':popover-open')) button.hidePopover();
+        parent.append(button);
+      }
+      // La capa superior evita recortes del diálogo; ser su descendiente conserva el acceso modal.
+      if (!button.matches(':popover-open')) button.showPopover();
+      button.setAttribute('aria-expanded', String(dialog.open));
     }
-    // Mantiene el acceso dentro del diálogo modal superior, sin cerrar formularios en curso.
+    // Mantiene el icono en la misma esquina, incluso al abrir otro diálogo modal.
     new MutationObserver(records => {
       let changed = false;
       for (const record of records) {
         if (record.type === 'attributes') {
           const item = record.target;
+          if (!item.matches('dialog')) continue;
           const index = stack.indexOf(item); if (index >= 0) stack.splice(index, 1);
           if (item.open) stack.push(item);
           changed = true;
@@ -90,7 +96,8 @@
       dialog.showModal(); placeButton(); title.focus();
     }
     function close() { if (!busy) dialog.close(); }
-    button.addEventListener('click', open);
+    button.addEventListener('click', () => dialog.open ? close() : open());
+    button.addEventListener('toggle', event => { if (event.newState === 'closed' && button.isConnected) queueMicrotask(placeButton); });
     form.querySelector('.report-close').addEventListener('click', close);
     dismiss.addEventListener('click', close);
     dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });

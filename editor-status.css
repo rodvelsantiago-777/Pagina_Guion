@@ -1,0 +1,27 @@
+/* Información y visualización en una barra inferior común a las etapas del editor. */
+.editor-status{box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:5px 16px;min-height:34px;padding:4px 66px 4px 16px;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font:11px/1.4 var(--sans);flex-shrink:0;z-index:4}
+.editor-status.writer-status{justify-content:flex-start;gap:5px 16px;padding:4px 66px 4px 16px;font-size:11px}
+.editor-status .status-info,.editor-status .status-proofreading,.editor-status .status-view-zoom,.editor-status .status-zoom,.editor-status .zoom-controls{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
+.editor-status .status-info>span{white-space:nowrap}.editor-status .status-info>span+span{border-left:1px solid var(--line);padding-left:10px}
+.editor-status button,.editor-status select{border:1px solid transparent;border-radius:3px;background:transparent;color:var(--muted);font:inherit;line-height:1.4;min-height:25px;padding:3px 6px;cursor:pointer}
+.editor-status button:hover:not(:disabled),.editor-status select:hover{background:var(--surface-hover);color:var(--ink)}.editor-status button:disabled{opacity:.4;cursor:default}
+.editor-status button:focus-visible,.editor-status select:focus-visible,.editor-status input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.editor-status #page-label{display:inline;font:inherit;font-variant-numeric:tabular-nums;margin:0;color:inherit;white-space:nowrap}
+.editor-status #toggle-spelling[aria-pressed=true],.editor-status #writer-spelling[aria-pressed=true]{color:var(--ink)}
+.editor-status .save-status,.editor-status .status-sync,.editor-status #technical-edit-status{padding:0;margin:0;font:inherit;overflow-wrap:anywhere;max-width:300px}
+.editor-status .status-sync,.editor-status .save-status{color:var(--accent)}
+.editor-status .status-view-zoom,.editor-status>.status-zoom{margin-left:auto;flex-shrink:0;gap:7px;flex-wrap:nowrap}
+.editor-status .zoom-controls{margin:0;padding:0;border:0;flex-basis:auto;flex-wrap:nowrap;gap:5px}
+.editor-status .status-zoom-range{width:96px;max-width:20vw;height:18px;margin:0;accent-color:var(--accent);cursor:pointer;min-width:50px;padding:0;border:0;background:none}
+.editor-status .zoom-controls .icon-button,.editor-status #writer-zoom-in,.editor-status #writer-zoom-out{width:25px;height:25px;min-height:25px;min-width:25px;padding:0;font-size:18px;box-shadow:none}
+.editor-status .zoom-controls output{font:inherit;font-variant-numeric:tabular-nums;min-width:38px;color:var(--ink)}
+.editor-status .zoom-controls .tool{font:inherit;min-height:25px;padding:3px 6px}
+.editor-status #writer-zoom{width:66px;max-width:80px;padding:2px;color:var(--ink);font-variant-numeric:tabular-nums}
+.editor-status .view-mode-control{display:flex;margin:0}.editor-status .view-mode-control .header-icon{height:25px;width:27px;min-height:25px;padding:4px;border:0}.editor-status .view-mode-control svg{width:16px;height:16px}
+.editor-status #scene-select{font-size:16px}
+.is-editing #feedback{bottom:calc(var(--editor-status-height,34px) + 12px);pointer-events:none}
+.editor-status #spelling-status{font:inherit;margin:0;max-width:230px;overflow-wrap:anywhere}.editor-status .spelling-status{display:inline}
+.editor-status #technical-summary{font:inherit;color:var(--ink);margin:0}.technical-status #technical-edit-status{margin-left:auto;max-width:none}
+@media(max-width:1250px){.editor-status .status-format{display:none}.editor-status{gap:4px 10px}.editor-status .status-info{gap:7px}}
+@media(max-width:800px){.editor-status,.editor-status.writer-status{padding:4px 62px 4px 10px;gap:4px 9px;min-height:36px}.editor-status .status-info{gap:5px 8px}.editor-status .status-zoom-range{width:72px;max-width:none}.editor-status .status-view-zoom,.editor-status>.status-zoom{justify-content:flex-end;flex-basis:100%}.editor-status .status-sync,.editor-status .save-status{max-width:none}.editor-status .status-info>span+span{padding-left:8px}.technical-status #technical-edit-status{margin-left:0}}
+@media print{.editor-status{display:none!important}}

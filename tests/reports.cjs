@@ -97,6 +97,34 @@ const brave = 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.ex
     await page.waitForFunction(() => document.querySelectorAll('#report-launch').length === 1);
     await page.evaluate(() => document.querySelector('#report-test-under').remove());
     await page.waitForFunction(() => document.querySelector('#report-launch').parentElement === document.body);
+    // Historial largo: el icono mantiene su esquina sin cubrir Entendido ni el contador.
+    await page.evaluate(() => {
+      const content = document.querySelector('#patch-notes-content');
+      content.replaceChildren(...Array.from({length:45},(_,i)=>{const p=document.createElement('p');p.textContent='Nota de parche '+(i+1)+': mejoras en escritura, cobertura y guion técnico.';return p;}));
+      document.querySelector('#patch-notes-footer').textContent='3 publicaciones disponibles';
+    });
+    for (const viewport of [{width:1360,height:650},{width:390,height:844}]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => document.querySelector('#patch-notes-dialog').showModal());
+      await page.waitForFunction(() => document.querySelector('#report-launch').parentElement === document.querySelector('#patch-notes-dialog'));
+      for (const progress of [0,.5,1]) {
+        await page.evaluate(progress => {const dialog=document.querySelector('#patch-notes-dialog');dialog.scrollTop=(dialog.scrollHeight-dialog.clientHeight)*progress;},progress);
+        const layout=await page.evaluate(()=>{
+          const box=id=>document.querySelector(id).getBoundingClientRect();
+          const report=box('#report-launch'),accept=box('#accept-patch-notes'),count=box('#patch-notes-footer');
+          const overlaps=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+          return{overlap:overlaps(report,accept)||overlaps(report,count),fixedCorner:Math.abs(innerWidth-report.right-14)<1&&Math.abs(innerHeight-report.bottom-14)<1,small:report.width<=40&&report.height<=40,floating:document.querySelector('#report-launch').matches(':popover-open')};
+        });
+        assert(!layout.overlap,'Reportar no se superpone a los controles de las notas');assert(layout.fixedCorner&&layout.small&&layout.floating,'El icono permanece pequeño en la esquina inferior derecha');
+      }
+      await page.screenshot({path:path.join(out,`reportes-notas-${viewport.width}.png`)});
+      await page.locator('#report-launch').click();
+      assert(await page.locator('#report-launch').isVisible(),'El icono también permanece visible con su propio formulario abierto');
+      await page.locator('#report-launch').click();
+      assert(await page.locator('#patch-notes-dialog').evaluate(el=>el.open),'Cerrar el reporte conserva las notas abiertas');
+      await page.locator('#accept-patch-notes').click();
+      await page.waitForFunction(() => !document.querySelector('#patch-notes-dialog').open);
+    }
     // Los apartados se resuelven sin leer el proyecto ni las notas del usuario.
     for (const [classes, label] of [['', 'Proyectos'], ['is-editing is-writing', 'Escribir guion'], ['is-editing', 'Líneas de cobertura'], ['is-editing is-technical', 'Guion técnico']]) {
       await page.evaluate(classes => { document.body.className = classes; }, classes);

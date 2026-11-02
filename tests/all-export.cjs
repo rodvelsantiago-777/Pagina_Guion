@@ -9,7 +9,7 @@ const ready = async page => {
 };
 async function download(page, filename) {
   const pending = page.waitForEvent('download', { timeout: 30000 });
-  await page.locator('#open-export').click();await page.locator('#export-all').click();
+  await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator('#export-all').click();
   const file = await pending, destination = path.join(output, filename); await file.saveAs(destination);
   await page.waitForFunction(() => !state.exporting && !state.busy);
   return { bytes: fs.readFileSync(destination), name: file.suggestedFilename() };
@@ -90,7 +90,7 @@ async function inspect(page, bytes) {
     }, Array.from(full.bytes));
     assert(pixels.cover); assert(pixels.line[0] > 180 && pixels.line[1] < 90, 'La línea roja está en el PDF combinado');
     // Tema y vista no cambian el PDF ni restringen las escenas exportadas.
-    await page.locator('#toggle-theme').click(); await page.locator('#stage-tabs [data-stage=coverage]').click(); await ready(page);
+    await require('./header-menu.cjs').open(page);await page.locator('#toggle-theme').click(); await page.locator('#stage-tabs [data-stage=coverage]').click(); await ready(page);
     await page.locator('#scene-select').selectOption('scene-1', { force: true }); await ready(page);
     const before = await page.evaluate(() => ({ notes: state.annotations, corrections: state.corrections, history: state.history.length, zoom: state.zoom, scroll: document.querySelector('#pdf-stage').scrollTop, view: state.scene }));
     const second = await download(page, 'guion-completo-desde-escena.pdf'); assert.deepEqual(second.bytes, full.bytes);
@@ -98,7 +98,7 @@ async function inspect(page, bytes) {
     assert.equal(await page.locator('.pdf-export-workbench').count(), 0);
     // Un fallo deja todas las acciones disponibles y permite reintentar.
     await page.evaluate(() => { globalThis.realAllExport = PlanoAllExport.run; PlanoAllExport.run = async () => { throw Error('Fallo de prueba'); }; });
-    await page.locator('#open-export').click();await page.locator('#export-all').click(); await page.waitForFunction(() => !state.exporting);
+    await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator('#export-all').click(); await page.waitForFunction(() => !state.exporting);
     assert((await page.locator('#feedback').textContent()).includes('No se pudo exportar el PDF completo'));
     for (const id of ['#export-all', '#export-pdf', '#export-excel', '#remove-button']) assert(!(await page.locator(id).isDisabled()));
     await page.evaluate(() => { PlanoAllExport.run = realAllExport; });

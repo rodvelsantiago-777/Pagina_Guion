@@ -106,16 +106,16 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   const legacy=await newDevice('ana',{initialSettings:{mode:'dark',preset:'red'}});await legacy.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
   assert.deepEqual(await preferences('ana','read',{}),{mode:'dark',preset:'red'},'La primera cuenta adopta la personalización anterior si aún no tiene una en la nube');await legacy.context.close();await db.exec('truncate public.plano_preferences,public.plano_usage');
   const appearanceOne=await newDevice();await appearanceOne.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
-  await appearanceOne.page.locator('#toggle-theme').click();await appearanceOne.page.locator('#open-appearance').click();await appearanceOne.page.locator('[data-appearance-preset=violet]').click();
+  await require('./header-menu.cjs').open(appearanceOne.page);await appearanceOne.page.locator('#toggle-theme').click();await require('./header-menu.cjs').open(appearanceOne.page);await appearanceOne.page.locator('#open-appearance').click();await appearanceOne.page.locator('[data-appearance-preset=violet]').click();
   await appearanceOne.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
   assert.deepEqual(await preferences('ana','read',{}),{mode:'dark',preset:'violet'});
   const appearanceTwo=await newDevice();await appearanceTwo.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
   assert.deepEqual(await appearanceTwo.page.evaluate(()=>PlanoAppearance.get()),{mode:'dark',preset:'violet'});
-  await appearanceTwo.page.locator('#open-appearance').click();assert((await appearanceTwo.page.locator('#appearance-dialog').boundingBox()).width<=280);assert.equal(await appearanceTwo.page.locator('#appearance-sync').textContent(),'Tema guardado en tu cuenta');await appearanceTwo.page.screenshot({path:path.join(root,'tests/.output/apariencia-cuenta.png')});await appearanceTwo.page.locator('#close-appearance').click();
-  await appearanceTwo.context.setOffline(true);await appearanceTwo.page.locator('#toggle-theme').click();await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.flush());assert.equal(await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.info().status),'error');
+  await require('./header-menu.cjs').open(appearanceTwo.page);await appearanceTwo.page.locator('#open-appearance').click();assert((await appearanceTwo.page.locator('#appearance-dialog').boundingBox()).width<=280);assert.equal(await appearanceTwo.page.locator('#appearance-sync').textContent(),'Tema guardado en tu cuenta');await appearanceTwo.page.screenshot({path:path.join(root,'tests/.output/apariencia-cuenta.png')});await appearanceTwo.page.locator('#close-appearance').click();
+  await appearanceTwo.context.setOffline(true);await require('./header-menu.cjs').open(appearanceTwo.page);await appearanceTwo.page.locator('#toggle-theme').click();await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.flush());assert.equal(await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.info().status),'error');
   await appearanceTwo.context.setOffline(false);await appearanceTwo.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'violet'});
-  await appearanceTwo.page.locator('#toggle-theme').click();await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.flush());
-  await appearanceOne.context.setOffline(true);await appearanceOne.page.locator('#toggle-theme').click();await appearanceOne.page.evaluate(()=>PlanoAccountAppearance.flush());
+  await require('./header-menu.cjs').open(appearanceTwo.page);await appearanceTwo.page.locator('#toggle-theme').click();await appearanceTwo.page.evaluate(()=>PlanoAccountAppearance.flush());
+  await appearanceOne.context.setOffline(true);await require('./header-menu.cjs').open(appearanceOne.page);await appearanceOne.page.locator('#toggle-theme').click();await appearanceOne.page.evaluate(()=>PlanoAccountAppearance.flush());
   assert.equal(await appearanceOne.page.evaluate(()=>PlanoAccountAppearance.info().status),'error');
   assert.deepEqual(await preferences('ana','read',{}),{mode:'dark',preset:'violet'});
   // El pendiente sobrevive al cierre de la pestaña, siempre asociado al UID.
@@ -128,7 +128,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   // Una lectura lenta no revierte elecciones nuevas.
   let release;const held=new Promise(resolve=>release=resolve),slow=await newDevice('ana',{holdRead:held});
   await slow.page.waitForFunction(()=>PlanoAccountAppearance?.info().status==='loading');
-  await slow.page.locator('#open-appearance').click();await slow.page.locator('[data-appearance-preset=blue]').click();release();
+  await require('./header-menu.cjs').open(slow.page);await slow.page.locator('#open-appearance').click();await slow.page.locator('[data-appearance-preset=blue]').click();release();
   await slow.page.waitForFunction(()=>PlanoAccountAppearance.info().status==='saved');
   assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'blue'});
   // Cambiar de cuenta con una lectura pendiente no aplica el tema anterior.
@@ -137,7 +137,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await switcher.page.evaluate(async token=>{await cloudTestHooks.change('bob');PlanoAccounts.getUser=()=>({id:'bob'});PlanoAccounts.getAccessToken=async()=>token;document.dispatchEvent(new CustomEvent('plano-account-change'));},tokens.bob);
   releaseOld();await switcher.page.waitForFunction(()=>PlanoAccountAppearance.info().owner==='bob'&&PlanoAccountAppearance.info().status==='saved');
   assert.deepEqual(await switcher.page.evaluate(()=>PlanoAppearance.get()),{mode:'light',preset:'default'});
-  await switcher.page.locator('#toggle-theme').click();await switcher.page.evaluate(()=>cloudTestHooks.beforeChange());
+  await require('./header-menu.cjs').open(switcher.page);await switcher.page.locator('#toggle-theme').click();await switcher.page.evaluate(()=>cloudTestHooks.beforeChange());
   assert.deepEqual(await preferences('bob','read',{}),{mode:'dark',preset:'default'},'Cerrar sesión termina el guardado de apariencia');
   assert.deepEqual(await preferences('ana','read',{}),{mode:'light',preset:'blue'});
   for(const device of [appearanceTwo,restored,slow,switcher])await device.context.close();
@@ -148,6 +148,10 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   const pdf=Buffer.from(await doc.save()),one=await newDevice();
   await one.page.locator('#file-input').setInputFiles({name:'Historia.pdf',mimeType:'application/pdf',buffer:pdf});await one.page.waitForFunction(()=>state.cloudProject&&!state.busy);
   const id=await one.page.evaluate(()=>state.cloudProject.id);
+  const beforeManual=(await rpc('ana','read',id,{})).revision;
+  await one.page.locator('#open-cloud').click();await one.page.waitForFunction(revision=>PlanoCloud.info().status==='saved'&&PlanoCloud.info().project.revision>revision,beforeManual);
+  assert.equal(await one.page.locator('dialog[open]').count(),0,'La nube guarda directamente sin abrir ventanas');
+  assert(await one.page.locator('#open-cloud .cloud-mark-check').isVisible(),'La confirmación de servidor se refleja en el icono');
   async function edit(page,name){
    await page.evaluate(name=>{state.annotations=[{id:'test-line',shotId:'test-line',type:'line',page:1,endPage:2,color:'#e8b83f',start:{x:.85,y:.2},end:{x:.85,y:.4},shotName:name,description:'Una descripción de prueba',grip:'Trípode',sound:'Ambiente',note:'Nota privada',scriptSelection:[{page:1,text:'La historia comienza.',rects:[{x:.11,y:.15,width:.3,height:.02}]}]}];changed();},name);
   }
@@ -156,7 +160,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await one.page.evaluate(()=>{state.corrections.push({...PlanoCorrections.create([{page:1,text:'un una',rects:[{x:.11,y:.2,width:.1,height:.02}]}],state.pdf.numPages),source:'syntax',word:'un una',ignoreKey:'syntax:double-article:sample',message:'Hay dos artículos seguidos; revisa cuál corresponde.'});changed();});await one.page.waitForFunction(()=>PlanoCloud.info().status==='saved');
   assert.equal(uploads,0,'La conversión local no sube el PDF ni siquiera al crear el guion');
   assert.equal(await one.page.evaluate(()=>Object.keys(localStorage).some(key=>key.startsWith('plano-notes'))),false,'Los cambios de nube no se guardan en el dispositivo');
-  const two=await newDevice();await two.page.locator('#open-cloud').click();await two.page.locator('#cloud-projects').getByRole('button',{name:'Historia',exact:true}).click();assert(await two.page.locator('#project-overview').isVisible());assert.equal(await two.page.locator('[data-project-stage]').count(),3);await two.page.locator('[data-project-stage=coverage]').click();await two.page.waitForFunction(()=>state.cloudProject&&!state.busy);
+  const two=await newDevice();await require('./header-menu.cjs').open(two.page);await two.page.locator('#open-cloud-library').click();await two.page.locator('#cloud-projects').getByRole('button',{name:'Historia',exact:true}).click();assert(await two.page.locator('#project-overview').isVisible());assert.equal(await two.page.locator('[data-project-stage]').count(),3);await two.page.locator('[data-project-stage=coverage]').click();await two.page.waitForFunction(()=>state.cloudProject&&!state.busy);
   assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Plano A','Otro dispositivo recupera PDF y planos');assert.equal(await two.page.evaluate(()=>state.annotations[0].endPage),2,'La cuenta conserva la continuación entre páginas');
   assert.equal(await two.page.evaluate(()=>state.annotations[0].scriptSelection[0].text),'La historia comienza.','La cuenta conserva el fragmento vinculado a la línea');
   assert.equal(await two.page.evaluate(()=>state.annotations[0].labelUnrestricted),true,'La cuenta conserva el permiso de colocar el título sobre contenido');
@@ -169,14 +173,23 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await one.context.setOffline(false);await one.page.waitForFunction(()=>PlanoCloud.info().status==='saved');
   await edit(two.page,'Cambios de otra pestaña');await two.page.evaluate(()=>PlanoCloud.flush().catch(()=>{}));
   assert.equal(await two.page.evaluate(()=>PlanoCloud.info().status),'conflict');assert.equal((await rpc('ana','read',id,{})).payload.annotations[0].shotName,'Sin conexión');
-  await two.page.locator('#open-cloud').click();assert(await two.page.locator('#cloud-reload').isVisible());
+  await require('./header-menu.cjs').open(two.page);await two.page.locator('#open-cloud-library').click();assert(await two.page.locator('#cloud-reload').isVisible());
   const download=two.page.waitForEvent('download');await two.page.locator('#cloud-export-draft').click();await two.page.locator('#export-editable').click();const backup=await download;assert(backup.suggestedFilename().endsWith('.plano'));
   await two.page.locator('#cloud-reload').click();await two.page.waitForFunction(()=>state.annotations[0].shotName==='Sin conexión');
   await two.page.locator('#cloud-projects').getByRole('button',{name:'Renombrar'}).click();await two.page.locator('#rename-file-input').fill('Historia final');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});
-  assert.equal((await rpc('ana','read',id,{})).project_name,'Historia final');assert.equal(await two.page.locator('#file-name').textContent(),'Historia.plano','Renombrar la carpeta conserva el nombre del archivo');
-  // Renombrado desde el editor: conserva PDF, notas y nombre de las exportaciones.
-  await two.page.locator('#rename-current-file').click();await two.page.locator('#rename-file-input').fill('Historia editada');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});
-  assert.equal(await two.page.locator('#file-name').textContent(),'Historia editada.plano');assert.equal((await rpc('ana','read',id,{})).name,'Historia editada.plano');assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Sin conexión');
+  assert.equal((await rpc('ana','read',id,{})).project_name,'Historia final');assert.equal(await two.page.locator('#file-name').textContent(),'Historia final','La cabecera muestra el nombre de la carpeta');assert.equal(await two.page.evaluate(()=>state.file.name),'Historia.pdf','Renombrar la carpeta conserva el nombre del archivo');
+  // El nombre inline es el de la carpeta y guarda los cambios pendientes antes de renombrar.
+  if(await two.page.locator('#cloud-library').isVisible())await two.page.locator('#close-cloud').click();
+  const originalDocumentName=(await rpc('ana','read',id,{})).name;
+  await edit(two.page,'Sin conexión');
+  await two.page.locator('#file-name').click();await two.page.locator('#project-title-input').fill('Historia provisional');await two.page.locator('#project-title-input').press('Enter');await two.page.locator('#project-title-form').waitFor({state:'hidden'});
+  assert.equal(await two.page.locator('dialog[open]').count(),0,'El nombre se guarda sin ventanas');
+  let inlineProject=await rpc('ana','read',id,{});assert.equal(inlineProject.project_name,'Historia provisional');assert.equal(inlineProject.payload.annotations[0].shotName,'Sin conexión');assert.equal(inlineProject.name,originalDocumentName);
+  await two.page.locator('#file-name').click();await two.page.locator('#project-title-input').fill('Historia final');await two.page.locator('#project-title-input').press('Tab');await two.page.locator('#project-title-form').waitFor({state:'hidden'});
+  assert.equal((await rpc('ana','read',id,{})).project_name,'Historia final');assert.equal(await two.page.evaluate(()=>PlanoCloud.info(false).status),'saved');
+  // Renombrado del archivo desde el menú: conserva las notas y el nombre de la carpeta.
+  await require('./header-menu.cjs').open(two.page);await two.page.locator('#rename-file-menu').click();await two.page.locator('#rename-file-input').fill('Historia editada');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});
+  assert.equal(await two.page.locator('#file-name').textContent(),'Historia final','Renombrar el guion no cambia el nombre del proyecto');assert.equal((await rpc('ana','read',id,{})).name,'Historia editada.plano');assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Sin conexión');
   await two.page.locator('#editor-home').click();await two.page.locator('#project-overview').waitFor();assert.equal(await two.page.locator('#page-title').textContent(),'Historia final');await two.page.locator('#project-root').click();await two.page.locator('.script-card-name').filter({hasText:'Historia final'}).waitFor();await two.page.locator('.script-card-preview img').waitFor();
   assert.equal(await two.page.locator('.script-card').count(),1);assert(await two.page.locator('#upload-button .new-script-plus').isVisible());
   await two.page.evaluate(()=>PlanoCloudLibrary.finishPreview());await two.page.waitForFunction(()=>document.querySelector('#account-storage').dataset.state==='ready');
@@ -186,8 +199,8 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   assert.equal(await two.page.evaluate(()=>Object.values(localStorage).some(value=>value.includes('data:image/jpeg'))),false,'Las miniaturas privadas no se escriben en localStorage');
   const summary=(await rpc('ana','list',null,{})).projects[0];assert(summary.thumbnail.startsWith('data:image/jpeg;base64,')&&summary.thumbnail.length<=20000);assert(!('payload'in summary),'La biblioteca no descarga todas las notas');
   await two.page.locator('.script-rename').click();await two.page.locator('#rename-file-input').fill('   ');await two.page.locator('#save-file-rename').click();assert(await two.page.locator('#rename-file-dialog').isVisible());
-  await two.page.locator('#rename-file-input').fill('Guion desde el inicio');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});await two.page.locator('.script-card-name').filter({hasText:'Guion desde el inicio'}).waitFor();assert.equal(await two.page.locator('#file-name').textContent(),'Historia editada.plano');assert.equal((await rpc('ana','read',id,{})).project_name,'Guion desde el inicio');
-  await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-claro.png'),fullPage:true});await two.page.locator('#toggle-theme').click();await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-oscuro.png'),fullPage:true});
+  await two.page.locator('#rename-file-input').fill('Guion desde el inicio');await two.page.locator('#save-file-rename').click();await two.page.locator('#rename-file-dialog').waitFor({state:'hidden'});await two.page.locator('.script-card-name').filter({hasText:'Guion desde el inicio'}).waitFor();assert(await two.page.locator('#file-name').isHidden(),'La biblioteca raíz no muestra un proyecto sin seleccionar');assert.equal((await rpc('ana','read',id,{})).project_name,'Guion desde el inicio');
+  await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-claro.png'),fullPage:true});await require('./header-menu.cjs').open(two.page);await two.page.locator('#toggle-theme').click();await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-oscuro.png'),fullPage:true});
   // Otro dispositivo recibe la miniatura sin volver a descargar el archivo.
   let releaseList,listCalls=0;const heldList=new Promise(resolve=>releaseList=resolve);
   const library=await newDevice('ana',{holdList:heldList,onList:()=>listCalls++});
@@ -202,7 +215,7 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-varios.png'),fullPage:true});
   // «+» permite elegir escritura o importación; las tarjetas abren el guion correspondiente.
   await two.page.locator('#upload-button').click();const chooser=two.page.waitForEvent('filechooser');await two.page.locator('#new-script-import').click();await chooser;
-  await two.page.locator(`.script-card[data-project-id="${id}"] .script-card-open`).click();await two.page.locator('[data-project-stage=writing]').click();await two.page.waitForFunction(()=>state.screen==='editor'&&!state.busy);assert.equal(await two.page.locator('#file-name').textContent(),'Historia editada.plano');assert.equal((await rpc('ana','read',id,{})).project_name,'Guion desde el inicio');
+  await two.page.locator(`.script-card[data-project-id="${id}"] .script-card-open`).click();await two.page.locator('[data-project-stage=writing]').click();await two.page.waitForFunction(()=>state.screen==='editor'&&!state.busy);assert.equal(await two.page.locator('#file-name').textContent(),'Guion desde el inicio');assert.equal((await rpc('ana','read',id,{})).project_name,'Guion desde el inicio');
   assert(await two.page.locator('#writer-title-paper').isVisible());assert.equal(await two.page.evaluate(()=>state.stage),'writing');assert((await two.page.evaluate(()=>PlanoWriter.view().state.doc.textContent)).includes('La historia comienza.'));
   await two.page.locator('#editor-home').click();await two.page.locator('[data-project-stage=technical]').click();await two.page.waitForFunction(()=>state.stage==='technical'&&!state.busy);assert(await two.page.locator('#technical-view').isVisible());assert.equal(await two.page.locator('#technical-table-body tr[data-shot-id]').count(),1);
   assert.equal(await two.page.evaluate(()=>state.screenplayCoverage),null,'La cobertura usa la escritura actual');
@@ -212,13 +225,15 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await two.page.setViewportSize({width:1440,height:1000});await two.page.locator(`.script-card[data-project-id="${legacyProject.id}"] .script-card-open`).click();await two.page.locator('#nav-writing').click();await two.page.waitForFunction(id=>state.cloudProject?.id===id&&!state.busy,legacyProject.id);assert.equal(await two.page.evaluate(()=>state.stage),'writing');assert.equal(await two.page.evaluate(()=>state.annotations.length),0,'El acceso lateral abre el guion de la carpeta seleccionada');
   await two.page.locator('#editor-home').click();await two.page.locator('#project-root').click();await two.page.locator(`.script-card[data-project-id="${id}"] .script-card-open`).click();await two.page.locator('#nav-editor').click();await two.page.waitForFunction(id=>state.cloudProject?.id===id&&state.rendered&&!state.busy,id);assert.equal(await two.page.evaluate(()=>state.annotations[0].shotName),'Sin conexión');await two.page.locator('#editor-home').click();await two.page.locator('#project-root').click();
   await rpc('ana','delete_begin',legacyProject.id,{revision:(await rpc('ana','read',legacyProject.id,{})).revision});await rpc('ana','delete_finish',legacyProject.id,{});files.delete('ana/'+legacyProject.id);await two.page.locator('#home-refresh').click();
-  await two.page.locator('#open-cloud').click();await two.page.locator('#cloud-projects .cloud-project').waitFor();
-  const other=await newDevice('bob');await other.page.locator('#open-cloud').click();await other.page.locator('#cloud-empty').waitFor({state:'visible'});assert.equal(await other.page.locator('.cloud-project').count(),0);assert.equal(await other.page.locator('#storage-meter').evaluate(el=>el.value),0,'La otra cuenta tiene su propio consumo');assert((await other.page.locator('#storage-summary').textContent()).includes('3,5 MB disponibles'));
+  await require('./header-menu.cjs').open(two.page);await two.page.locator('#open-cloud-library').click();await two.page.locator('#cloud-projects .cloud-project').waitFor();
+  const other=await newDevice('bob');await require('./header-menu.cjs').open(other.page);await other.page.locator('#open-cloud-library').click();await other.page.locator('#cloud-empty').waitFor({state:'visible'});assert.equal(await other.page.locator('.cloud-project').count(),0);assert.equal(await other.page.locator('#storage-meter').evaluate(el=>el.value),0,'La otra cuenta tiene su propio consumo');assert((await other.page.locator('#storage-summary').textContent()).includes('3,5 MB disponibles'));
   await two.page.screenshot({path:path.join(root,'tests/.output/proyectos-nube.png'),fullPage:true});
   await two.page.setViewportSize({width:390,height:844});assert.equal(await two.page.evaluate(()=>document.querySelector('#cloud-library').scrollWidth<=document.querySelector('#cloud-library').clientWidth+1),true);
   await two.page.locator('#cloud-projects').getByRole('button',{name:'Eliminar',exact:true}).click();await two.page.locator('#cloud-empty').waitFor({state:'visible'});assert.equal(files.size,0);assert.equal(await two.page.evaluate(()=>state.pdf),null);assert.equal(await two.page.locator('#storage-meter').evaluate(el=>el.value),0,'Borrar el último proyecto libera el espacio mostrado');
   await one.page.evaluate(()=>{PlanoCloud.changeOwner('');closeDocument();});
   // Guiones nativos: el borrador se guarda en la misma cuenta y el PDF se regenera al abrir.
+  // Cada bloque funcional recibe su propia cuota; la ráfaga automatizada anterior no es uso real.
+  await db.exec('truncate public.plano_usage');
   await two.page.locator('#close-cloud').click();await two.page.setViewportSize({width:1440,height:1000});
   await two.page.evaluate(()=>{PlanoAccounts.getUser=()=>({id:'ana',name:'Ana Ruiz',email:'ana@example.invalid'});});
   await two.page.locator('#upload-button').click();await two.page.locator('#new-script-write').click();await two.page.waitForFunction(()=>!creatingScript&&state.screenplay&&PlanoWriter.view());

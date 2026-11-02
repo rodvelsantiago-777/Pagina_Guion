@@ -50,12 +50,12 @@ async function drag(page,from,to){await page.mouse.move(from.x,from.y);await pag
    await page.locator('#stage-tabs [data-stage="technical"]').click();
    const extra=Array.from({length:70},(_,i)=>({...record,id:'T'+i,shotId:'T'+i,shotName:'T'+i,type:'line',start:{x:.9,y:.15},end:{x:.9,y:.3},shotOrder:i}));
    await importRecords([...JSON.parse(saved),...extra]);
-   await page.locator('#toggle-theme').click();await page.locator('.technical-table-scroll').evaluate(el=>el.scrollTop=510);
+   await require('./header-menu.cjs').open(page);await page.locator('#toggle-theme').click();await page.locator('.technical-table-scroll').evaluate(el=>el.scrollTop=510);
    const scroll=await page.locator('.technical-table-scroll').boundingBox(),head=await page.locator('#technical-table thead').boundingBox();assert(Math.abs(head.y-scroll.y)<2,'La cabecera ocupa el borde superior del área desplazable');
    assert(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('thead'),{x:scroll.x+80,y:scroll.y+3}),'No aparecen filas recortadas por encima de los títulos');
    assert.equal(await page.locator('#technical-table thead').evaluate(el=>getComputedStyle(el).backgroundColor),await page.locator('#technical-table thead th').first().evaluate(el=>getComputedStyle(el).backgroundColor));
    await page.screenshot({path:path.join(output,'tabla-cabecera-opaca.png'),fullPage:true});
-   await page.setViewportSize({width:390,height:850});await page.locator('#stage-tabs [data-stage="coverage"]').click();await ready(page);await page.locator('#open-appearance').click();await page.screenshot({path:path.join(output,'temas-menu-movil.png'),fullPage:true});await page.keyboard.press('Escape');
+   await page.setViewportSize({width:390,height:850});await page.locator('#stage-tabs [data-stage="coverage"]').click();await ready(page);await require('./header-menu.cjs').open(page);await page.locator('#open-appearance').click();await page.screenshot({path:path.join(output,'temas-menu-movil.png'),fullPage:true});await page.keyboard.press('Escape');
    await page.locator('[data-color-target="annotation-color"]').click();await page.locator('#choose-custom-color').click();const mobile=await page.locator('#color-picker-dialog').boundingBox();assert(mobile.x>=0&&mobile.x+mobile.width<=390&&mobile.y>=0&&mobile.y+mobile.height<=850);await page.screenshot({path:path.join(output,'color-menu-movil.png'),fullPage:true});
    assert.deepEqual(errors,[]);console.log('OK: arrastre desde encabezados a márgenes sin texto oculto, fijar/liberar con clic derecho, historial/guardado/JSON, controles reubicados, tarjetas compactas, paletas pequeñas y cabecera fija opaca al desplazar.');
  }finally{await browser.close();}

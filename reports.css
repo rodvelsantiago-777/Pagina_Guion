@@ -1,8 +1,9 @@
 /* Acceso global pequeño; el formulario utiliza los colores del tema. */
-.report-launch{position:fixed;right:18px;bottom:35px;z-index:10000;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 12px;border:1px solid var(--line-strong,var(--line));border-radius:5px;background:var(--paper,#fff);color:var(--muted,#555);font:600 12px/1.3 var(--sans,Arial,sans-serif);cursor:pointer;box-shadow:0 2px 8px #0000000d}
-.report-launch:hover{color:var(--ink,#222);border-color:var(--accent,#93674b)}
+#report-launch.report-launch{position:fixed;inset:auto;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));z-index:10000;display:flex;align-items:center;justify-content:center;width:38px;height:38px;min-width:0;min-height:0;margin:0;padding:0;border:1px solid var(--line-strong,var(--line));border-radius:50%;background:var(--paper,#fff);color:var(--muted,#555);font:600 12px/1.3 var(--sans,Arial,sans-serif);cursor:pointer;box-shadow:0 2px 8px #0000000d}
+#report-launch.report-launch:hover{color:var(--ink,#222);border-color:var(--accent,#93674b);background:var(--surface-hover,var(--paper,#fff))}
+#report-launch span{display:none}
+#report-launch::backdrop{background:transparent;pointer-events:none}
 .report-launch svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.report-launch.is-in-dialog{position:sticky;bottom:0;right:auto;margin:12px 0 0 auto;padding:6px 8px;box-shadow:none;width:max-content;max-width:100%;grid-column:1/-1;flex-shrink:0}
 dialog.report-dialog{position:fixed;inset:0;transform:none;width:min(480px,calc(100vw - 28px));max-width:480px;max-height:calc(100dvh - 28px);height:fit-content;margin:auto;padding:25px;border:1px solid var(--line-strong,var(--line));border-radius:7px;background:var(--paper,#fff);color:var(--ink,#222);overflow:auto;box-shadow:0 16px 60px #0003;text-align:left;font:14px/1.5 var(--sans,Arial,sans-serif)}
 .report-dialog::backdrop{background:#0007}
 .report-dialog form{margin:0}.report-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px}
@@ -19,5 +20,5 @@ dialog.report-dialog{position:fixed;inset:0;transform:none;width:min(480px,calc(
 .report-actions{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line,#ddd);padding-top:15px;margin-top:18px}
 .report-actions button{border:1px solid var(--line-strong,var(--line));border-radius:4px;padding:9px 13px;min-height:38px;background:var(--paper,#fff);color:var(--ink,#222);font:600 12px var(--sans,Arial,sans-serif);cursor:pointer}.report-actions .report-send{background:var(--accent,#93674b);color:var(--on-accent,#fff);border-color:var(--accent,#93674b)}.report-actions button:disabled{opacity:.6;cursor:default}
 .report-launch:focus-visible,.report-dialog :focus-visible{outline:2px solid var(--accent,#93674b);outline-offset:3px}
-@media(max-width:600px){.report-launch:not(.is-in-dialog){right:12px;bottom:30px;width:38px;height:38px;padding:0}.report-launch:not(.is-in-dialog) span{display:none}dialog.report-dialog{padding:20px}.report-dialog h2{font-size:23px}.report-dialog input,.report-dialog textarea{font-size:16px}}
+@media(max-width:600px){dialog.report-dialog{padding:20px}.report-dialog h2{font-size:23px}.report-dialog input,.report-dialog textarea{font-size:16px}.report-actions{padding-right:42px}#patch-notes-dialog>footer{padding-right:62px}}
 @media print{.report-launch,dialog.report-dialog{display:none!important}}

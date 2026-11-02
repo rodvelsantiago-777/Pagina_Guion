@@ -43,6 +43,7 @@ function busy(value) {
   $("#document-view").inert = value; $("#technical-view").inert = value;
   $("#writing-view").inert = value;
   syncTechnicalWindowLock();
+  PlanoHeader.refresh();
 }
 
 function showScreen(screen) {
@@ -71,6 +72,7 @@ function showScreen(screen) {
     else if (state.stage === "writing") PlanoWriter.open(state.screenplay).catch(error => message(error.message, true));
     else refreshTechnicalScript();
   } else { $("#panel-backdrop").hidden = true; PlanoCloudLibrary.showHome(); }
+  PlanoHeader.refresh();
 }
 function updateStageView() {
   const editing = state.screen === "editor" && Boolean(state.pdf), technical = state.stage === "technical", writing = state.stage === "writing";
@@ -87,7 +89,6 @@ function updateStageView() {
   if (technical || !editing) PlanoPopover.hide($("#view-mode-menu"));
   document.body.classList.toggle("is-technical", editing && technical);
   document.body.classList.toggle("is-writing", editing && writing);
-  if (state.screenplay && state.file) $("#file-size").textContent = writing ? `Guion editable · ${state.cloudProject ? "En tu cuenta" : "Archivo local"}` : `Guion editable · ${state.pdf.numPages} páginas · ${state.cloudProject ? "En tu cuenta" : "En este navegador"}`;
   $("#panel-backdrop").hidden = !editing || technical || !state.panelOpen || !smallScreen.matches;
 }
 async function switchStage(stage) {
@@ -366,8 +367,7 @@ async function openDocumentPdf(file, options = {}) {
     }
     if (options.screenplay) state.stage = "writing";
     if (["writing", "coverage", "technical"].includes(options.stage)) state.stage = options.stage;
-    $("#file-name").textContent = editableName(state.file.name); $("#file-name").title = editableName(state.file.name);
-    $("#file-size").textContent = `Guion editable · ${pdf.numPages} páginas · ${cloudProject ? "En tu cuenta" : "En este navegador"}`;
+    PlanoHeader.refresh();
     $("#open-document").href = state.url;
     updateSceneOptions(); refreshSegments(); setTool("select"); refreshAnnotations();
     status(`${state.scenes.length} ${state.scenes.length === 1 ? "escena" : "escenas"} · Guion listo`, true);
@@ -407,7 +407,7 @@ function currentLibraryProject() {
 }
 function renameDocumentFile(name) {
   state.file = new File([state.file], pdfName(name), { type: "application/pdf" });
-  $("#file-name").textContent = editableName(name); $("#file-name").title = editableName(name);
+  PlanoHeader.refresh();
   PlanoTechnicalWindow.publish();
 }
 async function buildLibraryPreview(project) {
@@ -489,7 +489,7 @@ $("#view-mode-menu").addEventListener("keydown", event => {
     buttons[index]?.focus({ preventScroll: true }); buttons[index]?.scrollIntoView({ block: "nearest" });
   } else if (event.key === "Tab") {
     event.preventDefault(); PlanoPopover.hide($("#view-mode-menu"));
-    (event.shiftKey ? $("#open-appearance") : $("#project-menu summary")).focus({ preventScroll: true });
+    (event.shiftKey ? $("#toggle-spelling") : $("#zoom-out")).focus({ preventScroll: true });
   }
 });
 function refreshSegments() {
@@ -617,6 +617,7 @@ async function renderDocument({ preservePosition = false, anchor = null } = {}) 
   }
   state.zoom = first.viewport.scale;
   $("#zoom-label").textContent = `${Math.round(state.zoom * 100)}%`;
+  $("#coverage-zoom-range").value = String(Math.round(state.zoom * 100));
   $("#zoom-out").disabled = state.zoom <= 0.25; $("#zoom-in").disabled = state.zoom >= 3;
   viewer.observer = new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -1369,7 +1370,7 @@ async function beginPastedHighlight() {
 }
 function startTextPlacement(data) {
   hideHighlightAction();
-  for (const popover of document.querySelectorAll('[popover]:popover-open')) popover.hidePopover();
+  for (const popover of document.querySelectorAll('[popover]:popover-open:not(#report-launch)')) popover.hidePopover();
   $("#project-menu").open = false;
   const tool = state.tool, panelOpen = state.panelOpen;
   setTool("highlight"); window.getSelection()?.removeAllRanges();
@@ -1753,7 +1754,9 @@ function readSavedProofreading() {
 let spellingJob = null;
 function refreshSpelling(text = "") {
   $("#toggle-spelling").setAttribute("aria-pressed", String(state.proofreading.enabled));
-  $("#toggle-spelling").textContent = `Ortografía y redacción del PDF: ${state.proofreading.enabled ? "activadas" : "desactivadas"}`;
+  $("#toggle-spelling").textContent = `Revisión ${state.proofreading.enabled ? "activada" : "desactivada"}`;
+  $("#toggle-spelling").title = "Activar o desactivar la revisión de ortografía y redacción del guion";
+  PlanoWriter.setProofreading(state.proofreading.enabled);
   $("#spelling-status").textContent = text; $("#spelling-status").hidden = !text;
 }
 function cancelSpelling() { spellingJob?.controller.abort(); spellingJob = null; $("#retry-spelling").hidden = true; }
@@ -2097,6 +2100,10 @@ document.addEventListener("pointerdown", event => { if (state.highlightAction &&
 document.addEventListener("pointerdown", event => { if (state.titleMenu && !$("#title-position-menu").contains(event.target)) hideTitlePositionMenu(); });
 document.addEventListener("pointerdown", event => { if (state.selectedLine && !state.lineGesture && !event.target.closest("#selected-line-actions")) { state.selectedLine = null; drawAnnotations(); } });
 let scrollFrame = 0;
+function updateStatusHeight(){const bar=Array.from(document.querySelectorAll('.editor-status')).find(bar=>bar.getClientRects().length);document.documentElement.style.setProperty('--editor-status-height',(bar?bar.getBoundingClientRect().height:0)+'px');}
+const statusHeightObserver=new ResizeObserver(updateStatusHeight);
+for(const bar of document.querySelectorAll('.editor-status'))statusHeightObserver.observe(bar);
+document.addEventListener('plano-appearance-change',updateStatusHeight);
 $("#pdf-stage").addEventListener("scroll", () => {
   hideHighlightAction();
   refreshCoverageGesture();
@@ -2121,8 +2128,12 @@ $("#apply-highlight").addEventListener("pointerdown", event => event.preventDefa
 $("#apply-highlight").addEventListener("click", highlightSelection);
 document.addEventListener("selectionchange", updateSelectionButton);
 $("#undo-button").addEventListener("click", () => undo()); $("#redo-button").addEventListener("click", () => undo(true));
-for (const [id, delta] of [["#zoom-in", 0.2], ["#zoom-out", -0.2]]) $(id).addEventListener("click", () => { state.fit = false; state.zoom = Math.max(0.25, Math.min(3, state.zoom + delta)); renderDocument({ preservePosition: true }); });
-$("#fit-width").addEventListener("click", () => { state.fit = true; renderDocument({ preservePosition: true }); });
+let coverageZoomTimer=0;
+function setCoverageZoom(value){clearTimeout(coverageZoomTimer);if(!state.pdf||state.stage!=="coverage"||state.busy||state.exporting)return;state.fit=false;state.zoom=Math.max(.25,Math.min(3,value));renderDocument({preservePosition:true});}
+for (const [id, delta] of [["#zoom-in", 0.2], ["#zoom-out", -0.2]]) $(id).addEventListener("click", () => setCoverageZoom(state.zoom+delta));
+$("#fit-width").addEventListener("click", () => { clearTimeout(coverageZoomTimer);state.fit = true; renderDocument({ preservePosition: true }); });
+$("#coverage-zoom-range").addEventListener("input",event=>{clearTimeout(coverageZoomTimer);const pdf=state.pdf,value=Number(event.target.value)/100;$("#zoom-label").textContent=Math.round(value*100)+"%";coverageZoomTimer=setTimeout(()=>{if(state.pdf===pdf)setCoverageZoom(value);},120);});
+$("#coverage-zoom-range").addEventListener("change",event=>setCoverageZoom(Number(event.target.value)/100));
 let exportEngine;
 async function exportCoveragePdf(includeTechnical = false) {
   if (!state.pdf || state.busy || state.exporting) return;
@@ -2264,7 +2275,7 @@ PlanoTechnicalWindow.configure({
   key: () => state.pdf ? `${PlanoAccounts.getUser()?.id}/${state.cloudProject?.id||state.fingerprint}` : null,
   canEdit: () => Boolean(PlanoAccounts.getUser()) && canSelectShots(),
   snapshot: () => ({
-    name: state.file?.name || "Guion técnico", sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })),
+    name: currentLibraryProject()?.project_name || "Guion técnico", sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })),
     history: state.history.length, future: state.future.length, locked: !canSelectShots(),
     theme: { style: document.documentElement.style.cssText, mode: document.documentElement.dataset.theme, palette: document.documentElement.dataset.palette }
   }),
@@ -2286,7 +2297,7 @@ openTechnicalWindow.addEventListener("click", () => {
 
 // Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
 PlanoAccounts.connectWorkspace({
-  canChange: () => !creatingScript && !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
+  canChange: () => !creatingScript && !state.busy && !PlanoHeader.pending() && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
   beforeChange: async () => { await globalThis.PlanoAccountAppearance?.flush(); try { if (PlanoCloud.configured) await PlanoCloud.flush(); } catch { throw Object.assign(new Error("Cloud save pending"), { code: "plano/cloud-unsaved" }); } },
   change: async nextOwner => {
     const shell = $(".app-shell"); shell.inert = true;
@@ -2307,16 +2318,25 @@ PlanoAccounts.connectWorkspace({
 PlanoCloudLibrary.init({
   currentProject: currentLibraryProject,
   canRename: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
+  renameLock: value=>busy(value),
   preview: buildLibraryPreview,
   home: () => showScreen("import"),
   open: async (id, stage = "coverage") => { if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); if (state.pdf && (id === state.cloudProject?.id || id === "local")) { await switchStage(stage); showScreen("editor"); return; } const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project, stage })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
   renameLocal: (name, isProject) => { if (isProject) { state.localProjectName = name; } else renameDocumentFile(name); return currentLibraryProject(); },
-  projectRenamed: project => { if (state.cloudProject?.id === project.id) { state.cloudProject = {...state.cloudProject, ...project}; if (state.screen === "editor") $("#breadcrumb-current").textContent = project.project_name; } },
+  projectRenamed: project => { if (state.cloudProject?.id === project.id) { state.cloudProject = {...state.cloudProject, ...project}; if (state.screen === "editor") $("#breadcrumb-current").textContent = project.project_name; } PlanoHeader.refresh();PlanoTechnicalWindow.publish(); },
   renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; renameDocumentFile(project.name); if (state.screenplay) PlanoWriter.syncTitle(project.name.replace(/\.(pdf|plano)$/i,"")); },
   deleted: id => { if (state.cloudProject?.id === id) closeDocument(); },
   reload: async project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; if (project.payload.screenplay || state.screenplay) { PlanoWriter.close(); const loaded = await PlanoCloud.open(project.id); if (!await upload(loaded.file,{project:loaded.project})) throw Error("No se pudo recuperar el guion editable."); return; } const notes = validateNotes(project.payload.annotations), corrections = PlanoCorrections.validate(project.payload.corrections, state.pdf.numPages), crew = PlanoCrew.validate(project.payload.crew), proofreading = PlanoSpelling.validate(project.payload.proofreading); cancelSpelling(); state.annotations = notes; state.corrections = corrections; state.crew = crew; state.proofreading = proofreading; refreshSpelling(); state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); PlanoTechnicalWindow.publish(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
   openExport: anchor => { if (!state.pdf) return false; return exportMenu.open(anchor); },
   newScript: () => newScriptDialog.showModal()
+});
+PlanoHeader.init({
+  project:()=>state.screen==='editor'?currentLibraryProject():PlanoCloudLibrary.selected(),
+  canEdit:()=>(state.screen==='editor'?canSelectShots():!state.busy&&!state.exporting)&&PlanoTechnicalScript.finishEditing(),
+  canSave:()=>Boolean(state.pdf)&&canSelectShots(),
+  rename:(project,name)=>PlanoCloudLibrary.renameProjectInline(project,name),
+  save:async()=>{if(!state.pdf||!canSelectShots()||!PlanoTechnicalScript.finishEditing())throw Error('Termina la operación actual antes de guardar.');saveNotes();await PlanoCloud.flush();},
+  error:text=>message(text,true)
 });
 
 // El redactor comparte la identidad del proyecto y su guardado privado; el PDF es una vista regenerable.
@@ -2378,6 +2398,7 @@ async function downloadWrittenPdf(){
 }
 PlanoWriter.init({
   load:src=>loadScript(src+new URL($("script[src^='app.js']").src).search),
+  toggleProofreading:()=>$("#toggle-spelling").click(),
   hasCoverageVersion:()=>false,
   changed:(screenplay,change)=>{
     if(!state.pdf||state.screenplay?.id!==screenplay.id)return;

@@ -97,7 +97,7 @@
  function show(manual=false){
   if(manual){openHistory();return;}
   if(!owner||!current||!feed.length||root.PlanoAccounts.getUser()?.id!==owner||document.body.classList.contains('auth-locked'))return;
-  if(dialog.open||document.querySelector('dialog[open],[popover]:popover-open')||$('.app-shell').inert)return;
+  if(dialog.open||document.querySelector('dialog[open],[popover]:popover-open:not(#report-launch)')||$('.app-shell').inert)return;
   if(!manual&&(!current.ready||document.body.classList.contains('is-editing')))return;
   if(!unseen(feed,current.seen).length)return;
   automatic=true;render(feed);displayed={owner,release:feed[0]};
@@ -116,7 +116,7 @@
  }
  async function openHistory(refresh=true){
   if(!owner||root.PlanoAccounts.getUser()?.id!==owner||document.body.classList.contains('auth-locked')||$('.app-shell').inert)return;
-  if(!dialog.open&&document.querySelector('dialog[open],[popover]:popover-open'))return;
+  if(!dialog.open&&document.querySelector('dialog[open],[popover]:popover-open:not(#report-launch)'))return;
   const expected=epoch;automatic=false;
   const loading=loadFeed(refresh);renderHistory();
   if(!dialog.open){dialog.showModal();dialog.scrollTop=0;$('#accept-patch-notes').focus({preventScroll:true});}

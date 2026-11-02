@@ -90,6 +90,7 @@
     const dark = settings.mode === "dark";
     toggle.setAttribute("aria-pressed", String(dark));
     toggle.setAttribute("aria-label", dark ? "Activar modo claro" : "Activar modo oscuro"); toggle.title = dark ? "Activar modo claro" : "Activar modo oscuro";
+    const themeLabel=document.querySelector('#header-theme-label');if(themeLabel)themeLabel.textContent=dark?'Modo claro':'Modo oscuro';
     for (const button of document.querySelectorAll("[data-appearance-mode]")) button.setAttribute("aria-pressed", String(button.dataset.appearanceMode === settings.mode));
     for (const button of document.querySelectorAll("[data-appearance-preset]")) {
       button.setAttribute("aria-pressed", String(settings.preset === button.dataset.appearancePreset));
@@ -118,7 +119,7 @@
       button.append(swatch, document.createTextNode(palette.label)); list.append(button);
       button.addEventListener("click", () => { choose({ preset: id }); PlanoPopover.hide(dialog, true); });
     }
-    open.addEventListener("click", () => { document.querySelector("#project-menu").open = false; sync(); PlanoPopover.show(dialog, open); });
+    open.addEventListener("click", () => { document.querySelector("#project-menu").open = false; sync(); PlanoPopover.show(dialog, document.querySelector('#project-menu > summary')||open); });
     document.querySelector("#close-appearance").addEventListener("click", () => PlanoPopover.hide(dialog, true));
     for (const button of dialog.querySelectorAll("[data-appearance-mode]")) button.addEventListener("click", () => choose({ mode: button.dataset.appearanceMode }));
     sync();
