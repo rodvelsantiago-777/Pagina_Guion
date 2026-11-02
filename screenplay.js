@@ -80,14 +80,26 @@
   }return{scenes,characters:[...characters.values()]};
  }
  function runs(node,from,to){const result=[];let offset=0;for(const piece of node.content||[]){const a=Math.max(from-offset,0),b=Math.min(to-offset,piece.text.length);if(a<b)result.push({text:piece.text.slice(a,b),marks:piece.marks||[]});offset+=piece.text.length;}return result;}
- async function pdf(value){
+ async function pdf(value,{loadUnicode}={}){
   const script=validate(value);if(!root.PDFLib)throw Error('No se pudo cargar el generador PDF.');const {PDFDocument,StandardFonts,rgb}=root.PDFLib;
   const document=await PDFDocument.create(),fonts={normal:await document.embedFont(StandardFonts.Courier),bold:await document.embedFont(StandardFonts.CourierBold),italic:await document.embedFont(StandardFonts.CourierOblique),both:await document.embedFont(StandardFonts.CourierBoldOblique)};
+  const unicodeFonts=new Map();
+  async function textFont(text,kind){
+   const standard=fonts[kind];try{standard.encodeText(text);return standard;}catch{}
+   if(!unicodeFonts.has(kind)){
+    const resources=root.PlanoPdfUnicode||await loadUnicode?.();
+    if(!resources?.fontkit)throw Error('No se pudieron cargar las fuentes Unicode del guion. El PDF original se conserva.');
+    document.registerFontkit(resources.fontkit);const font=await document.embedFont(resources.face(kind),{subset:true});unicodeFonts.set(kind,{font,supported:new Set(font.getCharacterSet())});
+   }
+   const {font,supported}=unicodeFonts.get(kind);
+   if(Array.from(text).some(char=>!supported.has(char.codePointAt(0))))throw Error('El guion contiene un símbolo que necesita otra fuente. El PDF original se conserva.');
+   return font;
+  }
   document.setTitle(script.title||'Sin título');document.setAuthor(script.authors.map(a=>a.name).filter(Boolean).join(', '));document.setSubject('PLANO · Guion editable · '+script.id);document.setCreator('PLANO');
   const fallback=new Map();let canvas,context;
   async function draw(page,text,x,top,marks=[]){
-   const bold=marks.some(mark=>mark.type==='bold'),italic=marks.some(mark=>mark.type==='italic'),font=fonts[bold&&italic?'both':bold?'bold':italic?'italic':'normal'];
-   try{page.drawText(text,{x,y:792-top-12,font,size:12,color:rgb(0,0,0)});}catch{
+   const bold=marks.some(mark=>mark.type==='bold'),italic=marks.some(mark=>mark.type==='italic');
+   try{const font=await textFont(text,bold&&italic?'both':bold?'bold':italic?'italic':'normal');page.drawText(text,{x,y:792-top-12,font,size:12,color:rgb(0,0,0)});}catch{
     canvas||=root.document.createElement('canvas');context=canvas.getContext('2d');const key=[text,bold,italic].join('|');let image=fallback.get(key);
     if(!image){canvas.width=Math.max(1,Math.ceil(text.length*7.2+4))*3;canvas.height=60;context.scale(3,3);context.font=`${italic?'italic ':''}${bold?'bold ':''}12px "Courier New",monospace`;context.fillStyle='#000';context.textBaseline='top';context.fillText(text,0,1);image=await document.embedPng(canvas.toDataURL('image/png'));fallback.set(key,image);}page.drawImage(image,{x,y:792-top-16,width:canvas?Math.max(1,Math.ceil(text.length*7.2+4)):image.width/3,height:20});
    }
@@ -95,8 +107,8 @@
   }
   if(script.sourceLayout?.revision===script.revision){
    const source=script.sourceLayout,pages=source.pages.map(size=>document.addPage([size.width,size.height])),nodes=new Map(script.doc.content.map(node=>[node.attrs.id,node]));
-   for(const row of source.rows){const node=nodes.get(row.id),text=node?plain(node):row.text;if(!text)continue;const page=pages[row.page-1],size=source.pages[row.page-1],font=node&&['scene','section'].includes(node.attrs.kind)?fonts.bold:fonts.normal,fontSize=row.height*size.height;
-    try{for(const part of row.parts||[[0,text.length,row.x,row.width]])page.drawText(text.slice(part[0],part[1]),{x:part[2]*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});}catch{throw Error('El PDF contiene caracteres que requieren revisar la conversión antes de guardarla.');}
+   for(const row of source.rows){const node=nodes.get(row.id),text=node?plain(node):row.text;if(!text)continue;const page=pages[row.page-1],size=source.pages[row.page-1],kind=node&&['scene','section'].includes(node.attrs.kind)?'bold':'normal',fontSize=row.height*size.height;
+    for(const part of row.parts||[[0,text.length,row.x,row.width]]){const fragment=text.slice(part[0],part[1]),font=await textFont(fragment,kind);page.drawText(fragment,{x:part[2]*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});}
    }
    return{bytes:await document.save(),titlePages:0,pages:pages.length};
   }

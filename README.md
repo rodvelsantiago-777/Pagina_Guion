@@ -2,6 +2,12 @@
 
 Aplicación web de producción audiovisual en HTML, CSS y JavaScript. Interfaz en español y adaptable a escritorio, tableta y móvil. Incluye un visor propio basado en [PDF.js de Mozilla](https://mozilla.github.io/pdf.js/), distribuido en `vendor/` con sus recursos y licencias. El acceso requiere una cuenta de Firebase con correo verificado; los PDF y las anotaciones se procesan en el navegador. No requiere compilación.
 
+## Conversión de PDF con tildes combinadas
+
+El generador usa una fuente local Unicode cuando Courier/WinAnsi no puede representar un carácter, por ejemplo U+0301 incluso separado de su vocal. La disposición inicial mantiene las mismas páginas, dimensiones, coordenadas y texto seleccionable. No se borran caracteres ni se convierte una fila completa en imagen para eludir el error. Los recursos adicionales solo se cargan al necesitarlos y se incrustan subconjuntos en el PDF generado; no aumentan el JSON guardado en la cuenta.
+
+`tests/pdf-conversion.cjs` comprueba tildes combinadas, cuatro estilos, texto y geometría página a página, reapertura .plano, edición posterior, carga única y conservación del documento anterior si falta la fuente. `PLANO_PDF_REFERENCE` permite repetir esa prueba y `tests/editable-flow.cjs` con un PDF externo, sin copiarlo al repositorio. La migración conserva los planos y confirma el editable antes de intentar retirar el PDF antiguo; un error de conversión conserva el original.
+
 ## Cabecera global
 
 La marca se presenta solo con su icono. La cabecera muestra el nombre del proyecto sin extensión: hasta 32 caracteres visibles, incluidos los tres puntos si se recorta; el nombre completo sigue disponible al pasar el puntero. Pulsarlo permite editarlo en el mismo lugar, con Enter o al salir para guardar y Escape para cancelar. Cambiarlo no renombra el archivo del guion ni modifica su portada.

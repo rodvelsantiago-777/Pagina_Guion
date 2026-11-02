@@ -137,7 +137,11 @@ function readLocalScreenplayPayload(hash) {
 async function generateScreenplayPdf(screenplay) {
   const version = new URL($("script[src^='app.js']").src).search;
   if (!window.PDFLib) await loadScript(`vendor/pdf-lib.min.js${version}`);
-  return PlanoScreenplay.pdf(screenplay);
+  return PlanoScreenplay.pdf(screenplay,{loadUnicode:async()=>{
+    if(!window.PlanoPdfUnicode)try{await loadScript(`vendor/pdf-unicode.js${version}`);}catch{throw Error('No se pudieron cargar las fuentes del guion. Recarga la página y vuelve a intentarlo; el PDF original se conserva.');}
+    if(!window.PlanoPdfUnicode?.fontkit)throw Error('No se pudieron cargar las fuentes del guion. Recarga la página y vuelve a intentarlo; el PDF original se conserva.');
+    return window.PlanoPdfUnicode;
+  }});
 }
 let engineReady;
 function prepareEngine() {
