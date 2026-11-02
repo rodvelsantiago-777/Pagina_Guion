@@ -55,7 +55,7 @@ async function drag(page,from,to){await page.mouse.move(from.x,from.y);await pag
   // La geometría nueva atraviesa la misma validación usada por la nube y por JSON.
   assert.equal(await page.evaluate(()=>validateNotes(state.annotations)[0].endPage),3);
   for(const endPage of [0,4,1.5,'3'])assert(await page.evaluate(endPage=>{try{validateNotes([{...state.annotations[0],endPage}]);return false;}catch{return true;}},endPage));
-  const download=page.waitForEvent('download');await page.locator('#project-menu summary').click();await page.locator('#export-pdf').click();const file=await download;const filename=path.join(out,'plano-multipagina.pdf');await file.saveAs(filename);await page.waitForFunction(()=>!state.exporting);
+  const download=page.waitForEvent('download');await page.locator('#open-export').click();await page.locator('#export-pdf').click();const file=await download;const filename=path.join(out,'plano-multipagina.pdf');await file.saveAs(filename);await page.waitForFunction(()=>!state.exporting);
   const exported=fs.readFileSync(filename);assert.equal((await PDFDocument.load(exported)).getPageCount(),3);
   const strokes=await page.evaluate(async bytes=>{
    const output=await pdfjsLib.getDocument({data:new Uint8Array(bytes),isEvalSupported:false,useWorkerFetch:false,useSystemFonts:false,BinaryDataFactory:LocalBinaryFactory}).promise;

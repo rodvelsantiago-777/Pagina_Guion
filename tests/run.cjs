@@ -124,7 +124,7 @@ async function assertLabelClearance(page) {
     assert.equal(await page.locator('.annotation-scene-group').count(),3,'Planos agrupados por escena');
     assert.equal(await page.locator('#annotation-filter').count(),0,'Sin filtro de anotaciones redundante');
     await page.locator('#scene-select').selectOption('print', {force:true}); await ready(page);
-    assert.equal(await page.locator('#breadcrumb-current').textContent(),'Guion técnico / cobertura');
+    assert.equal(await page.locator('#breadcrumb-current').textContent(),'guion','La cabecera identifica el proyecto abierto');
     assert(!(await page.locator('.sidebar').isVisible()),'Sin barra izquierda en el guion técnico');
     assert.equal(await page.locator('.editor-actions #scene-select').count(),1,'Vista del guion fija en la cabecera derecha');
     const panelBox=await page.locator('#annotations-panel').boundingBox(); const viewerBox=await page.locator('#pdf-stage').boundingBox();
@@ -296,7 +296,7 @@ async function assertLabelClearance(page) {
     await assertLabelClearance(page);
     await page.locator('#undo-button').click();
     await page.locator('#undo-button').click(); assert.equal(await page.locator('#annotation-count').textContent(),'2');
-    const download=page.waitForEvent('download'); await menuAction(page,'#save-backup');
+    const download=page.waitForEvent('download'); await page.locator('#save-backup').evaluate(button=>button.click());
     const backup=await download; const backupPath=path.join(output,'notas.json'); await backup.saveAs(backupPath);
     const saved=JSON.parse(fs.readFileSync(backupPath,'utf8')); assert.equal(saved.annotations.length,2);
     assert.equal(saved.annotations[0].shotName,'Plano 01 · Entrada de Ana');
@@ -391,23 +391,11 @@ async function assertLabelClearance(page) {
     await page.locator('#undo-button').click(); assert.equal(await page.locator('#annotation-count').textContent(),'2');
     await page.setViewportSize({width:1024,height:900}); await page.locator('#fit-width').click(); await ready(page);
     await page.locator('#file-input').setInputFiles({name:'invalido.pdf',mimeType:'application/pdf',buffer:Buffer.from('texto')});
-    await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('no parece'));
+    await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('PDF válido'));
     assert.equal(await page.locator('#annotation-count').textContent(),'2','Archivo inválido conserva trabajo');
     await page.locator('#file-input').setInputFiles({name:'escaneado.pdf',mimeType:'application/pdf',buffer:scanned});
-    await page.locator('.no-scenes-view').waitFor();
-    assert(await page.evaluate(()=>state.rendered&&!state.busy),'Un PDF sin escenas termina la carga y permite cambiar de vista');
-    assert((await page.locator('#page-label').getAttribute('aria-label')).includes('sin escenas detectadas'));
-    await page.locator('#scene-select').selectOption('print', {force:true}); await ready(page);
-    assert.equal(await page.locator('#scene-select option').count(),3);
-    assert.equal(await page.locator('.reader-help,#scene-notice,#tool-help').count(),0,'Se retiró el bloque Ayuda del visor');
-    assert.equal(await page.locator('#annotation-count').textContent(),'0','Otro PDF no recibe notas anteriores');
-    await page.locator('[data-tool="line"]').click();
-    const scanPaper=await page.locator('.page-window').first().boundingBox();
-    await page.mouse.move(scanPaper.x+scanPaper.width*.8,scanPaper.y+80); await page.mouse.down();
-    await page.mouse.move(scanPaper.x+scanPaper.width*.8,scanPaper.y+150,{steps:5}); await page.mouse.up();
-    await nameShot(page,'Plano sobre guion escaneado');
-    assert.notEqual(await page.locator('.document-shot-label').getAttribute('data-placement'),'margin','Mantiene el título ligado al trazo o en la zona auxiliar si no hay hueco');
-    await assertLabelClearance(page);
+    await page.waitForFunction(()=>!state.busy&&document.querySelector('#feedback').textContent.includes('OCR'));
+    assert.equal(await page.locator('#annotation-count').textContent(),'2','Un PDF sin texto no elimina el trabajo abierto');
     const longDoc=await PDFDocument.create(); const longFont=await longDoc.embedFont(StandardFonts.Courier);
     for(let index=1;index<=16;index++) {
       const sheet=longDoc.addPage([595,842]);

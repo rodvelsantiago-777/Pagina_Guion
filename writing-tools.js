@@ -12,7 +12,7 @@
   });return engine;
  }
  function attach(input){
-  if(input.tagName!=='TEXTAREA'||controls.has(input))return;
+  if(input.tagName!=='TEXTAREA'||input.dataset.writingReview==='native'||controls.has(input))return;
   const panel=document.createElement('details');panel.className='writing-feedback';panel.hidden=true;
   const summary=document.createElement('summary'),list=document.createElement('div');list.className='writing-feedback-list';panel.append(summary,list);input.after(panel);
   panel.addEventListener('keydown',event=>{if(['Enter','Tab',' '].includes(event.key)&&!event.ctrlKey&&!event.metaKey)event.stopPropagation();});

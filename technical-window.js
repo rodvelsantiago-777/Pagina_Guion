@@ -2,19 +2,20 @@
 (function(root){
  'use strict';
  if(document.body.dataset.detached==='true'){
-  let connection=null;
+  let connection=null,exportMenu=null,hasShots=false;
   const content=document.getElementById('detached-content'),status=document.getElementById('detached-status');
   function unavailable(){
-   root.PlanoTechnicalScript.clear();connection=null;content.replaceChildren();
+   root.PlanoTechnicalScript.clear();connection=null;exportMenu?.close();document.getElementById('open-export').disabled=true;content.replaceChildren();
    const text=document.createElement('p');text.className='detached-unavailable';text.textContent='El documento o la sesión del editor se cerró. Vuelve a abrir esta ventana desde Guion técnico.';content.append(text);status.textContent='Sin conexión con el editor';
   }
   root.PlanoDetachedView={
    invalidate:unavailable,
-   lock(value){const view=document.getElementById('technical-view');if(view)view.inert=value;status.textContent=value?'Termina la acción pendiente en el editor.':'Conectado · los cambios se comparten al instante';},
+   lock(value){const view=document.getElementById('technical-view');if(view)view.inert=value;document.getElementById('open-export').disabled=value;status.textContent=value?'Termina la acción pendiente en el editor.':'Conectado · los cambios se comparten al instante';},
    receive(data){
     if(!connection)return;
     document.getElementById('detached-title').textContent=data.name;document.title=data.name+' · Guion técnico — PLANO';
     document.documentElement.style.cssText=data.theme.style;document.documentElement.dataset.theme=data.theme.mode;document.documentElement.dataset.palette=data.theme.palette;
+    hasShots=data.sections.some(section=>section.items.length);
     root.PlanoTechnicalScript.render(data.sections,{displayName:item=>item.shotName,commit:connection.commit,remove:connection.remove,open:connection.open,history:data.history,future:data.future});
     root.PlanoDetachedView.lock(data.locked);
    }
@@ -27,7 +28,8 @@
    const icons=root.opener.document.querySelector('.icon-library');if(icons)document.body.prepend(icons.cloneNode(true));
    document.getElementById('technical-undo').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.undo(false);});
    document.getElementById('technical-redo').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.undo(true);});
-   document.getElementById('technical-export-excel').disabled=false;document.getElementById('technical-export-excel').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.export();});
+   const dialog=root.opener.document.getElementById('export-dialog').cloneNode(true);dialog.removeAttribute('open');document.body.append(dialog);
+   exportMenu=PlanoExportUI.init({button:document.getElementById('open-export'),dialog,beforeOpen:()=>Boolean(connection)&&PlanoTechnicalScript.finishEditing(),hasShots:()=>hasShots,run:action=>connection?.export(action)});
    document.getElementById('technical-crew').addEventListener('click',()=>{if(PlanoTechnicalScript.finishEditing())connection?.crew();});
    document.getElementById('back-to-coverage').addEventListener('click',()=>connection?.focus());
    document.getElementById('focus-main-editor').addEventListener('click',()=>connection?.focus());

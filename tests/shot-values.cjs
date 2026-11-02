@@ -92,7 +92,7 @@ async function importNotes(page,data) {await page.locator('#backup-input').setIn
     await beginLine(page); assert.equal(await page.locator('#shot-name-input').getAttribute('placeholder'),'2');
     assert.equal(await page.locator('#shot-angle-input').inputValue(),''); assert(await page.locator('#shot-angle-input-other').isDisabled());
     await finishLine(page); assert.equal((await notes(page))[1].shotName,'2');
-    const downloading=page.waitForEvent('download'); await page.locator('#project-menu summary').click(); await page.locator('#save-backup').click();
+    const downloading=page.waitForEvent('download'); await page.locator('#save-backup').evaluate(button=>button.click());
     const backupPath=path.join(output,'fichas-plano.json'); await (await downloading).saveAs(backupPath); const backup=JSON.parse(fs.readFileSync(backupPath,'utf8'));
     assert.equal(backup.annotations[0].description,description); assert.equal(backup.annotations[0].grip,production.grip);
     await page.reload(); await page.locator('#file-input').setInputFiles({name:'fichas.pdf',mimeType:'application/pdf',buffer}); await ready(page);

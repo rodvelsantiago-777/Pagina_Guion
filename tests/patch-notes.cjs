@@ -1,6 +1,6 @@
 /* Rango real de Git, recibos SQL/JWT y aviso en dos dispositivos. */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const {pathToFileURL}=require('node:url'),{PGlite}=require('../tools/node_modules/@electric-sql/pglite');
+const {pathToFileURL}=require('node:url'),{PGlite}=require('./runtime-deps.cjs').load('@electric-sql/pglite');
 const load=name=>require(path.join(process.env.PLANO_RUNTIME_MODULES,name)),{chromium}=load('playwright');
 const {makeRelease,writeSite}=require('../tools/build-pages.cjs'),{releases,unseen}=require('../patch-notes.js');
 const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
@@ -29,7 +29,7 @@ const dailyId=stamp=>'day-'+require('../patch-notes.js').releaseDay(stamp);
   const migration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_release_receipts.sql'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',migration),'utf8'));await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',migration),'utf8'));
   const receipt=async(owner,action,data={})=>(await db.query('select public.plano_release_receipt($1,$2,$3::jsonb) as value',[owner,action,JSON.stringify(data)])).rows[0].value;
   for(const role of ['anon','authenticated']){await db.exec('set role '+role);try{await assert.rejects(db.query('select * from public.plano_release_receipts'),/permission denied/);await assert.rejects(receipt('ana','read'),/permission denied/);}finally{await db.exec('reset role');}}
-  const jose=await import(pathToFileURL(path.join(root,'tools/node_modules/jose/dist/webapi/index.js')).href),keys=await jose.generateKeyPair('RS256'),jwk=await jose.exportJWK(keys.publicKey);
+  const jose=await require('./runtime-deps.cjs').import('jose'),keys=await jose.generateKeyPair('RS256'),jwk=await jose.exportJWK(keys.publicKey);
   const tokens={};for(const owner of ['ana','bob'])tokens[owner]=await new jose.SignJWT({email_verified:true,auth_time:Math.floor(Date.now()/1000)}).setProtectedHeader({alg:'RS256'}).setSubject(owner).setIssuedAt().setExpirationTime('1h').setIssuer('https://securetoken.google.com/planos-15624').setAudience('planos-15624').sign(keys.privateKey);
   const {firebaseVerifier}=await import('../supabase/functions/plano-cloud/auth.mjs'),{createHandler}=await import('../supabase/functions/plano-cloud/handler.mjs');
   const handler=createHandler({verify:firebaseVerifier(jose,'planos-15624',jose.createLocalJWKSet({keys:[jwk]})),releases:receipt,origins:[new URL(base).origin]});

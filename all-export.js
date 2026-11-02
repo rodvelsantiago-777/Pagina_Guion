@@ -176,5 +176,13 @@
     onProgress('Guardando PDF completo…'); await pause();
     return { bytes: await document.save({ updateFieldAppearances: false }), scriptPages, technicalPages, references: result.references };
   }
-  root.PlanoAllExport = { run };
+  async function technical({ technical, onProgress = () => {} }) {
+    if (!root.PDFLib || !root.PlanoExcelExport?.workbook) throw new Error('No se pudieron cargar los motores de exportación.');
+    const model = await root.PlanoExcelExport.workbook({ ...technical, allowEmpty: true, onProgress });
+    const document = await root.PDFLib.PDFDocument.create();
+    const technicalPages = await append(document, model, { fileName: technical.fileName, onProgress });
+    document.setTitle(`${technical.fileName.replace(/\.pdf$/i, '')} · Guion técnico`);
+    return { bytes: await document.save(), technicalPages };
+  }
+  root.PlanoAllExport = { run, technical };
 })(globalThis);

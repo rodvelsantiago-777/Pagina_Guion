@@ -18,7 +18,7 @@ async function notes(page){return page.evaluate(()=>JSON.parse(localStorage.getI
     const base=process.env.PLANO_TEST_URL||pathToFileURL(path.resolve(__dirname,'../index.html')).href;await page.goto(base);
     assert(!(await page.locator('#stage-tabs').isVisible()),'La portada no muestra etapas sin documento');
     await page.locator('#file-input').setInputFiles({name:'guion-tecnico.pdf',mimeType:'application/pdf',buffer});await ready(page);
-    assert.equal(await page.locator('#stage-tabs button').count(),3);assert(await page.locator('#stage-tabs [data-stage="writing"]').isDisabled());
+    assert.equal(await page.locator('#stage-tabs button').count(),3);assert(await page.locator('#stage-tabs [data-stage="writing"]').isEnabled());
     assert.equal(await page.locator('#stage-tabs [data-stage="coverage"]').getAttribute('aria-selected'),'true');await stage(page,'technical');
     assert(await page.locator('#technical-empty').isVisible());assert(!(await page.locator('#document-view').isVisible()));assert(!(await page.locator('#toggle-annotations').isVisible()));
     await page.locator('#back-to-coverage').click();await ready(page);

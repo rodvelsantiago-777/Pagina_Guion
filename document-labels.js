@@ -188,16 +188,23 @@
     for (const descriptor of descriptors) {
       const rect = descriptor.button.getBoundingClientRect();
       descriptor.width = Math.ceil(rect.width); descriptor.height = Math.ceil(rect.height);
+    }
+    const compacted = [];
+    for (const descriptor of descriptors) {
       if (descriptor.sceneAnchor) {
         const available = descriptor.sceneAnchor.rightLimit - descriptor.sceneAnchor.x - descriptor.sceneAnchor.width - 20;
         if (available >= 30) {
           descriptor.button.style.width = `${Math.min(descriptor.width, available)}px`;
-          const compact = descriptor.button.getBoundingClientRect();
-          descriptor.headingSize = { width: Math.ceil(compact.width), height: Math.ceil(compact.height) };
-          descriptor.button.style.width = "";
+          compacted.push(descriptor);
         }
       }
     }
+    // Agrupar medidas y estilos evita forzar un layout por cada nombre de plano.
+    for (const descriptor of compacted) {
+      const compact = descriptor.button.getBoundingClientRect();
+      descriptor.headingSize = { width: Math.ceil(compact.width), height: Math.ceil(compact.height) };
+    }
+    for (const descriptor of compacted) descriptor.button.style.width = "";
     const paperStyle = slot.classList.contains("is-scene-content") ? getComputedStyle(slot.querySelector(".scene-paper")) : null;
     const paddingTop = paperStyle ? parseFloat(paperStyle.paddingTop) : 0, paddingBottom = paperStyle ? parseFloat(paperStyle.paddingBottom) : 0;
     const options = {

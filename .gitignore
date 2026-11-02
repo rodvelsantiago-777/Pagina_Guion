@@ -1,4 +1,5 @@
 tests/.output/
 tools/node_modules/
+tools/writer-runtime/node_modules/
 supabase/.temp/
 _site/

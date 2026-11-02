@@ -162,8 +162,15 @@
       }
       if (entry.item) {
         row._item = entry.item;
-        for (const cell of row.children) updateCell(cell);
+        const signature = JSON.stringify([actions.displayName(entry.item), ...fields.map(field => [entry.item[field], entry.item[field + "Other"]])]);
+        if (row._renderSignature !== signature) {
+          for (const cell of row.children) updateCell(cell);
+          row._renderSignature = signature;
+        }
       } else {
+        const signature = JSON.stringify([entry.scene.number, entry.scene.title, entry.count]);
+        if (row._renderSignature === signature) { nodes.push(row); continue; }
+        row._renderSignature = signature;
         const cell = row.firstChild; cell.replaceChildren();
         const number = document.createElement("strong"); number.textContent = entry.scene.number ? `ESCENA ${String(entry.scene.number).padStart(2, "0")}` : "GUION";
         const title = document.createElement("span"); title.textContent = entry.scene.title;

@@ -100,7 +100,7 @@ async function createLine(page) {
     await mode(page,'all'); assert.deepEqual(geometry(await line(page)),geometry(sceneMoved));
     await mode(page,'print'); await page.locator('#zoom-in').click(); await ready(page);
     assert.deepEqual(geometry(await line(page)),geometry(sceneMoved),'Escenas y zoom conservan las nuevas coordenadas');
-    const download=page.waitForEvent('download'); await page.locator('#project-menu summary').click(); await page.locator('#save-backup').click();
+    const download=page.waitForEvent('download'); await page.locator('#save-backup').evaluate(button=>button.click());
     const backup=await download,backupPath=path.join(output,'lineas-editadas.json'); await backup.saveAs(backupPath);
     assert.deepEqual(geometry(JSON.parse(fs.readFileSync(backupPath,'utf8')).annotations.find(item=>item.type==='line')),geometry(sceneMoved));
     await page.reload(); await page.locator('#file-input').setInputFiles({name:'lineas.pdf',mimeType:'application/pdf',buffer}); await ready(page);

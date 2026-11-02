@@ -5,7 +5,7 @@ const {chromium}=load('playwright'),{PDFDocument,StandardFonts}=load('pdf-lib'),
 const out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
 const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document.querySelector('#render-status').hidden);
 async function open(page){await page.locator('#project-menu summary').click();await page.locator('#edit-crew').click();}
-async function saveFile(page,button,name){const pending=page.waitForEvent('download',{timeout:30000});await page.locator('#project-menu summary').click();await page.locator(button).click();const file=await pending,target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
+async function saveFile(page,button,name){const pending=page.waitForEvent('download',{timeout:30000});if(button==='#save-backup')await page.locator(button).evaluate(b=>b.click());else{await page.locator('#open-export').click();await page.locator(button).click();}const file=await pending,target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
 (async()=>{
  assert.equal(crew.entries({}).length,6);assert.equal(crew.entries({}).filter(item=>item.label==='Producción').length,1);
  const legacy=crew.entries({producer:'Ana',productionCompany:'Luz Films'});assert.equal(legacy.find(item=>item.id==='producer').name,'Ana');assert.equal(legacy.find(item=>item.id==='productionCompany').name,'Luz Films');assert.equal(legacy.find(item=>item.id==='productionCompany').label,'Empresa');

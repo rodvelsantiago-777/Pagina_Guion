@@ -72,7 +72,7 @@ async function highlight(page,word,line) {
     await highlight(page,'escritorio',lines[3]); await nameShot(page,'P2');
     assert.equal(await page.locator('.document-shot-label[data-tier="heading"]').count(),2,JSON.stringify(await page.locator('.document-shot-label').evaluateAll(labels=>labels.map(el=>({name:el.textContent,tier:el.dataset.tier})))));
     const headingTail='CASA DE JUAN PABLO, HABITACION - NOCHE';
-    const headingBox=await page.locator('.textLayer span').filter({hasText:headingTail}).boundingBox();
+    const headingBox=await page.locator('.textLayer span').evaluateAll(spans=>{const first=spans.find(s=>s.textContent.includes('CASA DE JUAN PABLO')),base=first.getBoundingClientRect(),boxes=spans.filter(s=>s.textContent.trim()&&!/^\d+$/.test(s.textContent.trim())).map(s=>s.getBoundingClientRect()).filter(r=>Math.abs(r.y-base.y)<3),x=Math.min(...boxes.map(r=>r.x)),right=Math.max(...boxes.map(r=>r.right));return{x,y:base.y,width:right-x,height:base.height};});
     const right=await page.locator('.textLayer span').filter({hasText:/^1$/}).evaluateAll(spans=>Math.max(...spans.map(span=>span.getBoundingClientRect().left)));
     const labelBoxes=await page.locator('.document-shot-label').evaluateAll(labels=>labels.map(label=>{const r=label.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
     for(const box of labelBoxes) {

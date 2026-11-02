@@ -9,9 +9,10 @@
  let owner='',epoch=0,current=null,pending=null,sequence=0,inflight=null,timer,error=null,status='idle';
  const copy=value=>structuredClone(value),key=(uid,id)=>uid+':'+id;
  const failure=(code,message)=>Object.assign(new Error(message),{code});
- function notify(next=status){status=next;for(const listener of listeners)listener(info());}
- function info(){return{configured,owner,project:current?copy(current):null,pending:Boolean(pending),status,error:error?.message||'',code:error?.code||'',drafts:drafts.size};}
- function remember(){if(current&&pending)drafts.set(key(owner,current.id),{payload:copy(pending),revision:current.revision});}
+ function notify(next=status){status=next;for(const entry of listeners)entry.listener(info(entry.payload));}
+ function info(includePayload=true){const metadata=current&&Object.fromEntries(Object.entries(current).filter(([key])=>key!=='payload'));return{configured,owner,project:current?copy(includePayload?current:metadata):null,pending:Boolean(pending),status,error:error?.message||'',code:error?.code||'',drafts:drafts.size};}
+ // pending ya es una copia privada: cada edición lo reemplaza, nunca lo modifica.
+ function remember(){if(current&&pending)drafts.set(key(owner,current.id),{payload:pending,revision:current.revision});}
  async function request(action,data={},binary=false){
   if(!configured)throw failure('SETUP','El almacenamiento de la nube todavía no está configurado.');
   const expectedOwner=owner,expectedEpoch=epoch,user=root.PlanoAccounts.getUser();
@@ -60,11 +61,11 @@
   const work=(async()=>{
    while(pending&&current?.id===projectId&&epoch===expectedEpoch){
     const snapshot=copy(pending),savedSequence=sequence;
-    if(new TextEncoder().encode(JSON.stringify(snapshot)).length>PAYLOAD_LIMIT)throw failure('TOO_LARGE','Las anotaciones superan 350 KB. Exporta una copia antes de continuar.');
+    if(new TextEncoder().encode(JSON.stringify(snapshot)).length>PAYLOAD_LIMIT)throw failure('TOO_LARGE','El guion y sus notas superan 350 KB. Descarga una copia antes de continuar.');
     error=null;notify('saving');
     const {project}=await request('save',{id:projectId,revision:current.revision,payload:snapshot});
     if(epoch!==expectedEpoch)return;
-    current={...current,...project};
+    current={...current,...project,payload:copy(snapshot)};
     if(sequence===savedSequence){pending=null;drafts.delete(key(owner,projectId));notify('saved');}
     else remember();
    }
@@ -75,12 +76,20 @@
   }finally{if(epoch===expectedEpoch)inflight=null;}
  }
  async function importFile(file){
-  if(file.size>FILE_LIMIT)throw failure('TOO_LARGE','El límite gratuito es de 10 MB por PDF.');
-  await flush();const form=new FormData();form.append('name',file.name);form.append('file',file);
-  const {project}=await request('create',form);return project;
+  throw failure('UPGRADE_REQUIRED','Convierte el PDF a un guion editable antes de guardarlo.');
+ }
+ async function createEditable(payload,name,projectName){await flush();return(await request('create_editable',{name,projectName,payload:{...payload,documentFormat:2}})).project;}
+ async function convertEditable(project,payload){
+  await flush();const revision=current?.id===project.id?current.revision:project.revision;
+  const result=await request('convert_editable',{id:project.id,revision,payload:{...payload,documentFormat:2,fingerprint:project.fingerprint}});
+  if(current?.id===project.id){current=copy(result.project);notify('saved');}return result.project;
  }
  async function open(id){
   await flush();const {project}=await request('read',{id});
+  if(project.storage_kind==='editable'){
+   if(project.pdf_cleanup_pending){const clean=await request('cleanup_pdf',{id});Object.assign(project,clean.project);}
+   return{project,file:null};
+  }
   const blob=await request('download',{id},true);
   if(blob.size!==project.size_bytes)throw failure('DAMAGED','No se descargó el PDF completo. Inténtalo de nuevo.');
   return{project,file:new File([blob],project.name,{type:'application/pdf'})};
@@ -88,6 +97,12 @@
  async function rename(project,name){
   await flush();const revision=current?.id===project.id?current.revision:project.revision;
   const result=await request('rename',{id:project.id,revision,name});
+  if(current?.id===project.id){current={...current,...result.project};notify();}
+  return result.project;
+ }
+ async function renameProject(project,name){
+  await flush();const revision=current?.id===project.id?current.revision:project.revision;
+  const result=await request('rename_project',{id:project.id,revision,name});
   if(current?.id===project.id){current={...current,...result.project};notify();}
   return result.project;
  }
@@ -103,10 +118,10 @@
   // Solo se llama después de la confirmación explícita de descartar el borrador local.
   drafts.delete(key(owner,id));pending=null;error=null;attach(project);return project;
  }
- function subscribe(listener){listeners.add(listener);listener(info());return()=>listeners.delete(listener);}
+ function subscribe(listener,{payload=true}={}){const entry={listener,payload};listeners.add(entry);listener(info(payload));return()=>listeners.delete(entry);}
  function hasPending(){return Boolean(pending)||drafts.size>0;}
  root.addEventListener('beforeunload',event=>{if(hasPending()){event.preventDefault();event.returnValue='';}});
  root.addEventListener('online',()=>{if(pending&&error?.code!=='CONFLICT')flush().catch(()=>{});});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&pending&&error?.code!=='CONFLICT')flush().catch(()=>{});});
- root.PlanoCloud={configured,FILE_LIMIT,request,changeOwner,attach,preview,schedule,flush,importFile,open,rename,remove,detach,reload,subscribe,info,hasPending,list:()=>request('list')};
+ root.PlanoCloud={configured,FILE_LIMIT,PAYLOAD_LIMIT,request,changeOwner,attach,preview,schedule,flush,createEditable,convertEditable,importFile,open,rename,renameProject,remove,detach,reload,subscribe,info,hasPending,list:()=>request('list')};
 })(globalThis);

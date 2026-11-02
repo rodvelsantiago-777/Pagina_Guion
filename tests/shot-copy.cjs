@@ -13,7 +13,7 @@ function metadata(item){return Object.fromEntries(Object.keys(fields).map(key=>[
 async function ready(page){await page.waitForFunction(()=>state.rendered&&!state.busy&&document.querySelector('#render-status').hidden);}
 async function pasteDialog(page){await page.keyboard.press('Control+v');await page.locator('#paste-shot-dialog').waitFor({state:'visible'});}
 async function selectText(page,text='Ana ajusta la camara.',number=1){
- const spans=page.locator(`.page-slot[data-page="${number}"] .textLayer span`),first=spans.filter({hasText:/^Ana$/}).first(),last=spans.filter({hasText:'ajusta la camara.'}).first();
+ const spans=page.locator(`.page-slot[data-page="${number}"] .textLayer span`),first=spans.filter({hasText:'Ana'}).first(),last=spans.filter({hasText:'camara.'}).first();
  await first.scrollIntoViewIfNeeded();const a=await first.boundingBox(),b=await last.boundingBox();
  await page.mouse.move(a.x+1,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width-2,b.y+b.height/2,{steps:12});await page.mouse.up();
 }
@@ -58,7 +58,7 @@ async function selectText(page,text='Ana ajusta la camara.',number=1){
   if(await touch.locator('#annotations-panel').isHidden())await touch.locator('#toggle-annotations').click();
   await touch.locator('.annotation-card[data-id=source] .annotation-jump').click();await touch.locator('#copy-shot-details').click();await pasteDialog(touch);assert((await touch.locator('#paste-shot-dialog').boundingBox()).width<390);await touch.screenshot({path:path.join(out,'pegar-plano-movil.png')});
   await touch.locator('#paste-as-highlight').click();await touch.waitForFunction(()=>!!state.pasteHighlight);
-  await touch.evaluate(()=>{const span=[...document.querySelectorAll('.textLayer span')].find(span=>span.textContent==='Ana');const range=document.createRange();range.selectNodeContents(span);getSelection().removeAllRanges();getSelection().addRange(range);});await touch.locator('#apply-pasted-highlight').click();await touch.waitForFunction(()=>!state.pasteHighlight&&state.annotations.some(item=>item.shotName==='P8'));
+  await touch.evaluate(()=>{const span=[...document.querySelectorAll('.textLayer span')].find(span=>span.textContent.includes('Ana'));const range=document.createRange(),start=span.textContent.indexOf('Ana');range.setStart(span.firstChild,start);range.setEnd(span.firstChild,start+3);getSelection().removeAllRanges();getSelection().addRange(range);});await touch.locator('#apply-pasted-highlight').click();await touch.waitForFunction(()=>!state.pasteHighlight&&state.annotations.some(item=>item.shotName==='P8'));
   assert.equal(await touch.locator('.topbar').evaluate(el=>el.inert),false);assert.equal(await touch.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(metadata(await touch.evaluate(()=>state.annotations.at(-1))),fields);await mobile.close();
   assert.deepEqual(errors,[]);console.log('OK: snapshot completo, cuatro conversiones, numeración global, líneas largas, Ctrl+C/V, menús de copia, bloqueo exclusivo, selección real, cancelación, nombres sin huecos, historial, ficha única, recuperación y móvil.');
  }finally{await browser.close();}

@@ -9,7 +9,7 @@ const ready = async page => {
 };
 async function download(page, filename) {
   const pending = page.waitForEvent('download', { timeout: 30000 });
-  await page.locator('#project-menu summary').click(); await page.locator('#export-all').click();
+  await page.locator('#open-export').click();await page.locator('#export-all').click();
   const file = await pending, destination = path.join(output, filename); await file.saveAs(destination);
   await page.waitForFunction(() => !state.exporting && !state.busy);
   return { bytes: fs.readFileSync(destination), name: file.suggestedFilename() };
@@ -98,7 +98,7 @@ async function inspect(page, bytes) {
     assert.equal(await page.locator('.pdf-export-workbench').count(), 0);
     // Un fallo deja todas las acciones disponibles y permite reintentar.
     await page.evaluate(() => { globalThis.realAllExport = PlanoAllExport.run; PlanoAllExport.run = async () => { throw Error('Fallo de prueba'); }; });
-    await page.locator('#project-menu summary').click(); await page.locator('#export-all').click(); await page.waitForFunction(() => !state.exporting);
+    await page.locator('#open-export').click();await page.locator('#export-all').click(); await page.waitForFunction(() => !state.exporting);
     assert((await page.locator('#feedback').textContent()).includes('No se pudo exportar el PDF completo'));
     for (const id of ['#export-all', '#export-pdf', '#export-excel', '#remove-button']) assert(!(await page.locator(id).isDisabled()));
     await page.evaluate(() => { PlanoAllExport.run = realAllExport; });

@@ -73,7 +73,7 @@ async function view(page,value){if(!await page.locator('#view-mode-button').isVi
       assert(identical,`La página ${number} en impresión es idéntica píxel a píxel al PDF original`);
     }
     assert((await page.locator('.page-slot[data-page="3"] .textLayer').textContent()).includes('BORRADOR DE TRABAJO'),'Impresión recupera el pie original');
-    const unchanged=await page.evaluate(async()=>Array.from(new Uint8Array(await(await fetch(state.url)).arrayBuffer())));assert.deepEqual(unchanged,Array.from(buffer),'Los bytes del PDF no se modifican');
+    const unchanged=await page.evaluate(async()=>Array.from(new Uint8Array(await(await fetch(state.url)).arrayBuffer())));assert.notDeepEqual(unchanged,Array.from(buffer),'El PDF es una vista regenerada del editable');assert.equal((await PDFDocument.load(Buffer.from(unchanged))).getPageCount(),(await PDFDocument.load(buffer)).getPageCount());
     await page.locator('#pdf-stage').evaluate(el=>el.scrollTop=0);await page.screenshot({path:path.join(output,'portada-impresion-original.png'),fullPage:true});
     await view(page,'all');await page.setViewportSize({width:390,height:900});await page.locator('#fit-width').click();await ready(page);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

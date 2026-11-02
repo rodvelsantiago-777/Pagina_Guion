@@ -8,7 +8,7 @@ const colorPalette = window.PlanoColors.setup();
 const MAX_SIZE = 100 * 1024 * 1024;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const state = {
-  pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, thumbnail: null, pages: [], scenes: [],
+  pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, thumbnail: null, pages: [], scenes: [], screenplay: null, screenplayCoverage: null, writerPdfRevision: null,
   annotations: [], corrections: [], crew: {}, proofreading: PlanoSpelling.validate(), crewEditing: false, activeCorrection: null, history: [], future: [], selectedShots: new Set(), scene: "all", segmentIndex: 0,
   tool: "select", zoom: 1, fit: true, renderId: 0, loadId: 0,
   viewer: null, panelOpen: null, viewAnchor: null, pending: null, editing: null, details: null, highlightCorrection: null, highlightAction: null, stage: "coverage", selectedLine: null, lineGesture: null,
@@ -16,6 +16,10 @@ const state = {
 };
 
 let copiedShot = null;
+let writerRefreshTimer=0,writerRefreshPromise=null;
+let annotationShapes=new Map();
+const annotationShape=item=>JSON.stringify([item.page,item.endPage,item.start,item.end,item.rects,item.scriptSelection]);
+function cacheAnnotationShapes(){annotationShapes=new Map(state.annotations.map(item=>[item.id,annotationShape(item)]));}
 let annotationDrawFrame = 0;
 let preparingLinkedText = false;
 let feedbackTimer;
@@ -32,10 +36,12 @@ function status(text, ready = false) {
 }
 function busy(value) {
   state.busy = value;
+  $("#open-export").disabled = value;
   $("#upload-button").disabled = value;
   $("#replace-button").disabled = value;
   $(".script-workspace").setAttribute("aria-busy", String(value));
   $("#document-view").inert = value; $("#technical-view").inert = value;
+  $("#writing-view").inert = value;
   syncTechnicalWindowLock();
 }
 
@@ -53,40 +59,47 @@ function showScreen(screen) {
     $(id).classList.toggle("active", active);
     if (active) $(id).setAttribute("aria-current", "page"); else $(id).removeAttribute("aria-current");
   }
-  $("#breadcrumb-current").textContent = editing ? "Guion técnico / cobertura" : "Mis guiones";
-  $("#workspace-title").textContent = editing ? "Guion técnico / líneas de cobertura" : "Biblioteca de guiones";
-  $("#page-title").textContent = editing ? "Cada escena, un nuevo plano." : "Tus guiones.";
+  $("#breadcrumb-current").textContent = editing ? state.cloudProject?.project_name || state.file.name.replace(/\.pdf$/i, "") : "Mis proyectos";
+  $("#workspace-title").textContent = editing ? "Guion técnico / líneas de cobertura" : "Biblioteca de proyectos";
+  $("#page-title").textContent = editing ? "Cada escena, un nuevo plano." : "Tus proyectos.";
   $("#page-eyebrow").textContent = editing ? "DEL GUION AL RODAJE" : "TU ESPACIO DE TRABAJO";
   $("#page-description").textContent = editing ? "Lee, resalta y diseña la cobertura de tu historia." : "Retoma una historia o empieza a preparar la siguiente.";
   $("#project-menu").open = false;
   if (editing) {
     setPanelOpen(state.panelOpen ?? !smallScreen.matches);
     if (state.stage === "coverage") renderDocument({ anchor: state.viewAnchor });
+    else if (state.stage === "writing") PlanoWriter.open(state.screenplay).catch(error => message(error.message, true));
     else refreshTechnicalScript();
   } else { $("#panel-backdrop").hidden = true; PlanoCloudLibrary.showHome(); }
 }
 function updateStageView() {
-  const editing = state.screen === "editor" && Boolean(state.pdf), technical = state.stage === "technical";
-  $("#document-view").hidden = !editing || technical;
+  const editing = state.screen === "editor" && Boolean(state.pdf), technical = state.stage === "technical", writing = state.stage === "writing";
+  $("#document-view").hidden = !editing || technical || writing;
   $("#technical-view").hidden = !editing || !technical;
+  $("#writing-view").hidden = !editing || !writing;
+  if (!editing || !writing) PlanoWriter.hide();
   for (const tab of document.querySelectorAll("#stage-tabs [data-stage]")) {
     const active = tab.dataset.stage === state.stage;
     tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1;
   }
-  $("#toggle-annotations").hidden = technical;
-  $(".view-mode-control").hidden = technical;
+  $("#toggle-annotations").hidden = technical || writing;
+  $(".view-mode-control").hidden = technical || writing;
   if (technical || !editing) PlanoPopover.hide($("#view-mode-menu"));
   document.body.classList.toggle("is-technical", editing && technical);
+  document.body.classList.toggle("is-writing", editing && writing);
+  if (state.screenplay && state.file) $("#file-size").textContent = writing ? `Guion editable · ${state.cloudProject ? "En tu cuenta" : "Archivo local"}` : `Guion editable · ${state.pdf.numPages} páginas · ${state.cloudProject ? "En tu cuenta" : "En este navegador"}`;
   $("#panel-backdrop").hidden = !editing || technical || !state.panelOpen || !smallScreen.matches;
 }
 async function switchStage(stage) {
   if (state.pasteHighlight) return;
-  if (!["coverage", "technical"].includes(stage) || !state.pdf || stage === state.stage) return;
+  if (!["writing", "coverage", "technical"].includes(stage) || !state.pdf || stage === state.stage || state.busy) return;
   if (!PlanoTechnicalScript.finishEditing()) return;
+  if (state.stage === "writing" && stage !== "writing" && !await refreshWriterCoverage()) return;
   if (state.stage === "coverage") state.viewAnchor = capturePosition();
   hideHighlightAction(); cancelHighlightCorrection(); window.getSelection()?.removeAllRanges();
   state.stage = stage; updateStageView();
-  if (stage === "technical") refreshTechnicalScript();
+  if (stage === "writing") await PlanoWriter.open(state.screenplay);
+  else if (stage === "technical") refreshTechnicalScript();
   else await renderDocument({ anchor: state.viewAnchor });
 }
 for (const button of document.querySelectorAll("#stage-tabs [data-stage]")) button.addEventListener("click", () => switchStage(button.dataset.stage));
@@ -104,6 +117,10 @@ $("#technical-redo").addEventListener("click", () => undo(true));
 
 const scriptLoads = new Map();
 function loadScript(src) {
+  // Una misma dependencia debe compartir carga y caché, también si se abre desde otra herramienta.
+  const url = new URL(src, location.href);
+  if (!url.search && url.origin === location.origin) url.search = new URL($("script[src^='app.js']").src).search;
+  src = url.href;
   if (scriptLoads.has(src)) return scriptLoads.get(src);
   const promise = new Promise((resolve, reject) => {
     const script = document.createElement("script"); script.src = src;
@@ -112,6 +129,14 @@ function loadScript(src) {
     document.head.append(script);
   });
   scriptLoads.set(src, promise); return promise;
+}
+function readLocalScreenplayPayload(hash) {
+  try { return JSON.parse(localStorage.getItem(PlanoAccounts.notesKey(hash)) || "null") || {}; } catch { return {}; }
+}
+async function generateScreenplayPdf(screenplay) {
+  const version = new URL($("script[src^='app.js']").src).search;
+  if (!window.PDFLib) await loadScript(`vendor/pdf-lib.min.js${version}`);
+  return PlanoScreenplay.pdf(screenplay);
 }
 let engineReady;
 function prepareEngine() {
@@ -123,7 +148,7 @@ function prepareEngine() {
     if (!window.pdfjsLib) throw new Error("No se encontró el motor PDF. Conserva la carpeta vendor junto a index.html.");
     if (!window.planoPdfAssets) throw new Error("No se encontraron los recursos del PDF. Conserva la carpeta vendor junto a index.html.");
     if (location.protocol === "file:") await loadScript("vendor/pdf.worker.js");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.mjs" + new URL($("script[src^='app.js']").src).search;
   })().catch(error => { engineReady = null; throw error; });
   return engineReady;
 }
@@ -140,10 +165,113 @@ class LocalBinaryFactory {
   }
 }
 
-async function upload(file, options = {}) {
+async function readPageText(page){
+  const content=await page.getTextContent(),items=[];
+  for(const item of content.items){if(typeof item.str==='string'&&!item.str.trim()){if(item.hasEOL&&items.length)items.at(-1).hasEOL=true;continue;}const previous=items.at(-1),a=previous?.transform,b=item.transform,gap=a&&b?b[4]-a[4]-previous.width:Infinity;
+    if(previous?.str&&item.str&&previous.fontName===item.fontName&&a&&b&&Math.abs(a[1])<.01&&Math.abs(b[1])<.01&&Math.abs(a[0]-b[0])<.01&&Math.abs(a[3]-b[3])<.01&&Math.abs(a[5]-b[5])<.5&&gap>=-.5&&gap<=Math.abs(b[0])*.95){previous.str+=(gap>1.5&&!previous.str.endsWith(' ')&&!item.str.startsWith(' ')?' ':'')+item.str;previous.width=b[4]+item.width-a[4];previous.hasEOL=item.hasEOL;}
+    else items.push({...item});
+  }return{...content,items};
+}
+async function readEditablePdf(file, progress = () => {}) {
+  await prepareEngine();
+  const task = pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory});
+  task.onPassword=()=>task.destroy();
+  try { const pdf=await task.promise,pages=[];for(let number=1;number<=pdf.numPages;number++){const page=await pdf.getPage(number),text=await readPageText(page),viewport=page.getViewport({scale:1,rotation:0}),lines=sceneTools.linesFromItems(text.items,viewport,pdfjsLib.Util.transform);if(!lines.length){const ops=await page.getOperatorList();if(ops.fnArray.some(op=>[pdfjsLib.OPS.paintImageXObject,pdfjsLib.OPS.paintInlineImageXObject,pdfjsLib.OPS.paintImageMaskXObject].includes(op)))throw Error(`La página ${number} es una imagen sin texto. Necesita OCR; el PDF original se conserva.`);}pages.push({width:viewport.width,height:viewport.height,lines,sourceRotation:page.rotate||0});progress(number,pdf.numPages);if(number%3===0)await new Promise(resolve=>setTimeout(resolve,0));}return pages;}finally{await task.destroy();}
+}
+function uprightPoint(point,rotation){const r=(rotation%360+360)%360;return r===90?{x:point.y,y:1-point.x}:r===180?{x:1-point.x,y:1-point.y}:r===270?{x:1-point.y,y:point.x}:{...point};}
+function uprightRect(rect,rotation){const points=[uprightPoint(rect,rotation),uprightPoint({x:rect.x+rect.width,y:rect.y+rect.height},rotation)],x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));return{x,y,width:Math.max(...points.map(p=>p.x))-x,height:Math.max(...points.map(p=>p.y))-y};}
+function uprightNotes(items,pages){return items.map(item=>{const note=structuredClone(item),rotation=pages[note.page-1]?.sourceRotation||0;if(note.type==='line'){note.start=uprightPoint(note.start,rotation);note.end=uprightPoint(note.end,pages[(note.endPage||note.page)-1]?.sourceRotation||0);if(!note.endPage&&note.end.y<note.start.y)[note.start,note.end]=[note.end,note.start];}else note.rects=note.rects.map(rect=>uprightRect(rect,rotation));if(note.labelPosition)note.labelPosition=uprightPoint(note.labelPosition,rotation);if(note.scriptSelection)note.scriptSelection=note.scriptSelection.map(part=>({...part,rects:part.rects.map(rect=>uprightRect(rect,pages[part.page-1]?.sourceRotation||0))}));return note;});}
+let docxEngine;
+function prepareDocx(){
+  const version=new URL($("script[src^='app.js']").src).search;
+  if(!docxEngine)docxEngine=Promise.all([loadScript('vendor/jszip.min.js'+version),loadScript('docx-script.js'+version)]).catch(error=>{docxEngine=null;throw error;});
+  return docxEngine;
+}
+function prepareTxt(){return loadScript('txt-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareRtf(){return loadScript('rtf-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareHtml(){return loadScript('html-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareJson(){return loadScript('json-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareCsv(){return loadScript('csv-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareFountain(){return loadScript('fountain-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareWdz(){const version=new URL($("script[src^='app.js']").src).search;return Promise.all([loadScript('vendor/jszip.min.js'+version),loadScript('json-script.js'+version),loadScript('wdz-script.js'+version)]);}
+function prepareFdx(){return loadScript('fdx-script.js'+new URL($("script[src^='app.js']").src).search);}
+function prepareCeltx(){const version=new URL($("script[src^='app.js']").src).search;return Promise.all([loadScript('vendor/jszip.min.js'+version),loadScript('html-script.js'+version),loadScript('celtx-script.js'+version)]);}
+function selectImportedScript(candidates,format='Celtx',key='celtx'){return new Promise(resolve=>{
+  const dialog=document.createElement('dialog');dialog.className='shot-name-dialog';dialog.setAttribute('aria-labelledby',key+'-select-title');
+  dialog.innerHTML='<header><h2 id="celtx-select-title">Importar de Celtx</h2></header><p>Este archivo contiene varios guiones. Elige cuál quieres importar.</p><div class="shot-identity-fields"><label>Guion<select id="celtx-script-choice"></select></label></div><footer class="dialog-actions"><button class="button button-secondary" type="button" data-cancel>Cancelar</button><button class="button button-primary" type="button" data-import>Importar guion</button></footer>';
+  dialog.querySelector('h2').id=key+'-select-title';dialog.querySelector('h2').textContent='Importar de '+format;const select=dialog.querySelector('select');select.id=key+'-script-choice';for(const candidate of candidates){const option=document.createElement('option');option.value=candidate.id;option.textContent=candidate.title+(candidate.path?' · '+candidate.path:'');select.append(option);}
+  let chosen=null;dialog.querySelector('[data-import]').onclick=()=>{chosen=select.value;dialog.close();};dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{dialog.remove();resolve(chosen);},{once:true});document.body.append(dialog);dialog.showModal();select.focus();
+});}
+function selectCeltxScript(candidates){return selectImportedScript(candidates);}
+function selectWdzScript(candidates){return selectImportedScript(candidates,'WriterDuet','wdz');}
+function editableName(name){return (name||'Sin título').replace(/\.(?:pdf|plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i,'').slice(0,174)+'.plano';}
+function pdfName(name){return (name||'Sin título').replace(/\.(?:pdf|plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i,'')+'.pdf';}
+function linkedCorrections(items,script){if(items.every(item=>item.textAnchor))return structuredClone(items);const map=PlanoScreenplayLinks.geometry(script);return items.map(item=>{const textAnchor=item.textAnchor||PlanoScreenplayLinks.selectionAnchor(item.parts,map,item.id);if(textAnchor&&textAnchor.layoutRevision===undefined)textAnchor.layoutRevision=script.revision;return textAnchor?{...item,textAnchor}:{...item};});}
+function mapCorrectionEdits(items,change,doc){const mapped=PlanoScreenplayLinks.mapEdits(items.map(item=>({coverageAnchor:item.textAnchor})),change.beforeDoc,doc,change.transactions);return items.map((item,index)=>mapped[index].coverageAnchor?{...item,textAnchor:mapped[index].coverageAnchor}:{...item});}
+function flowCorrections(items,script){const map=PlanoScreenplayLinks.geometry(script);return linkedCorrections(items,script).filter(item=>!PlanoCorrections.automatic(item)||item.textAnchor?.layoutRevision===script.revision).map(item=>{if(!item.textAnchor||item.textAnchor.layoutRevision===script.revision)return item;const ranges=PlanoScreenplayLinks.ranges(item.textAnchor,script,map),parts=[];for(const range of ranges){let part=parts.find(part=>part.page===range.page);if(!part){part={page:range.page,text:'',rects:[]};parts.push(part);}part.text+=(part.text?'\n':'')+range.text;part.rects.push(range.rect);}return{...item,textAnchor:{...item.textAnchor,layoutRevision:script.revision},parts:parts.length?parts:item.parts.map(part=>({...part,page:Math.min(part.page,map.pages.length)}))};});}
+async function upload(file,options={}){
+  await PlanoAccounts.ready;const owner=PlanoAccounts.getUser();if(!owner){PlanoAccounts.open('signup');return false;}
+  if(state.busy||state.pending||state.editing||state.pasteHighlight||!PlanoTechnicalScript.finishEditing())return false;
+  if(!file&&!options.project?.payload?.screenplay&&!options.screenplay)return false;
+  const importingDocx=Boolean(file&&/\.docx$/i.test(file.name)&&!options.project&&!options.screenplay);
+  const importingTxt=Boolean(file&&/\.txt$/i.test(file.name)&&!options.project&&!options.screenplay),importingRtf=Boolean(file&&/\.rtf$/i.test(file.name)&&!options.project&&!options.screenplay),importingHtml=Boolean(file&&/\.html?$/i.test(file.name)&&!options.project&&!options.screenplay),importingJson=Boolean(file&&/\.json$/i.test(file.name)&&!options.project&&!options.screenplay),importingCsv=Boolean(file&&/\.csv$/i.test(file.name)&&!options.project&&!options.screenplay),importingCeltx=Boolean(file&&/\.celtx$/i.test(file.name)&&!options.project&&!options.screenplay),importingFdx=Boolean(file&&/\.fdx$/i.test(file.name)&&!options.project&&!options.screenplay),importingWdz=Boolean(file&&/\.wdz$/i.test(file.name)&&!options.project&&!options.screenplay),importingFountain=Boolean(file&&/\.fountain$/i.test(file.name)&&!options.project&&!options.screenplay),importingScript=importingFountain||importingWdz||importingFdx||importingCeltx||importingDocx||importingTxt||importingRtf||importingHtml||importingJson||importingCsv;
+  const converting=Boolean(!options.screenplay&&options.project?.storage_kind!=='editable'&&file&&!/\.(?:plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i.test(file.name));
+  const identity=state.fingerprint;busy(true);
+  try{
+    await PlanoCloudLibrary.finishPreview();if(PlanoCloud.configured)await PlanoCloud.flush();
+    let project=options.project||null,payload=options.payload||project?.payload||{},script=PlanoScreenplay.validate(options.screenplay||payload.screenplay),basis=PlanoScreenplay.validate(payload.screenplayCoverage)||script,fingerprintHint=options.fingerprint||null,archive=null,importWarning='';
+    if(file&&/\.plano$/i.test(file.name)&&!script){archive=PlanoProjectArchive.parse(await file.text());script=archive.payload.screenplay;payload=archive.payload;basis=script;}
+    if(importingDocx){message('Importando el guion DOCX…');await prepareDocx();script=await PlanoDocx.read(file,{user:owner});basis=script;payload={};}
+    if(importingTxt){message('Reconstruyendo el guion desde el TXT…');await prepareTxt();script=await PlanoTxt.read(file,{user:owner});basis=script;payload={};}
+    if(importingRtf){message('Importando el guion RTF y su formato…');await prepareRtf();script=await PlanoRtf.read(file,{user:owner});basis=script;payload={};}
+    if(importingHtml){message('Recuperando el guion del HTML…');await prepareHtml();script=await PlanoHtml.read(file,{user:owner});basis=script;payload={};}
+    if(importingJson){message('Importando la escritura del JSON…');await prepareJson();script=await PlanoJson.read(file,{user:owner});basis=script;payload={};}
+    if(importingCsv){message('Reconstruyendo el guion desde las filas del CSV…');await prepareCsv();script=await PlanoCsv.read(file,{user:owner});basis=script;payload={};}
+    if(importingCeltx){message('Leyendo la escritura del proyecto Celtx…');await prepareCeltx();script=await PlanoCeltx.read(file,{user:owner,select:selectCeltxScript});basis=script;payload={};}
+    if(importingFdx){message('Importando el guion de Final Draft…');await prepareFdx();script=await PlanoFdx.read(file,{user:owner,onWarning:text=>{importWarning=text;}});basis=script;payload={};}
+    if(importingWdz){message('Reconstruyendo el guion de WriterDuet…');await prepareWdz();script=await PlanoWdz.read(file,{user:owner,select:selectWdzScript,onWarning:text=>{importWarning=text;}});basis=script;payload={};}
+    if(importingFountain){message('Leyendo la sintaxis del guion Fountain…');await prepareFountain();script=await PlanoFountain.read(file,{user:owner,onWarning:text=>{importWarning=text;}});basis=script;payload={};}
+    if(converting){
+      PlanoEditableImport.show('Leyendo el texto y la disposición del PDF…',8);await new Promise(resolve=>requestAnimationFrame(resolve));
+      if(!file.size||file.size>MAX_SIZE||!(await file.slice(0,1024).text()).includes('%PDF-'))throw Error('Selecciona un PDF válido de hasta 100 MB.');
+      if(!PlanoCloud.configured&&!project&&!options.payload){fingerprintHint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer())),b=>b.toString(16).padStart(2,'0')).join('');payload=readLocalScreenplayPayload(fingerprintHint);script=PlanoScreenplay.validate(payload.screenplay);basis=PlanoScreenplay.validate(payload.screenplayCoverage)||script;}
+      if(project){const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer())),b=>b.toString(16).padStart(2,'0')).join('');if(fingerprint!==project.fingerprint)throw Error('La descarga del PDF está incompleta; el original se conserva.');}
+      const pages=await readEditablePdf(file,(page,total)=>PlanoEditableImport.update(`Extrayendo texto · ${page} de ${total} páginas`,10+page/total*45));
+      if(!script){script=PlanoScreenplay.fromPdf(pages,file.name.replace(/\.(pdf|plano)$/i,''),owner);basis=script;if(pages.some(page=>page.sourceRotation)){payload={...payload,annotations:uprightNotes(payload.annotations||[],pages),corrections:(payload.corrections||[]).map(item=>({...item,parts:item.parts.map(part=>({...part,rects:part.rects.map(rect=>uprightRect(rect,pages[part.page-1]?.sourceRotation||0))}))}))};}}
+    }
+    if(!script)throw Error('No se encontró un guion editable válido.');
+    if(PlanoAccounts.getUser()?.id!==owner.id||state.fingerprint!==identity)return false;
+    PlanoEditableImport.update('Preparando el guion y conservando sus planos…',65);
+    let annotations=payload.annotations||[],corrections=payload.corrections||[];
+    if(basis){annotations=PlanoScreenplayLinks.attach(annotations,basis);corrections=linkedCorrections(corrections,basis);}
+    if(basis&&basis.revision!==script.revision){annotations=PlanoScreenplayLinks.rebase(annotations,basis.doc,script.doc);for(const correction of corrections)if(correction.textAnchor)correction.textAnchor=PlanoScreenplayLinks.rebase([{coverageAnchor:correction.textAnchor}],basis.doc,script.doc)[0].coverageAnchor;}
+    if(project?.storage_kind==='editable'||basis&&basis.revision!==script.revision){annotations=PlanoScreenplayLinks.reflow(annotations,script);corrections=flowCorrections(corrections,script);}
+    const generated=options.generated||await generateScreenplayPdf(script),pageCount=generated.titlePages+generated.pages;
+    annotations=validateNotes(annotations,pageCount);corrections=PlanoCorrections.validate(corrections,pageCount);
+    payload={...payload,version:1,documentFormat:2,screenplay:script,annotations,corrections,crew:PlanoCrew.validate(payload.crew),proofreading:PlanoSpelling.validate(payload.proofreading)};delete payload.screenplayCoverage;
+    if(new TextEncoder().encode(JSON.stringify(payload)).length>350000){delete payload.thumbnail;if(new TextEncoder().encode(JSON.stringify(payload)).length>350000)throw Error('El guion y sus planos superan 350 KB. El PDF original se conserva.');}
+    if(PlanoCloud.configured){
+      PlanoEditableImport.update(project?.storage_kind==='pdf'?'Guardando el editable antes de retirar el PDF de la cuenta…':'Guardando únicamente el guion editable…',82);
+      if(!project)project=await PlanoCloud.createEditable(payload,archive?.documentName||editableName(file?.name||script.title),archive?.name||(importingScript?script.title.slice(0,120):undefined));
+      else if(project.storage_kind!=='editable')project=await PlanoCloud.convertEditable(project,payload);
+      else project={...project,payload};
+      payload={...payload,fingerprint:project.fingerprint};project={...project,payload};
+    }
+    const fingerprint=project?.fingerprint||fingerprintHint||(options.writerRefresh?state.fingerprint:null)||Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('editable:'+script.id))),b=>b.toString(16).padStart(2,'0')).join('');
+    if(PlanoAccounts.getUser()?.id!==owner.id||state.fingerprint!==identity)return false;
+    PlanoEditableImport.update('Abriendo tu guion editable…',96);
+    const virtual=new File([generated.bytes],pdfName(project?.name||file?.name||script.title),{type:'application/pdf'});
+    const loaded=await openDocumentPdf(virtual,{...options,project,payload,screenplay:script,screenplayCoverage:null,generated,fingerprint,internalGenerated:true,localProjectName:archive?.name||(importingScript?script.title:undefined),importedProject:Boolean(archive&&!archive.legacy),stage:options.stage||archive?.payload.view?.stage||(importingScript?'writing':!options.screenplay&&converting?'coverage':undefined)});
+    if(loaded&&project?.pdf_cleanup_pending)message('El guion editable está guardado. La retirada del PDF pendiente se reintentará al volver a abrirlo.');else if(loaded&&importWarning)message(importWarning);
+    return loaded;
+  }catch(error){message(error.message||'No se pudo convertir el guion. El PDF original se conserva.',true);return false;}
+  finally{busy(false);PlanoEditableImport.close();$('#file-input').value='';}
+}
+
+async function openDocumentPdf(file, options = {}) {
   await PlanoAccounts.ready;
   if (!PlanoAccounts.getUser()) { $("#file-input").value = ""; PlanoAccounts.open("signup"); return; }
-  if (!file || state.busy || state.pending || state.editing || state.pasteHighlight) return;
+  if (!file || state.busy&&!options.internalGenerated || state.pending || state.editing || state.pasteHighlight) return;
   if (!PlanoTechnicalScript.finishEditing()) return;
   const id = ++state.loadId;
   let candidate = null;
@@ -158,8 +286,17 @@ async function upload(file, options = {}) {
     await prepareEngine();
     if (id !== state.loadId) return;
     status("Leyendo PDF…");
-    const data = new Uint8Array(await file.arrayBuffer());
-    const hash = window.crypto?.subtle ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), byte => byte.toString(16).padStart(2, "0")).join("") : null;
+    let data = new Uint8Array(await file.arrayBuffer());
+    const sourceFile = file;
+    const hash = options.project?.fingerprint || options.fingerprint || (options.writerRefresh ? state.fingerprint : window.crypto?.subtle ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), byte => byte.toString(16).padStart(2, "0")).join("") : null);
+    const sourcePayload = options.payload || (options.project ? PlanoCloud.preview(options.project) : PlanoCloud.configured ? {} : readLocalScreenplayPayload(hash));
+    const incomingScreenplay = PlanoScreenplay.validate(options.screenplay || sourcePayload.screenplay);
+    const incomingCoverage = PlanoScreenplay.validate(options.screenplayCoverage || sourcePayload.screenplayCoverage);
+    if (incomingCoverage && incomingCoverage.id !== incomingScreenplay?.id) throw new Error("La versión de cobertura no pertenece al guion editable.");
+    if (incomingScreenplay) {
+      const generated = options.generated || await generateScreenplayPdf(incomingCoverage || incomingScreenplay);
+      data = new Uint8Array(generated.bytes); file = new File([data], file.name, {type:"application/pdf"});
+    }
     if (id !== state.loadId) return;
     candidate = pdfjsLib.getDocument({ data, isEvalSupported: false, useWasm: true, useSystemFonts: false, useWorkerFetch: false, BinaryDataFactory: LocalBinaryFactory });
     state.loading = candidate;
@@ -176,7 +313,7 @@ async function upload(file, options = {}) {
       if (id !== state.loadId) { await candidate.destroy(); return; }
       status(`Detectando escenas… ${number}/${pdf.numPages}`);
       const page = await pdf.getPage(number);
-      const text = await page.getTextContent();
+      const text = await readPageText(page);
       const viewport = page.getViewport({ scale: 1 });
       pages.push({ width: viewport.width, height: viewport.height, lines: sceneTools.linesFromItems(text.items, viewport, pdfjsLib.Util.transform) });
       if (number % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
@@ -185,7 +322,8 @@ async function upload(file, options = {}) {
     let cloudProject = options.project || null;
     let incomingPayload = null, incomingNotes = null, incomingCorrections = null, incomingCrew = null, incomingProofreading = null;
     if (PlanoCloud.configured) {
-      if (!cloudProject) cloudProject = await PlanoCloud.importFile(file);
+      if (!cloudProject) throw Error("Falta el documento editable confirmado por el servidor.");
+      if (options.payload) cloudProject = {...cloudProject, payload:options.payload};
       if (cloudProject.fingerprint !== hash) throw new Error("La huella del PDF no coincide con el proyecto. Vuelve a descargarlo.");
       incomingPayload = PlanoCloud.preview(cloudProject);
       incomingNotes = validateNotes(incomingPayload.annotations, pdf.numPages);
@@ -202,36 +340,44 @@ async function upload(file, options = {}) {
     cancelSpelling();
     const previousPdf = state.pdf;
     if (state.url) URL.revokeObjectURL(state.url);
-    state.pdf = pdf; state.loading = null; state.file = cloudProject ? new File([file], cloudProject.name, { type: 'application/pdf' }) : file;
+    state.pdf = pdf; state.loading = null; state.file = cloudProject ? new File([file], pdfName(cloudProject.name), { type: 'application/pdf' }) : file;
     state.cloudProject = cloudProject;
+    state.localProjectName = options.localProjectName || null;
     state.url = URL.createObjectURL(file); state.pages = pages;
     state.scenes = sceneTools.detectScenes(pages);
     state.fingerprint = hash || pdf.fingerprints[0];
     state.key = PlanoAccounts.notesKey(state.fingerprint);
     const cloudPayload = cloudProject ? PlanoCloud.attach(cloudProject) : null;
     state.thumbnail = PlanoScriptPreview.valid(cloudPayload?.thumbnail) ? cloudPayload.thumbnail : null;
-    state.annotations = cloudPayload && !cloudProject.created ? incomingNotes : readSavedNotes();
-    state.corrections = cloudPayload && !cloudProject.created ? incomingCorrections : readSavedCorrections();
-    state.crew = cloudPayload && !cloudProject.created ? incomingCrew : readSavedCrew();
-    state.proofreading = cloudPayload && !cloudProject.created ? incomingProofreading : readSavedProofreading(); refreshSpelling();
-    state.history = []; state.future = []; state.scene = "all"; state.stage = "coverage";
+    state.annotations = options.payload ? validateNotes(options.payload.annotations,pdf.numPages) : cloudPayload && !cloudProject.created ? incomingNotes : readSavedNotes();
+    state.corrections = options.payload ? PlanoCorrections.validate(options.payload.corrections,pdf.numPages) : cloudPayload && !cloudProject.created ? incomingCorrections : readSavedCorrections();
+    state.crew = options.payload ? PlanoCrew.validate(options.payload.crew) : cloudPayload && !cloudProject.created ? incomingCrew : readSavedCrew();
+    state.proofreading = options.payload ? PlanoSpelling.validate(options.payload.proofreading) : cloudPayload && !cloudProject.created ? incomingProofreading : readSavedProofreading(); refreshSpelling();
+    state.screenplay = incomingScreenplay; state.screenplayCoverage = incomingCoverage;
+    state.pdfBasis = incomingScreenplay;
+    cacheAnnotationShapes();
+    state.writerPdfRevision = incomingScreenplay ? (incomingCoverage || incomingScreenplay).revision : null;
+    if (options.forceWriterReset || PlanoWriter.get()?.id !== incomingScreenplay?.id) PlanoWriter.close();
+    state.history = []; state.future = []; state.scene = "all"; state.stage = incomingScreenplay ? "writing" : "coverage";
     state.segmentIndex = 0; state.fit = true; state.zoom = 1; state.drawing = null; state.viewAnchor = null;
-    if (cloudPayload?.view && !cloudProject.created) {
+    if (cloudPayload?.view && (!cloudProject.created||options.importedProject)) {
       if (["all", "editing", "print", ...state.scenes.map(scene => scene.id)].includes(cloudPayload.view.scene)) state.scene = cloudPayload.view.scene;
-      if (["coverage", "technical"].includes(cloudPayload.view.stage)) state.stage = cloudPayload.view.stage;
+      if (["writing", "coverage", "technical"].includes(cloudPayload.view.stage)) state.stage = cloudPayload.view.stage;
     }
-    $("#file-name").textContent = state.file.name; $("#file-name").title = state.file.name;
-    $("#file-size").textContent = `${pdf.numPages} ${pdf.numPages === 1 ? "página" : "páginas"} · ${(file.size / 1024).toLocaleString("es", { maximumFractionDigits: 1 })} KB · ${cloudProject ? "PDF en tu cuenta" : "Archivo local"}`;
+    if (options.screenplay) state.stage = "writing";
+    if (["writing", "coverage", "technical"].includes(options.stage)) state.stage = options.stage;
+    $("#file-name").textContent = editableName(state.file.name); $("#file-name").title = editableName(state.file.name);
+    $("#file-size").textContent = `Guion editable · ${pdf.numPages} páginas · ${cloudProject ? "En tu cuenta" : "En este navegador"}`;
     $("#open-document").href = state.url;
     updateSceneOptions(); refreshSegments(); setTool("select"); refreshAnnotations();
     status(`${state.scenes.length} ${state.scenes.length === 1 ? "escena" : "escenas"} · Guion listo`, true);
     if (previousPdf) previousPdf.destroy().catch(() => {});
     showScreen("editor");
     if (!state.thumbnail) createDocumentPreview(pdf);
-    if (cloudProject?.created && state.annotations.length) saveNotes();
+    if (cloudProject?.created && (state.annotations.length || state.screenplay)) saveNotes();
     else if (cloudProject) PlanoCloudLibrary.refreshStatus();
     message("");
-    setTimeout(() => { if (state.pdf === pdf) startSpelling(); }, 0);
+    setTimeout(() => { if (state.pdf === pdf && state.stage !== "writing") startSpelling(); }, 0);
     return true;
   } catch (error) {
     if (id !== state.loadId) return;
@@ -247,7 +393,7 @@ async function upload(file, options = {}) {
 
 async function createDocumentPreview(pdf) {
   try {
-    const thumbnail = await PlanoScriptPreview.create(pdf);
+    const thumbnail = state.screenplay && state.pdf === pdf ? PlanoScreenplay.thumbnail(state.screenplay) : await PlanoScriptPreview.create(pdf);
     if (state.pdf !== pdf || !thumbnail) return;
     state.thumbnail = thumbnail;
     const project = currentLibraryProject();
@@ -257,17 +403,18 @@ async function createDocumentPreview(pdf) {
 }
 function currentLibraryProject() {
   if (!state.file) return null;
-  return { ...state.cloudProject, id: state.cloudProject?.id || "local", name: state.file.name, fingerprint: state.fingerprint, size_bytes: state.file.size, state: "ready", thumbnail: state.thumbnail };
+  return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: state.cloudProject?.project_name || state.localProjectName || state.file.name.replace(/\.pdf$/i,""), name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
 }
 function renameDocumentFile(name) {
-  state.file = new File([state.file], name, { type: "application/pdf" });
-  $("#file-name").textContent = name; $("#file-name").title = name;
+  state.file = new File([state.file], pdfName(name), { type: "application/pdf" });
+  $("#file-name").textContent = editableName(name); $("#file-name").title = editableName(name);
   PlanoTechnicalWindow.publish();
 }
 async function buildLibraryPreview(project) {
   const owner = PlanoCloud.info().owner;
   await prepareEngine();
   const loaded = await PlanoCloud.open(project.id);
+  if(loaded.project.storage_kind==='editable')return{thumbnail:PlanoScreenplay.thumbnail(PlanoScreenplay.validate(loaded.project.payload.screenplay)),project:loaded.project};
   const loading = pdfjsLib.getDocument({ data: new Uint8Array(await loaded.file.arrayBuffer()), isEvalSupported: false, useWasm: true, useSystemFonts: false, useWorkerFetch: false, BinaryDataFactory: LocalBinaryFactory });
   try {
     const pdf = await loading.promise, thumbnail = await PlanoScriptPreview.create(pdf);
@@ -531,7 +678,7 @@ async function renderContext(context) {
     const svg = document.createElementNS(SVG_NS, "svg"); svg.classList.add("annotation-overlay");
     svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-label", "Capa de líneas, resaltados y correcciones");
     content.append(canvas, textLayer, svg); crop.replaceChildren(content);
-    context.content = content; context.svg = svg;
+    context.content = content; context.svg = svg; context.paintKey = null;
     const task = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null });
     context.renderTask = task; await task.promise;
     if (viewer.cancelled) return;
@@ -541,7 +688,7 @@ async function renderContext(context) {
       for (const line of furniture) ink.fillRect(0, (line.y - line.height * 0.25) * viewport.height, viewport.width, line.height * 1.75 * viewport.height);
       ink.restore();
     }
-    const text = await page.getTextContent();
+    const text = await readPageText(page);
     if (viewer.cancelled) return;
     context.textLayer = new pdfjsLib.TextLayer({ textContentSource: text, container: textLayer, viewport });
     await context.textLayer.render();
@@ -595,7 +742,7 @@ function releaseDistantPages(viewer) {
     context.crop.replaceChildren();
     context.labelLayer.replaceChildren();
     if (context.overflowTitles) { context.overflowTitles.style.minHeight = `${context.overflowTitles.offsetHeight}px`; context.overflowTitles.replaceChildren(); }
-    Object.assign(context, { content: null, svg: null, textLayer: null, renderTask: null, labelTextBoxes: [], inkBlocked: null, promise: null, status: "idle" });
+    Object.assign(context, { content: null, svg: null, textLayer: null, renderTask: null, labelTextBoxes: [], inkBlocked: null, paintKey: null, promise: null, status: "idle" });
     context.slot.dataset.ready = "false"; context.slot.setAttribute("aria-busy", "true");
   }
 }
@@ -744,6 +891,8 @@ function refreshCorrections() {
   $("#script-corrections").hidden = !state.corrections.length;
   $("#script-correction-count").textContent = state.corrections.length;
   const list = $("#script-correction-list"), fragment = document.createDocumentFragment();
+  const signature = JSON.stringify([state.fingerprint, state.corrections]);
+  if (list._correctionSignature === signature) return;
   for (const item of state.corrections) {
     const card = document.createElement("div"); card.className = "script-correction-card"; card.dataset.correctionId = item.id;
     const jump = document.createElement("button"); jump.type = "button"; jump.className = "script-correction-jump";
@@ -756,6 +905,7 @@ function refreshCorrections() {
     card.append(jump, remove); fragment.append(card);
   }
   list.replaceChildren(fragment);
+  list._correctionSignature = signature;
 }
 $("#finish-corrections").addEventListener("click", () => setTool("select"));
 $("#delete-correction").addEventListener("click", () => removeCorrection(state.activeCorrection));
@@ -853,7 +1003,7 @@ function autoScrollCoverage() {
 }
 function stopCoverageScroll() { cancelAnimationFrame(coverageScrollFrame); coverageScrollFrame = 0; }
 function refreshCoverageGesture() {
-  if (state.drawing?.pointer) { state.drawing.end = endPosition(state.drawing.pointer); scheduleAnnotationDraw(); }
+  if (state.drawing?.pointer) scheduleAnnotationDraw();
   else if (state.lineGesture?.pointer) updateLineGesture(state.lineGesture.pointer);
 }
 function releaseCoveragePointer(pointerId) {
@@ -928,7 +1078,9 @@ async function continueSelectedLine() {
 $("#continue-line").addEventListener("click", continueSelectedLine);
 function scheduleAnnotationDraw() {
   if (!annotationDrawFrame) annotationDrawFrame = requestAnimationFrame(() => {
-    annotationDrawFrame = 0; drawAnnotations();
+    annotationDrawFrame = 0;
+    if (state.drawing?.pointer) state.drawing.end = endPosition(state.drawing.pointer);
+    drawAnnotations();
   });
 }
 function drawAnnotations(onlyContext = null) {
@@ -941,9 +1093,16 @@ function drawAnnotations(onlyContext = null) {
   const pages = new Map();
   for (const context of contexts) {
     if (!context.svg || context.status !== "ready") continue;
-    context.svg.replaceChildren();
     if (!pages.has(context.segment.page)) pages.set(context.segment.page, PlanoCoverage.onPage(items, context.segment.page));
     const annotations = pages.get(context.segment.page).filter(item => annotationInSegment(item, context.segment));
+    const drawing = state.drawing && PlanoCoverage.part({type:"line", ...PlanoCoverage.fromEnds(state.drawing.start, state.drawing.end)}, context.segment.page);
+    const paintKey = JSON.stringify([state.tool, state.selectedLine, Boolean(state.drawing), drawing && [drawing.start, drawing.end, $("#annotation-color").value], annotations.map(item => [
+      item.id, item.type, item.page, item.start, item.end, item.rects, item.color, annotationDisplayName(item),
+      item.labelPosition, item.lineLabel, item.labelPinned, item.labelUnrestricted, item.continuesBefore, item.continuesAfter, item.correction, item.correctionId, item.text
+    ])]);
+    // Una edición de sonido o notas no altera las marcas ni necesita medir de nuevo sus rótulos.
+    if (context.paintKey === paintKey) continue;
+    context.svg.replaceChildren();
     for (const annotation of annotations.filter(item => item.page === context.segment.page)) {
       const group = svgElement("g", { "data-annotation-id": annotation.id || "pending", ...(annotation.id ? {} : { class: "pending-annotation" }) });
       if (annotation.correction) {
@@ -980,9 +1139,10 @@ function drawAnnotations(onlyContext = null) {
       displayName: annotationDisplayName, locate: jumpToAnnotation, scenes: state.scenes,
       positionMenu: showTitlePositionMenu,
       canDrag: () => state.tool === "select" && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight,
-      move: (item, position) => { remember(); item.labelPosition = position; changed(); },
+      move: (item, position) => { const source = state.annotations.find(note => note.id === item.id); if (!source) return; remember(); source.labelPosition = position; changed(); },
       moveLineTitle: (item, position) => { const source = state.annotations.find(note => note.id === item.id); if (!source) return; remember(); source.lineLabel = position; delete source.labelPosition; changed(); }
     });
+    context.paintKey = paintKey;
   }
 }
 function annotationInSegment(item, segment) {
@@ -1063,19 +1223,22 @@ function beginLineGesture(event, item, context, mode) {
   $("#pdf-stage").classList.add("is-transforming-line");
   drawAnnotations();
 }
-function updateLineGesture(event) {
-  const gesture = state.lineGesture;
-  if (!gesture || event.pointerId !== gesture.pointerId) return;
-  event.preventDefault();
+function updateLineGeometry(gesture, event) {
   const point = coveragePointer(event, gesture.context);
   const distance = Math.hypot((point.x - gesture.origin.x) * gesture.context.viewport.width,
     (PlanoCoverage.unit(point) - PlanoCoverage.unit(gesture.origin)) * gesture.context.viewport.height);
   if (!gesture.moved && distance < 3) return;
-  gesture.moved = true; gesture.pointer = event;
+  gesture.moved = true;
   gesture.draft = transformedLine(gesture.original, gesture.context, gesture.mode, gesture.origin, point, event.shiftKey);
+}
+function updateLineGesture(event, immediate = false) {
+  const gesture = state.lineGesture;
+  if (!gesture || event.pointerId !== gesture.pointerId) return;
+  event.preventDefault(); gesture.pointer = event;
+  if (immediate) { updateLineGeometry(gesture, event); return; }
   if (!gesture.frame) gesture.frame = requestAnimationFrame(() => {
     gesture.frame = 0;
-    if (state.lineGesture === gesture) drawAnnotations();
+    if (state.lineGesture === gesture) { updateLineGeometry(gesture, gesture.pointer); drawAnnotations(); }
   });
 }
 function cancelLineGesture(redraw = true) {
@@ -1090,7 +1253,7 @@ function cancelLineGesture(redraw = true) {
 // La captura y el ciclo del gesto pertenecen al visor, no a un SVG de página.
 $("#pdf-stage").addEventListener("pointermove", event => {
   if (state.drawing?.pointerId === event.pointerId) {
-    event.preventDefault(); state.drawing.pointer = event; state.drawing.end = endPosition(event); scheduleAnnotationDraw();
+    event.preventDefault(); state.drawing.pointer = event; scheduleAnnotationDraw();
   } else if (state.lineGesture?.pointerId === event.pointerId) updateLineGesture(event);
 });
 $("#pdf-stage").addEventListener("pointerup", event => {
@@ -1101,7 +1264,7 @@ $("#pdf-stage").addEventListener("pointerup", event => {
     if (distance >= 6) requestNamedAnnotations([{ type: "line", ...geometry, color: $("#annotation-color").value }]); else drawAnnotations();
   } else if (state.lineGesture?.pointerId === event.pointerId) {
     const gesture = state.lineGesture;
-    updateLineGesture(event); cancelLineGesture(false);
+    updateLineGesture(event, true); cancelLineGesture(false);
     if (!gesture.moved || !commitLineGeometry(gesture.id, gesture.draft, gesture.context)) drawAnnotations();
   }
 });
@@ -1474,6 +1637,7 @@ $("#locate-shot-details").addEventListener("click", () => {
   if (item) jumpToAnnotation(item);
 });
 function changed() {
+  if(state.pdfBasis){const moved=new Set(state.annotations.filter(item=>annotationShapes.get(item.id)!==annotationShape(item)).map(item=>item.id));state.annotations=PlanoScreenplayLinks.attach(state.annotations,state.pdfBasis,moved);cacheAnnotationShapes();state.corrections=linkedCorrections(state.corrections,state.pdfBasis);}
   PlanoTechnicalWindow.publish();
   const anchor = state.screen === "editor" ? capturePosition() : null;
   refreshSegments();
@@ -1490,7 +1654,8 @@ function saveNotes() {
   if (!state.key) return;
   if (PlanoCloud.configured) {
     if (!state.cloudProject) { $("#save-status").textContent = "Este guion todavía no está guardado en tu cuenta."; return; }
-    const payload = { version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading, view: { scene: state.scene, stage: state.stage } };
+    const payload = { version: 1, documentFormat:2, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading, view: { scene: state.scene, stage: state.stage } };
+    if (state.screenplay) payload.screenplay = state.screenplay;
     if (PlanoScriptPreview.valid(state.thumbnail)) {
       payload.thumbnail = state.thumbnail;
       if (new TextEncoder().encode(JSON.stringify(payload)).length > 350000) delete payload.thumbnail;
@@ -1499,7 +1664,7 @@ function saveNotes() {
     return;
   }
   try {
-    localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading }));
+    localStorage.setItem(state.key, JSON.stringify({ version: 1, fingerprint: state.fingerprint, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading, ...(state.screenplay ? {screenplay:state.screenplay} : {}), ...(state.screenplayCoverage ? {screenplayCoverage:state.screenplayCoverage} : {}) }));
     $("#save-status").textContent = "✓ Notas guardadas en este navegador";
   } catch { $("#save-status").textContent = "No se pudo guardar aquí. Exporta las notas antes de cerrar."; }
 }
@@ -1517,6 +1682,8 @@ function validateNotes(value, pageCount = state.pdf.numPages) {
       if (item[field] !== undefined && !shotValues.valid(item[field], field)) throw new Error(field === "shotValue" ? "Hay valores de plano inválidos." : `Hay datos de ${shotValues.fields[field].label.toLowerCase()} inválidos.`);
     }
     const clean = { id: item.id, type: item.type, page: item.page, color: item.color, shotId: item.shotId || item.id, shotName: (item.shotName || "").trim(), note: String(item.note || "").slice(0, 3000), createdAt: String(item.createdAt || "") };
+    for(const key of ['coverageAnchor','scriptAnchor'])if(item[key])clean[key]=PlanoScreenplayLinks.validAnchor(item[key]);
+    if(item.anchorReview)clean.anchorReview=true;
     for (const field of shotValues.keys) clean[field] = item[field] || "";
     for (const key of shotValues.otherKeys) {
       const field = `${key}Other`;
@@ -1641,7 +1808,7 @@ function technicalSections() {
   return scenes.map(scene => ({ scene, items: orderedShots(groups.get(scene.id) || [], indexes).map(item => ({ ...item, ...report.get(item.shotId || item.id) })) }));
 }
 function refreshTechnicalScript() {
-  for (const id of ['#export-excel', '#technical-export-excel']) $(id).disabled = !state.annotations.length || state.exporting;
+  for (const id of ['#export-excel']) $(id).disabled = !state.annotations.length || state.exporting;
   if (state.screen !== "editor" || state.stage !== "technical") return;
   PlanoTechnicalScript.render(technicalSections(), { displayName: annotationDisplayName, open: openShotDetails, commit: commitTechnicalField, remove: deleteTechnicalShot, history: state.history.length, future: state.future.length });
 }
@@ -1745,6 +1912,7 @@ function refreshAnnotations() {
   refreshTechnicalScript();
   const indexes = new Map(state.annotations.map((item, i) => [item.id, i]));
   const list = $("#annotations-list"); const visible = state.annotations;
+  const existingGroups = new Map(Array.from(list.querySelectorAll(".annotation-scene-group")).map(group => [group.dataset.scene, group]));
   const openGroups = new Map(Array.from(list.querySelectorAll(".annotation-scene-group")).map(group => [group.dataset.scene, { open: group.open, count: Number(group.dataset.count) }]));
   $("#annotation-count").textContent = visible.length;
   $("#highlight-count").textContent = visible.filter(item => item.type === "highlight").length;
@@ -1752,13 +1920,12 @@ function refreshAnnotations() {
   $("#highlight-count").parentElement.lastChild.textContent = $("#highlight-count").textContent === "1" ? " resalte" : " resaltes";
   $("#line-count").parentElement.lastChild.textContent = $("#line-count").textContent === "1" ? " línea" : " líneas";
   $("#undo-button").disabled = !state.history.length; $("#redo-button").disabled = !state.future.length;
-  list.replaceChildren();
   if (!visible.length && !state.scenes.length) {
     const empty = document.createElement("div"); empty.className = "empty-annotations";
     const icon = document.createElement("span"); icon.textContent = "╱";
     const title = document.createElement("strong"); title.textContent = "Tu cobertura empieza aquí";
     const text = document.createElement("p"); text.textContent = "Resalta una frase o traza una línea y nombra el plano. Abre su tarjeta para ver la ficha completa.";
-    empty.append(icon, title, text); list.append(empty); syncShotSelection(); return;
+    empty.append(icon, title, text); list.replaceChildren(empty); syncShotSelection(); return;
   }
   const groups = new Map();
   for (const item of visible) {
@@ -1767,9 +1934,14 @@ function refreshAnnotations() {
     groups.get(id).push(item);
   }
   const sections = [...(groups.has("intro") ? [{ id: "intro", number: null, title: state.scenes.length ? "Portada y contenido previo" : "Guion" }] : []), ...state.scenes];
+  const nodes = [];
   for (const scene of sections) {
     const items = orderedShots(groups.get(scene.id) || [], indexes);
+    const signature = JSON.stringify([state.fingerprint, scene, items, items.map(annotationDisplayName)]);
+    const existing = existingGroups.get(scene.id);
+    if (existing?._annotationsSignature === signature) { nodes.push(existing); continue; }
     const section = document.createElement("details"); section.className = "annotation-scene-group"; section.dataset.scene = scene.id;
+    section._annotationsSignature = signature; nodes.push(section);
     const previous = openGroups.get(scene.id);
     section.open = previous ? previous.open || previous.count === 0 && items.length > 0 : items.length > 0 || scene.id === state.scene;
     section.dataset.count = items.length;
@@ -1779,7 +1951,7 @@ function refreshAnnotations() {
     const title = document.createElement("span"); title.textContent = scene.title; caption.append(name, title);
     const count = document.createElement("span"); count.className = "scene-shot-count"; count.textContent = new Set(items.map(item => item.shotId || item.id)).size;
     count.title = "Planos en esta escena"; summary.append(caption, count); section.append(summary);
-    const cards = document.createElement("div"); cards.className = "scene-annotation-cards"; section.append(cards); list.append(section);
+    const cards = document.createElement("div"); cards.className = "scene-annotation-cards"; section.append(cards);
     if (!items.length) {
       const empty = document.createElement("p"); empty.className = "scene-no-shots"; empty.textContent = "Sin planos todavía."; cards.append(empty);
     }
@@ -1829,9 +2001,15 @@ function refreshAnnotations() {
     const kind = document.createElement("span"); kind.className = "annotation-kind"; kind.textContent = `${item.type === "line" ? "Línea" : "Resalte"} · ${annotationPages(item)}`;
     const actions = document.createElement("div"); actions.className = "annotation-card-actions"; actions.append(locate, edit, remove); footer.append(kind, actions);
     card.append(heading, specs, description, footer);
+    if(item.anchorReview){const warning=document.createElement('small');warning.className='anchor-review';warning.textContent='Revisar vínculo: el texto asociado cambió o se eliminó.';card.append(warning);}
     cards.append(card);
     }
   }
+  // Conserva las escenas sin cambios, su foco, despliegue y posición de desplazamiento.
+  const keep = new Set(nodes);
+  for (const child of Array.from(list.children)) if (!keep.has(child)) child.remove();
+  let next = list.firstChild;
+  for (const node of nodes) { if (node !== next) list.insertBefore(node, next); next = node.nextSibling; }
   syncShotSelection();
 }
 async function jumpToAnnotation(item) {
@@ -1870,6 +2048,8 @@ function undo(redo = false) {
   cancelSpelling(); state.corrections = Array.isArray(restored) ? [] : restored.corrections || []; state.crew = restored.crew || state.crew; state.proofreading = restored.proofreading || state.proofreading; refreshSpelling(); changed();
 }
 function closeDocument() {
+  annotationShapes.clear();
+  PlanoWriter.close(); state.screenplay = null; state.screenplayCoverage = null; state.pdfBasis=null; state.writerPdfRevision = null;clearTimeout(writerRefreshTimer);
   if (state.exporting) return;
   PlanoTechnicalWindow.invalidate();
   crewEditor.close();
@@ -1890,7 +2070,7 @@ function closeDocument() {
   ++state.loadId; cancelRendering();
   state.loading?.destroy().catch(() => {}); state.pdf?.destroy().catch(() => {});
   if (state.url) URL.revokeObjectURL(state.url);
-  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, thumbnail: null, annotations: [], corrections: [], crew: {}, proofreading: PlanoSpelling.validate(), crewEditing: false, pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
+  Object.assign(state, { pdf: null, loading: null, url: null, file: null, key: null, cloudProject: null, localProjectName: null, thumbnail: null, annotations: [], corrections: [], crew: {}, proofreading: PlanoSpelling.validate(), crewEditing: false, pages: [], scenes: [], viewer: null, viewAnchor: null, history: [], future: [] });
   refreshCorrections();
   syncShotSelection();
   $("#pdf-container").replaceChildren(); $("#technical-table-body").replaceChildren(); $("#open-document").removeAttribute("href");
@@ -1910,7 +2090,7 @@ function setPanelOpen(open) {
 $("#toggle-annotations").addEventListener("click", () => setPanelOpen(!state.panelOpen));
 $("#panel-backdrop").addEventListener("click", () => { setPanelOpen(false); $("#toggle-annotations").focus(); });
 smallScreen.addEventListener("change", () => { if (state.screen === "editor") setPanelOpen(!smallScreen.matches); });
-for (const id of ["#editor-home", "#menu-home"]) $(id).addEventListener("click", () => { message(""); showScreen("import"); });
+for (const id of ["#editor-home", "#menu-home"]) $(id).addEventListener("click", () => { if (!canSelectShots() || !PlanoTechnicalScript.finishEditing()) return; message(""); PlanoCloudLibrary.showProject(); });
 $(".project-menu-content").addEventListener("click", event => { if (event.target.closest("button,a")) $("#project-menu").open = false; });
 document.addEventListener("pointerdown", event => { if (!$("#project-menu").contains(event.target)) $("#project-menu").open = false; });
 document.addEventListener("pointerdown", event => { if (state.highlightAction && !$("#highlight-action").contains(event.target)) hideHighlightAction(); });
@@ -1923,13 +2103,14 @@ $("#pdf-stage").addEventListener("scroll", () => {
   if (scrollFrame) return;
   scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; updatePageIndicator(); });
 }, { passive: true });
-for (const id of ["#upload-button", "#replace-button"]) $(id).addEventListener("click", () => $("#file-input").click());
+$("#upload-button").addEventListener("click", () => newScriptDialog.showModal());
+$("#replace-button").addEventListener("click", () => $("#file-input").click());
 $("#remove-button").addEventListener("click", async () => {
   try { if (PlanoCloud.configured) { if (!PlanoTechnicalScript.finishEditing()) return; await PlanoCloud.flush(); PlanoCloud.detach(); } closeDocument(); }
   catch (error) { message(error.message, true); PlanoCloudLibrary.open(); }
 });
-$("#nav-import").addEventListener("click", () => { message(""); showScreen("import"); });
-for (const id of ["#nav-editor", "#return-editor"]) $(id).addEventListener("click", () => { message(""); showScreen("editor"); });
+$("#nav-import").addEventListener("click", () => { message(""); PlanoCloudLibrary.showRoot(); });
+for (const id of ["#nav-editor", "#return-editor"]) $(id).addEventListener("click", () => { message(""); if (state.screen !== "editor" && PlanoCloudLibrary.selected()) { PlanoCloudLibrary.openStage("coverage"); return; } showScreen("editor"); });
 $("#scene-select").addEventListener("change", event => {
   const anchor = ["all", "editing"].includes(event.target.value) ? capturePosition() : null;
   state.scene = event.target.value; state.segmentIndex = 0; refreshSegments(); renderDocument({ anchor }); refreshAnnotations(); if (smallScreen.matches) setPanelOpen(false);
@@ -1945,6 +2126,7 @@ $("#fit-width").addEventListener("click", () => { state.fit = true; renderDocume
 let exportEngine;
 async function exportCoveragePdf(includeTechnical = false) {
   if (!state.pdf || state.busy || state.exporting) return;
+  if (state.stage === "writing" && !await refreshWriterCoverage()) return;
   if (!PlanoTechnicalScript.finishEditing()) return;
   if (state.pending || state.editing || state.drawing || state.lineGesture || state.highlightCorrection || state.pasteHighlight) {
     message("Termina o cancela la edición del plano antes de exportar.", true); return;
@@ -1957,7 +2139,7 @@ async function exportCoveragePdf(includeTechnical = false) {
   try {
     message("Preparando PDF con cobertura…");
     if ((includeTechnical || snapshot.annotations.length) && !window.PDFLib) {
-      if (!exportEngine) exportEngine = loadScript("vendor/pdf-lib.min.js").catch(error => { exportEngine = null; throw error; });
+      if (!exportEngine) exportEngine = (window.PDFLib ? Promise.resolve() : loadScript("vendor/pdf-lib.min.js")).catch(error => { exportEngine = null; throw error; });
       await exportEngine;
     }
     if (includeTechnical) {
@@ -1973,7 +2155,7 @@ async function exportCoveragePdf(includeTechnical = false) {
     message(`No se pudo exportar el PDF${includeTechnical ? " completo" : ""}. ${error.message || "Inténtalo de nuevo."}`, true);
   } finally {
     state.exporting = false; busy(false); $("#export-pdf").disabled = false; $("#export-all").disabled = false; $("#remove-button").disabled = false; button.textContent = previous;
-    for (const id of ['#export-excel', '#technical-export-excel']) $(id).disabled = !state.annotations.length;
+    for (const id of ['#export-excel']) $(id).disabled = !state.annotations.length;
   }
 }
 $("#export-pdf").addEventListener("click", () => exportCoveragePdf());
@@ -1993,7 +2175,7 @@ async function exportTechnicalExcel() {
   }
   if (!state.annotations.length) { message("Añade al menos un plano para exportar el guion técnico.", true); return; }
   const snapshot = technicalExportSnapshot();
-  const buttons = [$("#export-excel"), $("#technical-export-excel")];
+  const buttons = [$("#export-excel")];
   state.exporting = true; busy(true); buttons.forEach(button => button.disabled = true); $("#remove-button").disabled = true;
   $("#project-menu").open = false; hideHighlightAction();
   try {
@@ -2010,9 +2192,11 @@ async function exportTechnicalExcel() {
     state.exporting = false; busy(false); buttons.forEach(button => button.disabled = !state.annotations.length); $("#remove-button").disabled = false;
   }
 }
-for (const id of ["#export-excel", "#technical-export-excel"]) $(id).addEventListener("click", exportTechnicalExcel);
+for (const id of ["#export-excel"]) $(id).addEventListener("click", exportTechnicalExcel);
 $("#save-backup").addEventListener("click", () => {
   const payload = { app: "PLANO", version: 1, fingerprint: state.fingerprint, fileName: state.file.name, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading };
+  if (state.screenplay) payload.screenplay = state.screenplay;
+  if (state.screenplayCoverage) payload.screenplayCoverage = state.screenplayCoverage;
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
   const link = document.createElement("a"); link.href = url; link.download = `${state.file.name.replace(/\.pdf$/i, "")}-notas-plano.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -2025,10 +2209,14 @@ $("#backup-input").addEventListener("change", async event => {
     if (file.size > 10 * 1024 * 1024) throw new Error("La copia supera los 10 MB.");
     const data = JSON.parse(await file.text()); if (state.pdf !== pdf) return;
     if (data.app !== "PLANO" || data.version !== 1 || data.fingerprint !== state.fingerprint) throw new Error("Estas notas no corresponden al PDF abierto.");
+    if (data.screenplay && (data.screenplayCoverage || JSON.stringify(PlanoScreenplay.validate(data.screenplay))!==JSON.stringify(state.screenplay))) { await restoreWrittenBackup(data); return; }
+    const importedWriter = PlanoScreenplay.validate(data.screenplay), importedCoverage = PlanoScreenplay.validate(data.screenplayCoverage);
     const imported = validateNotes(data.annotations), corrections = PlanoCorrections.validate(data.corrections, state.pdf.numPages), crew = data.crew === undefined ? state.crew : PlanoCrew.validate(data.crew), proofreading = data.proofreading === undefined ? state.proofreading : PlanoSpelling.validate(data.proofreading); cancelSpelling(); remember();
     const existingIds = new Set(state.annotations.map(item => item.id)); const added = imported.filter(item => !existingIds.has(item.id));
     const correctionIds = new Set(state.corrections.map(item => item.id)), newCorrections = corrections.filter(item => !correctionIds.has(item.id));
-    state.annotations.push(...added); state.corrections.push(...newCorrections); state.crew = crew; state.proofreading = proofreading; refreshSpelling(); changed(); message(`${added.length} anotaciones${newCorrections.length ? ` y ${newCorrections.length} correcciones` : ""} importadas. Las notas que ya tenías se conservaron.`);
+    state.annotations.push(...added); state.corrections.push(...newCorrections); state.crew = crew; state.proofreading = proofreading;
+    if (importedWriter) { state.screenplay = importedWriter; state.screenplayCoverage = importedCoverage; PlanoWriter.close(); if (state.stage === "writing") await PlanoWriter.open(state.screenplay); }
+    refreshSpelling(); changed(); message(`${added.length} anotaciones${newCorrections.length ? ` y ${newCorrections.length} correcciones` : ""} importadas. Las notas que ya tenías se conservaron.`);
   } catch (error) { message(`No se pudieron importar las notas: ${error.message}`, true); }
   finally { event.target.value = ""; }
 });
@@ -2036,6 +2224,7 @@ document.addEventListener("keydown", event => {
   if (document.querySelector(".compact-popover:popover-open")) return;
   if (document.querySelector("dialog[open]")) return;
   if (event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (state.stage === "writing" && state.screen === "editor") return;
   if (event.key === "Escape") {
     if (state.activeCorrection) { hideCorrectionAction(); $("#pdf-stage").focus({ preventScroll: true }); return; }
     if (state.highlightAction) { hideHighlightAction(); $("#pdf-stage").focus({ preventScroll: true }); return; }
@@ -2064,7 +2253,7 @@ workspace.addEventListener("dragleave", () => { if (--dragDepth <= 0) clearDrag(
 workspace.addEventListener("dragover", event => { if (hasFiles(event)) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } });
 workspace.addEventListener("drop", event => {
   event.preventDefault(); clearDrag(); const files = event.dataTransfer?.files; if (!files?.length) return;
-  if (files.length > 1) message("Selecciona un solo guion PDF a la vez.", true); else upload(files[0]);
+  if (files.length > 1) message("Selecciona un solo archivo a la vez.", true); else upload(files[0]);
 });
 for (const name of ["dragover", "drop"]) window.addEventListener(name, event => { if (hasFiles(event)) event.preventDefault(); if (name === "drop") clearDrag(); });
 window.addEventListener("blur", () => { clearDrag(); cancelLineGesture(); }); window.addEventListener("dragend", clearDrag);
@@ -2072,7 +2261,7 @@ window.addEventListener("beforeunload", () => { if (state.url) URL.revokeObjectU
 
 function syncTechnicalWindowLock() { PlanoTechnicalWindow.lock(!canSelectShots()); }
 PlanoTechnicalWindow.configure({
-  key: () => state.pdf,
+  key: () => state.pdf ? `${PlanoAccounts.getUser()?.id}/${state.cloudProject?.id||state.fingerprint}` : null,
   canEdit: () => Boolean(PlanoAccounts.getUser()) && canSelectShots(),
   snapshot: () => ({
     name: state.file?.name || "Guion técnico", sections: structuredClone(technicalSections()).map(section => ({ ...section, items: section.items.map(item => ({ ...item, shotName: annotationDisplayName(item) })) })),
@@ -2080,7 +2269,7 @@ PlanoTechnicalWindow.configure({
     theme: { style: document.documentElement.style.cssText, mode: document.documentElement.dataset.theme, palette: document.documentElement.dataset.palette }
   }),
   commit: commitTechnicalField, remove: deleteTechnicalShot, undo: redo => { undo(redo); return true; },
-  open: item => { window.focus(); openShotDetails(item); syncTechnicalWindowLock(); }, export: exportTechnicalExcel, crew: () => { window.focus(); crewEditor.open(); }
+  open: item => { window.focus(); openShotDetails(item); syncTechnicalWindowLock(); }, export: runExport, crew: () => { window.focus(); crewEditor.open(); }
 });
 const technicalWindowMenu = document.createElement("div"); technicalWindowMenu.id = "technical-window-menu"; technicalWindowMenu.className = "technical-window-menu compact-popover"; technicalWindowMenu.setAttribute("popover", "auto"); technicalWindowMenu.setAttribute("role", "menu");
 const openTechnicalWindow = document.createElement("button"); openTechnicalWindow.type = "button"; openTechnicalWindow.textContent = "Abrir en otra ventana"; openTechnicalWindow.setAttribute("role", "menuitem"); technicalWindowMenu.append(openTechnicalWindow); document.body.append(technicalWindowMenu);
@@ -2097,7 +2286,7 @@ openTechnicalWindow.addEventListener("click", () => {
 
 // Cambiar de cuenta cierra el documento y su historial antes de activar el nuevo espacio.
 PlanoAccounts.connectWorkspace({
-  canChange: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
+  canChange: () => !creatingScript && !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
   beforeChange: async () => { await globalThis.PlanoAccountAppearance?.flush(); try { if (PlanoCloud.configured) await PlanoCloud.flush(); } catch { throw Object.assign(new Error("Cloud save pending"), { code: "plano/cloud-unsaved" }); } },
   change: async nextOwner => {
     const shell = $(".app-shell"); shell.inert = true;
@@ -2106,6 +2295,7 @@ PlanoAccounts.connectWorkspace({
       while (state.exporting) await new Promise(resolve => setTimeout(resolve, 100));
       if (state.pdf && !PlanoCloud.configured) saveNotes();
       PlanoCloudLibrary.closeOnIdentity(); PlanoCloud.changeOwner(nextOwner);
+      const creatingDialog = $("#new-script-dialog"); if (creatingDialog?.open) creatingDialog.close();
       PlanoTechnicalScript.finishEditing(false);
       closeDocument();
       $("#annotations-list").replaceChildren();
@@ -2118,10 +2308,222 @@ PlanoCloudLibrary.init({
   currentProject: currentLibraryProject,
   canRename: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
   preview: buildLibraryPreview,
-  open: async id => { if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); if (id === "local") { showScreen("editor"); return; } const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
-  renameLocal: name => { renameDocumentFile(name); return currentLibraryProject(); },
-  renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; renameDocumentFile(project.name); },
+  home: () => showScreen("import"),
+  open: async (id, stage = "coverage") => { if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); if (state.pdf && (id === state.cloudProject?.id || id === "local")) { await switchStage(stage); showScreen("editor"); return; } const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project, stage })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
+  renameLocal: (name, isProject) => { if (isProject) { state.localProjectName = name; } else renameDocumentFile(name); return currentLibraryProject(); },
+  projectRenamed: project => { if (state.cloudProject?.id === project.id) { state.cloudProject = {...state.cloudProject, ...project}; if (state.screen === "editor") $("#breadcrumb-current").textContent = project.project_name; } },
+  renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; renameDocumentFile(project.name); if (state.screenplay) PlanoWriter.syncTitle(project.name.replace(/\.(pdf|plano)$/i,"")); },
   deleted: id => { if (state.cloudProject?.id === id) closeDocument(); },
-  reload: project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; const notes = validateNotes(project.payload.annotations), corrections = PlanoCorrections.validate(project.payload.corrections, state.pdf.numPages), crew = PlanoCrew.validate(project.payload.crew), proofreading = PlanoSpelling.validate(project.payload.proofreading); cancelSpelling(); state.annotations = notes; state.corrections = corrections; state.crew = crew; state.proofreading = proofreading; refreshSpelling(); state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); PlanoTechnicalWindow.publish(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
-  exportDraft: () => { if (!state.pdf) return false; $("#save-backup").click(); return true; }
+  reload: async project => { if (!state.pdf || state.cloudProject?.id !== project?.id) return; if (project.payload.screenplay || state.screenplay) { PlanoWriter.close(); const loaded = await PlanoCloud.open(project.id); if (!await upload(loaded.file,{project:loaded.project})) throw Error("No se pudo recuperar el guion editable."); return; } const notes = validateNotes(project.payload.annotations), corrections = PlanoCorrections.validate(project.payload.corrections, state.pdf.numPages), crew = PlanoCrew.validate(project.payload.crew), proofreading = PlanoSpelling.validate(project.payload.proofreading); cancelSpelling(); state.annotations = notes; state.corrections = corrections; state.crew = crew; state.proofreading = proofreading; refreshSpelling(); state.cloudProject = project; state.history = []; state.future = []; refreshSegments(); refreshAnnotations(); PlanoTechnicalWindow.publish(); if (state.stage === "coverage") renderDocument({ preservePosition: true }); },
+  openExport: anchor => { if (!state.pdf) return false; return exportMenu.open(anchor); },
+  newScript: () => newScriptDialog.showModal()
 });
+
+// El redactor comparte la identidad del proyecto y su guardado privado; el PDF es una vista regenerable.
+let creatingScript = false;
+const newScriptDialog = document.createElement('dialog');
+newScriptDialog.id='new-script-dialog';newScriptDialog.className='shot-name-dialog new-script-dialog';newScriptDialog.setAttribute('aria-labelledby','new-script-title');
+newScriptDialog.innerHTML='<header><div><p class="dialog-eyebrow">TU PRÓXIMA HISTORIA</p><h2 id="new-script-title">Nuevo proyecto</h2></div><button id="cancel-new-script" class="shot-close" type="button" aria-label="Cerrar nuevo guion">×</button></header><div class="new-script-options"><button id="new-script-write" type="button"><strong>Escribir un guion</strong><span>Empieza por la portada y escribe con formato de guion.</span></button><button id="new-script-import" type="button"><strong>Importar guion</strong><span>Importa un guion Fountain, WriterDuet (WDZ), Final Draft (FDX), Celtx, DOCX, RTF, HTML, JSON, CSV, TXT o PDF, o un proyecto completo .plano.</span></button></div>';
+document.body.append(newScriptDialog);
+$('#cancel-new-script').addEventListener('click',()=>newScriptDialog.close());
+$('#new-script-import').addEventListener('click',()=>{newScriptDialog.close();$('#file-input').click();});
+$('#new-script-write').addEventListener('click',()=>{newScriptDialog.close();createNativeScript().catch(error=>message(error.message,true));});
+async function createNativeScript(value, metadata = {}) {
+  await PlanoAccounts.ready;
+  const owner=PlanoAccounts.getUser();if(!owner){PlanoAccounts.open('signup');return false;}
+  if(creatingScript||state.busy||state.exporting||state.pending||state.editing||state.pasteHighlight||!PlanoTechnicalScript.finishEditing())return false;
+  creatingScript=true;
+  try{
+    if(PlanoCloud.configured)await PlanoCloud.flush();
+    const screenplay=value?PlanoScreenplay.validate(value):PlanoScreenplay.create('Sin título',owner);
+    const result=await generateScreenplayPdf(screenplay);
+    if(PlanoAccounts.getUser()?.id!==owner.id)return false;
+    const name=(screenplay.title.trim()||'Sin título')+'.pdf';
+    const loaded=await upload(new File([result.bytes],name,{type:'application/pdf'}),{screenplay});
+    if(!loaded)return false;
+    if(metadata.crew)state.crew=PlanoCrew.validate(metadata.crew);
+    if(metadata.proofreading)state.proofreading=PlanoSpelling.validate(metadata.proofreading);
+    saveNotes();if(PlanoCloud.configured)await PlanoCloud.flush();
+    await PlanoWriter.open(state.screenplay);return true;
+  }finally{creatingScript=false;}
+}
+async function refreshWriterCoverage(){
+  clearTimeout(writerRefreshTimer);
+  if(writerRefreshPromise){await writerRefreshPromise;if(!state.screenplay||state.writerPdfRevision===state.screenplay.revision)return true;}
+  if(!state.screenplay||state.writerPdfRevision===state.screenplay.revision)return true;
+  const script=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id,key=state.fingerprint;let retry=false;
+  const work=(async()=>{
+    let candidate=null,committed=false;
+    try{
+      const generated=await generateScreenplayPdf(script);await prepareEngine();candidate=pdfjsLib.getDocument({data:new Uint8Array(generated.bytes),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory});const pdf=await candidate.promise,pages=[];
+      for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),text=await readPageText(page),viewport=page.getViewport({scale:1});pages.push({width:viewport.width,height:viewport.height,lines:sceneTools.linesFromItems(text.items,viewport,pdfjsLib.Util.transform)});}
+      if(PlanoAccounts.getUser()?.id!==owner||state.fingerprint!==key||state.screenplay?.revision!==script.revision){retry=state.fingerprint===key&&state.screenplay?.id===script.id;await candidate.destroy();return false;}
+      const notes=validateNotes(PlanoScreenplayLinks.reflow(state.annotations,script),pdf.numPages),corrections=PlanoCorrections.validate(flowCorrections(state.corrections,script),pdf.numPages);
+      const previous=state.pdf;cancelRendering();cancelSpelling();if(state.url)URL.revokeObjectURL(state.url);
+      state.pdf=pdf;committed=true;state.file=new File([generated.bytes],pdfName(state.file.name),{type:'application/pdf'});state.url=URL.createObjectURL(state.file);state.pages=pages;state.scenes=sceneTools.detectScenes(pages);state.annotations=notes;cacheAnnotationShapes();state.corrections=corrections;state.pdfBasis=script;state.writerPdfRevision=script.revision;state.screenplayCoverage=null;
+      for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=PlanoScreenplayLinks.reflow(snapshot.annotations,script);snapshot.corrections=flowCorrections(snapshot.corrections||[],script);}
+      if(!['all','editing','print',...state.scenes.map(scene=>scene.id)].includes(state.scene))state.scene='all';
+      $('#open-document').href=state.url;updateSceneOptions();refreshSegments();refreshAnnotations();refreshSpelling();PlanoTechnicalWindow.publish();saveNotes();previous?.destroy().catch(()=>{});if(state.proofreading.enabled)startSpelling();
+      if(state.screen==='editor'&&state.stage==='coverage')await renderDocument({anchor:state.viewAnchor});
+      return true;
+    }catch(error){if(candidate&&!committed)candidate.destroy().catch(()=>{});if(state.fingerprint===key)message('No se pudo actualizar la vista del guion: '+error.message,true);return false;}
+  })();writerRefreshPromise=work;
+  try{return await work;}finally{if(writerRefreshPromise===work)writerRefreshPromise=null;if(retry&&state.screen==='editor'&&state.stage==='writing')writerRefreshTimer=setTimeout(()=>refreshWriterCoverage(),300);}
+}
+async function downloadWrittenPdf(){
+  if(!state.screenplay||state.busy||state.exporting)return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;state.exporting=true;busy(true);
+  try{const result=await generateScreenplayPdf(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;const url=URL.createObjectURL(new Blob([result.bytes],{type:'application/pdf'})),link=document.createElement('a');link.href=url;link.download=(snapshot.title.trim()||'Sin título')+'.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+  catch(error){message('No se pudo exportar el guion. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+PlanoWriter.init({
+  load:src=>loadScript(src+new URL($("script[src^='app.js']").src).search),
+  hasCoverageVersion:()=>false,
+  changed:(screenplay,change)=>{
+    if(!state.pdf||state.screenplay?.id!==screenplay.id)return;
+    state.annotations=PlanoScreenplayLinks.attach(state.annotations,state.pdfBasis||state.screenplay);
+    state.corrections=linkedCorrections(state.corrections,state.pdfBasis||state.screenplay);
+    if(change?.transactions){
+      state.annotations=PlanoScreenplayLinks.mapEdits(state.annotations,change.beforeDoc,screenplay.doc,change.transactions);
+      state.corrections=mapCorrectionEdits(state.corrections,change,screenplay.doc);
+      for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=PlanoScreenplayLinks.mapEdits(PlanoScreenplayLinks.attach(snapshot.annotations,state.pdfBasis||state.screenplay),change.beforeDoc,screenplay.doc,change.transactions);snapshot.corrections=mapCorrectionEdits(linkedCorrections(snapshot.corrections||[],state.pdfBasis||state.screenplay),change,screenplay.doc);}
+    }
+    if(state.screenplay.title!==screenplay.title||JSON.stringify(state.screenplay.authors)!==JSON.stringify(screenplay.authors)){state.thumbnail=PlanoScreenplay.thumbnail(screenplay);if(state.thumbnail)PlanoCloudLibrary.updatePreview(currentLibraryProject(),state.thumbnail);}
+    state.screenplay=screenplay;state.screenplayCoverage=null;saveNotes();clearTimeout(writerRefreshTimer);writerRefreshTimer=setTimeout(()=>{if(state.screen==='editor'&&state.stage==='writing')refreshWriterCoverage();},600);
+  },
+  titleChanged:async title=>{
+    const name=title.trim().replace(/\s+/g,' ').replace(/\.pdf$/i,'')||'Sin título';
+    if(!state.screenplay||state.file.name===name+'.pdf')return;
+    const document=state.pdf,owner=PlanoAccounts.getUser()?.id;
+    try{let project=null;if(PlanoCloud.configured)project=await PlanoCloud.rename(state.cloudProject,name+'.plano');if(state.pdf!==document||PlanoAccounts.getUser()?.id!==owner)return;if(project)state.cloudProject=project;renameDocumentFile(name+'.pdf');saveNotes();}
+    catch(error){if(state.pdf===document&&PlanoAccounts.getUser()?.id===owner)message('El título está escrito, pero no se pudo renombrar el archivo: '+error.message,true);}
+  },
+  exportPdf:downloadWrittenPdf,
+  exportProject:exportProjectArchive,
+
+});
+for(const [id,characters]of [['#nav-writing',false],['#nav-characters',true]])$(id).addEventListener('click',async()=>{if(state.screen!=='editor'&&PlanoCloudLibrary.selected()){await PlanoCloudLibrary.openStage('writing');if(state.screen!=='editor')return;}else{if(!state.pdf){newScriptDialog.showModal();return;}await switchStage('writing');showScreen('editor');}if(characters&&state.screenplay){$('#writer-characters-tab').click();if(innerWidth<800)$('#writing-view').classList.add('writer-panel-mobile-open');else $('#writing-view').classList.remove('writer-panel-closed');}});
+async function restoreWrittenBackup(data){
+  const owner=PlanoAccounts.getUser()?.id,document=state.pdf,screenplay=PlanoScreenplay.validate(data.screenplay),coverage=PlanoScreenplay.validate(data.screenplayCoverage);
+  if(coverage&&coverage.id!==screenplay.id)throw Error('Las versiones de la copia no pertenecen al mismo guion.');
+  const generated=await generateScreenplayPdf(coverage||screenplay),pageCount=generated.titlePages+generated.pages;
+  const payload={version:1,fingerprint:state.fingerprint,annotations:validateNotes(data.annotations,pageCount),corrections:PlanoCorrections.validate(data.corrections,pageCount),crew:PlanoCrew.validate(data.crew),proofreading:PlanoSpelling.validate(data.proofreading),screenplay,view:{scene:'all',stage:'writing'}};
+  if(coverage)payload.screenplayCoverage=coverage;
+  const different=JSON.stringify({text:state.screenplay,coverage:state.screenplayCoverage,notes:state.annotations,corrections:state.corrections,crew:state.crew})!==JSON.stringify({text:screenplay,coverage,notes:payload.annotations,corrections:payload.corrections,crew:payload.crew});
+  if(different&&!confirm('Esta copia contiene texto editable y planos. ¿Restaurar la versión completa de la copia? Se sustituirá el contenido abierto.'))return;
+  if(state.pdf!==document||PlanoAccounts.getUser()?.id!==owner)return;
+  if(PlanoCloud.configured)await PlanoCloud.flush();
+  if(state.pdf!==document||PlanoAccounts.getUser()?.id!==owner)return;
+  const project=PlanoCloud.configured?{...PlanoCloud.info().project,created:false,payload}:null;
+  const loaded=await upload(state.file,{project,screenplay,screenplayCoverage:coverage,payload,writerRefresh:true,forceWriterReset:true});
+  if(!loaded)throw Error('No se pudo restaurar la copia. El guion abierto se conserva.');
+  saveNotes();if(PlanoCloud.configured)await PlanoCloud.flush();message('Texto, portada y planos restaurados desde la copia.');
+}
+
+function exportProjectArchive(){
+  if(!state.screenplay||state.busy||state.pending||state.editing||state.pasteHighlight||!PlanoTechnicalScript.finishEditing())return;
+  try{const script=PlanoScreenplay.validate(state.screenplay),pages=PlanoScreenplayLinks.geometry(script).pages.length;
+    const payload={version:1,documentFormat:2,screenplay:script,annotations:validateNotes(PlanoScreenplayLinks.reflow(PlanoScreenplayLinks.attach(state.annotations,state.pdfBasis||script),script),pages),corrections:PlanoCorrections.validate(flowCorrections(state.corrections,script),pages),crew:PlanoCrew.validate(state.crew),proofreading:PlanoSpelling.validate(state.proofreading),view:{stage:state.stage,scene:state.scene}};
+    if(PlanoScriptPreview.valid(state.thumbnail))payload.thumbnail=state.thumbnail;
+    PlanoEditableImport.download({name:(state.cloudProject?.project_name||state.localProjectName||script.title||'Sin título').slice(0,120),documentName:editableName(state.file.name),payload});message('Proyecto completo descargado como .plano.');
+  }catch(error){message('No se pudo exportar el proyecto: '+error.message,true);}
+}
+$('#export-editable').addEventListener('click',exportProjectArchive);
+
+function downloadExport(bytes,type,name){
+  const url=URL.createObjectURL(new Blob([bytes],{type})),link=document.createElement('a');
+  link.href=url;link.download=name.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_');link.hidden=true;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+async function exportWrittenDocx(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{message('Preparando el guion en DOCX…');await prepareDocx();const bytes=await PlanoDocx.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(bytes,'application/vnd.openxmlformats-officedocument.wordprocessingml.document',(snapshot.title.trim()||'Sin título')+'.docx');message('Guion DOCX descargado, sin datos de cobertura.');}
+  catch(error){message('No se pudo exportar el DOCX. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+async function exportTechnicalPdf(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing()||!state.annotations.length)return;
+  const technical=technicalExportSnapshot(),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{message('Preparando el guion técnico en PDF…');const version=new URL($("script[src^='app.js']").src).search;await Promise.all([prepareExcelExport(),loadScript('all-export.js'+version),window.PDFLib?null:loadScript('vendor/pdf-lib.min.js'+version)]);const result=await PlanoAllExport.technical({technical,onProgress:text=>message(text)});if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(result.bytes,'application/pdf',technical.fileName.replace(/\.pdf$/i,'')+'-guion-tecnico.pdf');message('Guion técnico descargado en PDF horizontal.');}
+  catch(error){message('No se pudo exportar el guion técnico. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+async function exportWrittenTxt(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareTxt();const text=PlanoTxt.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'text/plain;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.txt');message('Guion TXT descargado. El texto plano conserva el contenido y las sangrías, sin formato de negrita o cursiva.');}
+  catch(error){message('No se pudo exportar el TXT. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+function runExport(action='technical-excel'){
+  return ({'script-docx':exportWrittenDocx,'script-txt':exportWrittenTxt,'script-rtf':exportWrittenRtf,'script-html':exportWrittenHtml,'script-json':exportWrittenJson,'script-csv':exportWrittenCsv,'script-celtx':exportWrittenCeltx,'script-fdx':exportWrittenFdx,'script-wdz':exportWrittenWdz,'script-fountain':exportWrittenFountain,'script-pdf':downloadWrittenPdf,'coverage-pdf':exportCoveragePdf,'technical-pdf':exportTechnicalPdf,'technical-excel':exportTechnicalExcel,'combined-pdf':()=>exportCoveragePdf(true),project:exportProjectArchive})[action]?.();
+}
+async function exportWrittenRtf(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareRtf();const text=PlanoRtf.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'application/rtf',(snapshot.title.trim()||'Sin título')+'.rtf');message('Guion RTF descargado, con portada y formato de escritura.');}
+  catch(error){message('No se pudo exportar el RTF. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-docx').addEventListener('click',exportWrittenDocx);
+async function exportWrittenHtml(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareHtml();const html=PlanoHtml.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(html,'text/html;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.html');message('Guion HTML descargado, con portada y páginas; se abre sin conexión.');}
+  catch(error){message('No se pudo exportar el HTML. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-html').addEventListener('click',exportWrittenHtml);
+async function exportWrittenJson(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareJson();const text=PlanoJson.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'application/json;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.json');message('Guion JSON descargado, sin datos de producción.');}
+  catch(error){message('No se pudo exportar el JSON. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-json').addEventListener('click',exportWrittenJson);
+async function exportWrittenCsv(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareCsv();const text=PlanoCsv.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'text/csv;charset=utf-8;header=present',(snapshot.title.trim()||'Sin título')+'.csv');message('Guion CSV descargado, con cada elemento en su propia fila.');}
+  catch(error){message('No se pudo exportar el CSV. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-csv').addEventListener('click',exportWrittenCsv);
+async function exportWrittenCeltx(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareCeltx();const bytes=await PlanoCeltx.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(bytes,'application/x-celtx-project',(snapshot.title.trim()||'Sin título')+'.celtx');message('Guion Celtx descargado, solo escritura y portada.');}
+  catch(error){message('No se pudo exportar Celtx. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-celtx').addEventListener('click',exportWrittenCeltx);
+async function exportWrittenFdx(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareFdx();const xml=PlanoFdx.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(xml,'application/xml;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.fdx');message('Guion Final Draft descargado, solo escritura y portada.');}
+  catch(error){message('No se pudo exportar Final Draft. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-fdx').addEventListener('click',exportWrittenFdx);
+async function exportWrittenWdz(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareWdz();const bytes=await PlanoWdz.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(bytes,'application/zip',(snapshot.title.trim()||'Sin título')+'.wdz');message('Guion WriterDuet descargado, solo escritura y portada.');}
+  catch(error){message('No se pudo exportar WriterDuet. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-wdz').addEventListener('click',exportWrittenWdz);
+async function exportWrittenFountain(){
+  if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
+  const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
+  state.exporting=true;busy(true);
+  try{await prepareFountain();const text=await PlanoFountain.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'text/plain;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.fountain');message('Guion Fountain descargado, solo escritura y portada.');}
+  catch(error){message('No se pudo exportar Fountain. '+error.message,true);}finally{state.exporting=false;busy(false);}
+}
+$('#export-script-fountain').addEventListener('click',exportWrittenFountain);
+$('#export-script-rtf').addEventListener('click',exportWrittenRtf);
+$('#export-script-txt').addEventListener('click',exportWrittenTxt);
+$('#export-script-pdf').addEventListener('click',downloadWrittenPdf);
+$('#export-technical-pdf').addEventListener('click',exportTechnicalPdf);
+const exportMenu=PlanoExportUI.init({button:$('#open-export'),dialog:$('#export-dialog'),beforeOpen:()=>canSelectShots()&&PlanoTechnicalScript.finishEditing(),hasShots:()=>state.annotations.length>0});

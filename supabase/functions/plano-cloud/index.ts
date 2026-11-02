@@ -20,7 +20,6 @@ Deno.serve(createHandler({
  releases:async(owner:string,action:string,data:unknown)=>(await service('/rest/v1/rpc/plano_release_receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_action:action,p_data:data})})).json(),
  preferences:async(owner:string,action:string,patch:unknown)=>(await service('/rest/v1/rpc/plano_preferences',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_action:action,p_patch:patch})})).json(),
  rpc:async(owner:string,action:string,id:string|null,data:unknown)=>(await service('/rest/v1/rpc/plano_cloud',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_action:action,p_id:id,p_data:data})})).json(),
- upload:async(owner:string,id:string,bytes:Uint8Array)=>{await service(object(owner,id),{method:'POST',headers:{'Content-Type':'application/pdf','x-upsert':'false'},body:bytes});},
  download:async(owner:string,id:string)=>(await service(object(owner,id).replace('/object/','/object/authenticated/'))).blob(),
  remove:async(owner:string,id:string)=>{await service('/storage/v1/object/plano-pdfs',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({prefixes:[`${owner}/${id}.pdf`]})});}
 }));

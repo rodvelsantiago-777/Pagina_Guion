@@ -6,7 +6,7 @@ const {chromium}=load('playwright'),{PDFDocument,StandardFonts}=load('pdf-lib'),
 const out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
 const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document.querySelector('#render-status').hidden);
 const reviewed=page=>page.waitForFunction(()=>state.proofreading.dictionary===PlanoSpelling.version,null,{timeout:30000});
-async function download(page,button,name){const pending=page.waitForEvent('download');await page.locator('#project-menu summary').click();await page.locator(button).click();const file=await pending;const target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
+async function download(page,button,name){const pending=page.waitForEvent('download');if(button==='#save-backup')await page.locator(button).evaluate(b=>b.click());else{await page.locator('#open-export').click();await page.locator(button).click();}const file=await pending;const target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
 (async()=>{
  assert.deepEqual(crew.validate(),{});assert.throws(()=>crew.validate({director:'a'.repeat(161)}));assert.throws(()=>crew.validate([]));
  const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Courier);

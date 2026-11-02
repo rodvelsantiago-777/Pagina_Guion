@@ -10,6 +10,7 @@
   return value.map(item=>{
    if(!item||typeof item.id!=='string'||!item.id||item.id.length>120||ids.has(item.id))throw new Error('Hay correcciones inválidas o repetidas.');
    const clean={id:item.id,createdAt:String(item.createdAt||'').slice(0,100),parts:script.validateSelection(item.parts,pageCount)};
+   if(item.textAnchor){const links=typeof module!=='undefined'&&module.exports?require('./screenplay-links.js'):root.PlanoScreenplayLinks;clean.textAnchor=links.validAnchor(item.textAnchor);}
    if(item.source==='spelling'||item.source==='syntax'){
     if(typeof item.word!=='string'||!item.word||item.word.length>60)throw Error('Hay una palabra de revisión inválida.');
     clean.source=item.source;clean.word=item.word;
