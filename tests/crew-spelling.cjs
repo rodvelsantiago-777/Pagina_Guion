@@ -10,7 +10,7 @@ async function download(page,button,name){const pending=page.waitForEvent('downl
 (async()=>{
  assert.deepEqual(crew.validate(),{});assert.throws(()=>crew.validate({director:'a'.repeat(161)}));assert.throws(()=>crew.validate([]));
  const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Courier);
- for(const [i,heading]of ['INT. CASA - DIA','EXT. CASA - DIA'].entries()){
+ for(const [i,heading]of ['INT. CASA - DÍA','EXT. CASA - DÍA'].entries()){
   const sheet=doc.addPage([595,842]);sheet.drawText(heading,{x:65,y:770,size:12,font});sheet.drawText('La casa tiene una puerta abierta y un herror.',{x:65,y:700,size:12,font});sheet.drawText('MARTIN',{x:220,y:640,size:12,font});sheet.drawText('La pequeña habitación está tranquila.',{x:65,y:600,size:12,font});
  }
  const buffer=Buffer.from(await doc.save()),browser=await require('./editor-auth-fixture.cjs').launch(chromium,process.env.PLANO_BROWSER==='brave'?{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true}:{channel:'msedge',headless:true});

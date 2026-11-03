@@ -247,12 +247,14 @@ async function upload(file,options={}){
       if(!script){script=PlanoScreenplay.fromPdf(pages,file.name.replace(/\.(pdf|plano)$/i,''),owner);basis=script;if(pages.some(page=>page.sourceRotation)){payload={...payload,annotations:uprightNotes(payload.annotations||[],pages),corrections:(payload.corrections||[]).map(item=>({...item,parts:item.parts.map(part=>({...part,rects:part.rects.map(rect=>uprightRect(rect,pages[part.page-1]?.sourceRotation||0))}))}))};}}
     }
     if(!script)throw Error('No se encontró un guion editable válido.');
-    const repaired=PlanoScreenplay.repairPdf(script),repairedBasis=basis===script?repaired:PlanoScreenplay.repairPdf(basis);
-    if(repairedBasis.changed){
-      const remap=anchor=>{if(!anchor)return anchor;const result=structuredClone(anchor);for(const range of [result,result.orphan].filter(Boolean))for(const side of ['from','to']){const point=range[side],move=repairedBasis.mapping.get(point?.id);if(move)range[side]={id:move.id,offset:move.offset+Math.max(0,Math.min(move.length,point.offset-move.cut))};}return result;};
-      payload={...payload,annotations:(payload.annotations||[]).map(item=>({...item,...(item.coverageAnchor?{coverageAnchor:remap(item.coverageAnchor)}:{}),...(item.scriptAnchor?{scriptAnchor:remap(item.scriptAnchor)}:{})})),corrections:(payload.corrections||[]).map(item=>({...item,...(item.textAnchor?{textAnchor:remap(item.textAnchor)}:{})}))};
+    for(const normalize of [PlanoScreenplay.repairPdf,PlanoScreenplay.normalizeSyntax]){
+      const repaired=normalize(script),repairedBasis=basis===script?repaired:normalize(basis);
+      if(repairedBasis.changed&&basis){
+        const remap=anchor=>{if(!anchor)return anchor;const result=structuredClone(anchor);for(const range of [result,result.orphan].filter(Boolean))for(const side of ['from','to']){const point=range[side],move=repairedBasis.mapping.get(point?.id);if(move)range[side]={id:move.id,offset:move.offset+Math.max(0,Math.min(move.length,point.offset-move.cut))};}return result;};
+        payload={...payload,annotations:PlanoScreenplayLinks.attach(payload.annotations||[],basis).map(item=>({...item,...(item.coverageAnchor?{coverageAnchor:remap(item.coverageAnchor)}:{}),...(item.scriptAnchor?{scriptAnchor:remap(item.scriptAnchor)}:{})})),corrections:linkedCorrections(payload.corrections||[],basis).map(item=>({...item,...(item.textAnchor?{textAnchor:remap(item.textAnchor)}:{})}))};
+      }
+      script=repaired.script;basis=repairedBasis.script;
     }
-    script=repaired.script;basis=repairedBasis.script;
     if(PlanoAccounts.getUser()?.id!==owner.id||state.fingerprint!==identity)return false;
     PlanoEditableImport.update('Preparando el guion y conservando sus planos…',65);
     let annotations=payload.annotations||[],corrections=payload.corrections||[];

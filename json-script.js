@@ -81,7 +81,7 @@
     if(!file.size||file.size>maxBytes)throw Error('Selecciona un JSON de guion de hasta 5 MB.');const bytes=new Uint8Array(await file.arrayBuffer());let encoding='utf-8';if(bytes[0]===255&&bytes[1]===254)encoding='utf-16le';else if(bytes[0]===254&&bytes[1]===255)encoding='utf-16be';let text;try{text=new TextDecoder(encoding,{fatal:true}).decode(bytes);}catch{throw Error('El JSON tiene una codificación dañada. Guárdalo como UTF-8.');}return parse(text,{name:file.name,...options});
   }
   function write(value){
-    const script=S.validate(value);if(!script)throw Error('No hay un guion para exportar.');const layout=S.layout(script.doc),coverRows=[];let titleIndex=0,sceneId=null,sceneNumber=0;
+    const script=S.forExport(value);if(!script)throw Error('No hay un guion para exportar.');const layout=S.layout(script.doc,{literal:true}),coverRows=[];let titleIndex=0,sceneId=null,sceneNumber=0;
     function row(type,text,attributes={},extra={}){return{type,text,attributes:{textAttributes:{},...attributes},...extra};}
     const blank=()=>coverRows.push(row('Texto',''));
     for(let i=0;i<17;i++)blank();coverRows.push(row('Title',script.title,script.title?{textAttributes:{b:[{start:0,end:script.title.length-1}]}}:{}));blank();blank();blank();coverRows.push(row('Texto','Escrito por:'));blank();blank();

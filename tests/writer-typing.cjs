@@ -35,9 +35,9 @@ const current=page=>page.evaluate(()=>{const s=PlanoWriter.view().state.selectio
   await page.keyboard.press('ArrowDown');assert.equal(await page.locator('#writer-suggestions [aria-selected=true]').textContent(),first);
   await page.keyboard.press('ArrowDown');assert.notEqual(await page.locator('#writer-suggestions [aria-selected=true]').textContent(),first);
   await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');assert.equal((await current(page)).text,first);
-  await page.keyboard.press('Enter');assert.deepEqual(await current(page),{kind:'parenthetical',text:'()',offset:1});
+  await page.keyboard.press('Enter');assert.deepEqual(await current(page),{kind:'parenthetical',text:'',offset:0});
   await page.keyboard.insertText('en voz baja');await page.keyboard.press('Enter');assert.equal((await current(page)).kind,'dialogue');
-  assert((await page.evaluate(()=>state.screenplay.doc.content.map(PlanoScreenplay.plain))).includes('(en voz baja)'));
+  assert((await page.evaluate(()=>state.screenplay.doc.content.map(PlanoScreenplay.plain))).includes('en voz baja'));
   await page.keyboard.insertText('La cámara está lista.');await page.keyboard.press('Enter');assert.equal((await current(page)).kind,'action');
   await page.keyboard.insertText('Se abre la puerta.');await page.keyboard.press('Enter');assert.equal((await current(page)).kind,'action');
   await reset(page,'scene','INT. CASA - DÍA');await page.keyboard.press('Enter');assert.equal((await current(page)).kind,'action');

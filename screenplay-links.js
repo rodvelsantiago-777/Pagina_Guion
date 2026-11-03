@@ -22,7 +22,7 @@
   const contact=[];for(const author of script.authors){if(!author.email&&!author.phone&&!author.contact)continue;for(const text of [author.name,author.email,author.phone,author.contact].filter(s=>s.trim()))contact.push(...S.wrap(text,60));contact.push('');}if(contact.at(-1)==='')contact.pop();
   let titlePages=1,contactTop=Math.max(top+36,720-contact.length*12);for(const line of contact){if(contactTop>708){titlePages++;contactTop=72;}contactTop+=12;}
   const flow=S.layout(script.doc),pages=Array.from({length:titlePages+flow.pageCount},()=>({width:612,height:792}));
-  return{pages,index:byId,rows:flow.blocks.flatMap(block=>block.lines.map(line=>({blockId:block.id,page:titlePages+line.page+1,from:line.from,to:line.to,text:line.text,pos:block.pos+1+line.from,x:(S.types[line.kind].right?540-line.text.trimEnd().length*7.2:S.types[line.kind].left)/612,y:(73.2+line.row*12)/792,width:line.text.length*7.2/612,height:12/792})))};
+  return{pages,index:byId,rows:flow.blocks.flatMap(block=>block.lines.map(line=>({blockId:block.id,page:titlePages+line.page+1,from:line.from,to:line.to,text:line.text,pos:block.pos+1+line.from,x:(S.types[line.kind].right?540-line.text.trimEnd().length*7.2:S.types[line.kind].left+(line.prefix?.length||0)*7.2)/612,y:(73.2+line.row*12)/792,width:line.text.length*7.2/612,height:12/792})))};
  }
  function nearest(map,page,y){return map.rows.reduce((best,row)=>{const distance=Math.abs(row.page-page)*2+Math.abs(row.y-y);return !best||distance<best.distance?{row,distance}:best;},null)?.row;}
  const endpoint=(row,offset)=>({id:row.blockId,offset:clamp(offset,row.from,row.to)});

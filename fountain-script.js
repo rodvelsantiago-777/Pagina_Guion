@@ -83,7 +83,7 @@
  }
  async function read(file,options={}){if(!file.size||file.size>maxBytes)throw Error('Selecciona un Fountain de texto de hasta 2 MB.');return parse(decode(new Uint8Array(await file.arrayBuffer())),{name:file.name,...options});}
  async function write(value){
-  const script=S.validate(value);if(!script)throw Error('No hay un guion para exportar.');const escape=text=>text.replace(/[\\*_\[\]]/g,'\\$&');let header='Title:\n'+script.title.split('\n').map(line=>'    '+escape(line)).join('\n');
+  const script=S.forExport(value);if(!script)throw Error('No hay un guion para exportar.');const escape=text=>text.replace(/[\\*_\[\]]/g,'\\$&');let header='Title:\n'+script.title.split('\n').map(line=>'    '+escape(line)).join('\n');
   if(script.authors.some(a=>a.name)){header+='\nCredit: Escrito por\nAuthors:\n'+script.authors.filter(a=>a.name).map(a=>'    '+escape(a.name)).join('\n');}
   const contacts=script.authors.map(a=>[script.authors.length>1?a.name:'',a.email,a.phone,a.contact].filter(Boolean).join('\n')).filter(Boolean);if(contacts.length)header+='\nContact:\n'+contacts.flatMap(value=>value.split('\n').map(line=>'    '+escape(line))).join('\n');
   let text=header+'\n\n',speaker=false,sceneNumber=0;const paragraphs=[];

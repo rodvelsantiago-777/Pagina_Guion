@@ -1,7 +1,7 @@
 /* PDF Unicode: texto seleccionable, disposición original y conversión sin perder cobertura. */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 const {chromium}=require('./runtime-deps.cjs').load('playwright'),root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
-const canonical=text=>text.normalize('NFD').replace(/\s/g,'');
+const canonical=text=>text.normalize('NFD').replace(/\((?:CONT[’']?D|CONT\.?|CONTINUED)\)/gi,'').replace(/\s/g,'');
 (async()=>{
  const browser=await require('./editor-auth-fixture.cjs').launch(chromium,process.env.PLANO_BROWSER==='brave'?{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true}:{channel:'msedge',headless:true});
  try{
@@ -19,7 +19,7 @@ const canonical=text=>text.normalize('NFD').replace(/\s/g,'');
   assert.deepEqual(proof.read.map(canonical),proof.source.map(canonical),'El PDF conserva cada carácter como texto, sin rasterizar las filas');assert(proof.model[1].includes('Q \u0301 hubo'),'El modelo conserva el texto original');assert.equal((canonical(proof.flow.join(' ')).match(/Łódź,ΩyЖ\./g)||[]).length,4,'Los cuatro estilos mantienen el texto Unicode');
   assert.equal(requests.filter(url=>url.includes('/vendor/pdf-unicode.js')).length,1,'La fuente se carga una sola vez al necesitarla');
   const bytes=process.env.PLANO_PDF_REFERENCE?fs.readFileSync(process.env.PLANO_PDF_REFERENCE):Buffer.from(proof.bytes),name=process.env.PLANO_PDF_REFERENCE?path.basename(process.env.PLANO_PDF_REFERENCE):'Conversión Unicode.pdf';
-  const source=await page.evaluate(async bytes=>{const pages=await readEditablePdf(new File([new Uint8Array(bytes)],'Original.pdf'));return{pages,script:PlanoScreenplay.fromPdf(pages,'Referencia',PlanoAccounts.getUser())};},[...bytes]);
+  const source=await page.evaluate(async bytes=>{const pages=await readEditablePdf(new File([new Uint8Array(bytes)],'Original.pdf'));return{pages,script:PlanoScreenplay.normalizeSyntax(PlanoScreenplay.fromPdf(pages,'Referencia',PlanoAccounts.getUser())).script};},[...bytes]);
   await page.locator('#file-input').setInputFiles({name,mimeType:'application/pdf',buffer:bytes});await page.waitForFunction(()=>!state.busy);assert(await page.evaluate(()=>Boolean(state.pdf)),'El PDF debe abrirse después de convertirlo: '+await page.locator('#feedback').textContent());
   const converted=await page.evaluate(()=>({pages:state.pages.map(p=>({width:p.width,height:p.height,text:p.lines.map(l=>l.text).join(' ')})),script:PlanoScreenplay.validate(state.screenplay)}));
   assert.deepEqual(converted.pages.map(p=>canonical(p.text)),source.pages.map(p=>canonical(p.lines.map(l=>l.text).join(' '))),'El documento completo conserva su texto página a página');

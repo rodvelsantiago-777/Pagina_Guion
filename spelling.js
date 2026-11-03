@@ -1,7 +1,7 @@
 /* Revisión local compartida por el PDF y los campos de escritura, sin servicios externos. */
 (function(root){
  'use strict';
- const version='es-4.0.0-review-2';
+ const version='es-4.0.0-review-3';
  const review=typeof module==='object'&&module.exports?require('./language-review.js'):root.PlanoLanguageReview;
  function validate(value){
   if(value===undefined)return{enabled:true,dictionary:'',ignored:[]};
@@ -38,12 +38,12 @@
   });
  }
  async function checkText(text,{load,signal}){
-  const grammar=review.syntax(text),words=[...new Set(review.candidates(text).map(item=>item.text))];
+  const grammar=review.syntax(text),words=[...new Set(review.candidates(text).map(item=>item.lookup))];
   const result=await checkWords(words,{load,signal,suggestions:true});
   return [...grammar,...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind));
  }
  async function checkBlocks(texts,{load,signal,suggestions=false}){
-  const words=[...new Set(texts.flatMap(text=>review.candidates(text).map(item=>item.text)))].slice(0,20000);
+  const words=[...new Set(texts.flatMap(text=>review.candidates(text).map(item=>item.lookup)))].slice(0,20000);
   const result=await checkWords(words,{load,signal,suggestions});
   return texts.map(text=>[...review.syntax(text),...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind)));
  }
@@ -52,7 +52,9 @@
   for(const [index,page]of pages.entries()){
    if(signal.aborted)throw aborted();let current=null,previous=null;
    for(const [lineIndex,line]of page.lines.entries()){
-    if((scenes.length&&!root.PlanoScenes.sceneAt(scenes,index+1,line.y))||line.text===line.text.toLocaleUpperCase('es')){current=null;previous=null;continue;}
+    const heading=root.PlanoScenes.isSceneHeading(line.text),cue=!heading&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33;
+    if((scenes.length&&!root.PlanoScenes.sceneAt(scenes,index+1,line.y))||cue){current=null;previous=null;continue;}
+    if(heading||previous&&root.PlanoScenes.isSceneHeading(previous.text)){current=null;previous=null;}
     if(previous&&line.y-previous.y>Math.max(line.height,previous.height)*2.3)current=null;
     if(!current){current={page:index+1,index:lineIndex,text:'',lines:[]};blocks.push(current);}
     if(current.text)current.text+='\n';
@@ -78,12 +80,13 @@
   }return rects.length?[{page:block.page,text:issue.text,rects}]:[];
  }
  async function scan({pages,scenes,ignored,load,signal}){
-  const blocks=await blocksFrom(pages,scenes,signal),words=[...new Set(blocks.flatMap(block=>review.candidates(block.text).map(item=>item.text)))].slice(0,20000);
+  const blocks=await blocksFrom(pages,scenes,signal),words=[...new Set(blocks.flatMap(block=>review.candidates(block.text).map(item=>item.lookup)))].slice(0,20000);
+  const names=new Set(pages.flatMap(page=>page.lines.filter(line=>!root.PlanoScenes.isSceneHeading(line.text)&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33).flatMap(line=>review.tokens(line.text).map(word=>word.word))));
   const result=await checkWords(words,{load,signal}),skip=new Set(ignored),found=[];
   const canvas=document.createElement('canvas'),context=canvas.getContext('2d');context.font='16px "Courier New",monospace';
   try{
    for(const block of blocks)for(const issue of [...review.syntax(block.text),...review.spelling(block.text,result)]){
-    if(skip.has(issue.key))continue;
+    if(skip.has(issue.key)||issue.kind==='spelling'&&names.has(issue.text.toLocaleLowerCase('es').normalize('NFC')))continue;
     const parts=geometry(block,issue,context);if(!parts.length)continue;
     found.push({id:`${issue.kind}-${block.page}-${block.index}-${issue.start}-${review.hash(issue.key)}`,source:issue.kind,word:issue.text.slice(0,60),ignoreKey:issue.key,message:issue.message,parts});
    }

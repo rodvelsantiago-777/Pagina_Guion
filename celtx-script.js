@@ -78,7 +78,7 @@
  }
  function inline(runs){return(runs||[]).map(run=>{let text=escape(run.text).replace(/\n/g,'<br>');for(const mark of run.marks||[])text=mark.type==='bold'?'<strong>'+text+'</strong>':mark.type==='italic'?'<em>'+text+'</em>':mark.type==='underline'?'<u>'+text+'</u>':mark.type==='character'?'<span data-character="'+escape(mark.attrs.name)+'">'+text+'</span>':text;return text;}).join('');}
  async function write(value){
-  const S=root.PlanoScreenplay,script=S.validate(value);if(!script||!root.JSZip)throw Error('No se pudo preparar el Celtx.');
+  const S=root.PlanoScreenplay,script=S.forExport(value);if(!script||!root.JSZip)throw Error('No se pudo preparar el Celtx.');
   const token=()=>S.id().replace(/-/g,''),project='http://celtx.com/project/'+token(),folder='http://celtx.com/res/'+token(),components='http://celtx.com/res/'+token(),document='http://celtx.com/res/'+token(),sequence='http://celtx.com/res/'+token(),catalog='http://celtx.com/res/'+token(),members='http://celtx.com/res/'+token(),file='script-'+token()+'.html';
   const classes={scene:'sceneheading',action:'action',character:'character',parenthetical:'parenthetical',dialogue:'dialog',transition:'transition',insert:'shot',section:'action'},scenes=[],paragraphs=[];
   for(const node of script.doc.content){const id='s'+token();if(node.attrs.kind==='scene')scenes.push({id,title:S.plain(node)});paragraphs.push('<p class="'+classes[node.attrs.kind]+'" data-kind="'+node.attrs.kind+'" data-preserve="1"'+(!paragraphs.length?' data-screenplay="1"':'')+' id="'+id+'">'+inline(node.content)+'<br></p>');}

@@ -119,7 +119,7 @@
     return parse(decode(new Uint8Array(await file.arrayBuffer())),{name:file.name,...options});
   }
   function write(value){
-    const script=S.validate(value);if(!script)throw Error('No hay un guion para exportar.');
+    const script=S.forExport(value);if(!script)throw Error('No hay un guion para exportar.');
     const center=text=>' '.repeat(Math.max(0,Math.floor((68-text.length)/2)))+text;
     const lines=Array(17).fill('');lines.push(center(script.title||'Sin título'),'','',center('Escrito por:'));
     for(const author of script.authors)if(author.name.trim())lines.push('',center(author.name));

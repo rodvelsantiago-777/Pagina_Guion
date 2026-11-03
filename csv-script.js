@@ -74,7 +74,7 @@
   }
   async function read(file,options={}){if(!file.size||file.size>maxBytes)throw Error('Selecciona un CSV de guion de hasta 5 MB.');return parse(decode(new Uint8Array(await file.arrayBuffer())),{name:file.name,...options});}
   function write(value){
-    const script=S.validate(value);if(!script)throw Error('No hay un guion para exportar.');const rows=[['Tipo','Texto (literal)'],['Title',script.title]];
+    const script=S.forExport(value);if(!script)throw Error('No hay un guion para exportar.');const rows=[['Tipo','Texto (literal)'],['Title',script.title]];
     if(script.authors.some(a=>a.name))rows.push(['Texto','Escrito por:']);
     for(const [index,author]of script.authors.entries()){const suffix=script.authors.length>1?' '+(index+1):'';rows.push(['Author'+suffix,author.name]);for(const [field,label]of [['email','Address'],['phone','Phone'],['contact','Contact']])if(author[field])rows.push([label+suffix,author[field]]);}
     for(const node of script.doc.content)rows.push([types[node.attrs.kind],S.plain(node)]);
