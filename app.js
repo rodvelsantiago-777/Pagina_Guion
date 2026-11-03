@@ -137,7 +137,9 @@ function readLocalScreenplayPayload(hash) {
 async function generateScreenplayPdf(screenplay) {
   const version = new URL($("script[src^='app.js']").src).search;
   if (!window.PDFLib) await loadScript(`vendor/pdf-lib.min.js${version}`);
-  return PlanoScreenplay.pdf(screenplay,{loadUnicode:async()=>{
+  await Promise.all([window.fontkit?null:loadScript(`vendor/fontkit.min.js${version}`),window.PlanoScreenplayFonts?null:loadScript(`vendor/screenplay-fonts.js${version}`)]);
+  await window.PlanoScreenplayFonts.ready;
+  return PlanoScreenplay.pdf(screenplay,{primaryFonts:{fontkit:window.fontkit,face:window.PlanoScreenplayFonts.face},loadUnicode:async()=>{
     if(!window.PlanoPdfUnicode)try{await loadScript(`vendor/pdf-unicode.js${version}`);}catch{throw Error('No se pudieron cargar las fuentes del guion. Recarga la página y vuelve a intentarlo; el PDF original se conserva.');}
     if(!window.PlanoPdfUnicode?.fontkit)throw Error('No se pudieron cargar las fuentes del guion. Recarga la página y vuelve a intentarlo; el PDF original se conserva.');
     return window.PlanoPdfUnicode;
@@ -245,6 +247,12 @@ async function upload(file,options={}){
       if(!script){script=PlanoScreenplay.fromPdf(pages,file.name.replace(/\.(pdf|plano)$/i,''),owner);basis=script;if(pages.some(page=>page.sourceRotation)){payload={...payload,annotations:uprightNotes(payload.annotations||[],pages),corrections:(payload.corrections||[]).map(item=>({...item,parts:item.parts.map(part=>({...part,rects:part.rects.map(rect=>uprightRect(rect,pages[part.page-1]?.sourceRotation||0))}))}))};}}
     }
     if(!script)throw Error('No se encontró un guion editable válido.');
+    const repaired=PlanoScreenplay.repairPdf(script),repairedBasis=basis===script?repaired:PlanoScreenplay.repairPdf(basis);
+    if(repairedBasis.changed){
+      const remap=anchor=>{if(!anchor)return anchor;const result=structuredClone(anchor);for(const range of [result,result.orphan].filter(Boolean))for(const side of ['from','to']){const point=range[side],move=repairedBasis.mapping.get(point?.id);if(move)range[side]={id:move.id,offset:move.offset+Math.max(0,Math.min(move.length,point.offset-move.cut))};}return result;};
+      payload={...payload,annotations:(payload.annotations||[]).map(item=>({...item,...(item.coverageAnchor?{coverageAnchor:remap(item.coverageAnchor)}:{}),...(item.scriptAnchor?{scriptAnchor:remap(item.scriptAnchor)}:{})})),corrections:(payload.corrections||[]).map(item=>({...item,...(item.textAnchor?{textAnchor:remap(item.textAnchor)}:{})}))};
+    }
+    script=repaired.script;basis=repairedBasis.script;
     if(PlanoAccounts.getUser()?.id!==owner.id||state.fingerprint!==identity)return false;
     PlanoEditableImport.update('Preparando el guion y conservando sus planos…',65);
     let annotations=payload.annotations||[],corrections=payload.corrections||[];
@@ -2402,6 +2410,7 @@ async function downloadWrittenPdf(){
 }
 PlanoWriter.init({
   load:src=>loadScript(src+new URL($("script[src^='app.js']").src).search),
+  proofreading:()=>state.proofreading,
   toggleProofreading:()=>$("#toggle-spelling").click(),
   hasCoverageVersion:()=>false,
   changed:(screenplay,change)=>{

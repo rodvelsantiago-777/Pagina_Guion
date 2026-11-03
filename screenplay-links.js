@@ -16,7 +16,7 @@
  }
  function geometry(script){
   const source=script.sourceLayout,byId=new Map(blocks(script.doc).map(block=>[block.id,block]));
-  if(source?.revision===script.revision)return{pages:source.pages,index:byId,rows:source.rows.filter(row=>row.id).flatMap(row=>{const block=byId.get(row.id);return(row.parts||[[0,block.text.length,row.x,row.width]]).map(part=>({...row,blockId:row.id,from:part[0],to:part[1],x:part[2],width:part[3],text:block.text.slice(part[0],part[1]),pos:block.pos+1+part[0]}));})};
+  if(source?.revision===script.revision)return{pages:source.pages,index:byId,rows:source.rows.filter(row=>row.id).flatMap(row=>{const block=byId.get(row.id),offset=row.from||0,end=row.to??block.text.length;return(row.parts||[[0,end-offset,row.x,row.width]]).map(part=>({...row,blockId:row.id,from:offset+part[0],to:offset+part[1],x:part[2],width:part[3],text:block.text.slice(offset+part[0],offset+part[1]),pos:block.pos+1+offset+part[0]}));})};
   let top=252+S.wrap(script.title||'Sin título',60).length*12+48;
   for(const author of script.authors.filter(a=>a.name.trim()))top+=S.wrap(author.name,60).length*12+6;
   const contact=[];for(const author of script.authors){if(!author.email&&!author.phone&&!author.contact)continue;for(const text of [author.name,author.email,author.phone,author.contact].filter(s=>s.trim()))contact.push(...S.wrap(text,60));contact.push('');}if(contact.at(-1)==='')contact.pop();

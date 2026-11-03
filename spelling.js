@@ -42,6 +42,11 @@
   const result=await checkWords(words,{load,signal,suggestions:true});
   return [...grammar,...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind));
  }
+ async function checkBlocks(texts,{load,signal,suggestions=false}){
+  const words=[...new Set(texts.flatMap(text=>review.candidates(text).map(item=>item.text)))].slice(0,20000);
+  const result=await checkWords(words,{load,signal,suggestions});
+  return texts.map(text=>[...review.syntax(text),...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind)));
+ }
  async function blocksFrom(pages,scenes,signal){
   const blocks=[];
   for(const [index,page]of pages.entries()){
@@ -85,5 +90,5 @@
   }finally{canvas.width=canvas.height=0;}
   return found;
  }
- const api={version,validate,scan,checkText,stop};if(typeof module==='object'&&module.exports)module.exports=api;else{root.PlanoSpelling=api;root.addEventListener('beforeunload',()=>stop());}
+ const api={version,validate,scan,checkText,checkBlocks,stop};if(typeof module==='object'&&module.exports)module.exports=api;else{root.PlanoSpelling=api;root.addEventListener('beforeunload',()=>stop());}
 })(globalThis);

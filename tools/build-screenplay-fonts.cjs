@@ -1,0 +1,8 @@
+/* Courier Prime original, commit 7fd585a2dd4c1612c79b3308e300923d1c13df93, SIL OFL 1.1. */
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),root=path.resolve(__dirname,'../vendor');
+const hashes={Regular:'72f793376f8e2841656bf21d77a5de010f2929bd6956a22ee848ad0c7eb978af',Bold:'ff1f38786c849d1c41fa8e447960abdb2bd75fdfb0cfcdeb524fad65a5af3638',Italic:'f1b9a5829789f7e56432a9f3bc7665ef4531dbba1c112639e48bef39621a006b',BoldItalic:'3355273f3ea6d6362658f9564f4e83d59e156cf1a182e3c1592b5c5943627dcc'},data={};
+for(const [kind,name]of Object.entries({normal:'Regular',bold:'Bold',italic:'Italic',both:'BoldItalic'})){const bytes=fs.readFileSync(path.join(root,'CourierPrime-'+name+'.ttf'));if(crypto.createHash('sha256').update(bytes).digest('hex')!==hashes[name])throw Error('Fuente distinta a la versión verificada: '+name);data[kind]=bytes.toString('base64');}
+fs.writeFileSync(path.join(root,'screenplay-fonts.js'),`/* Courier Prime, SIL OFL 1.1. Fuente local de guion a 12 pt. */
+(function(root){const raw=${JSON.stringify(data)},faces={};for(const [kind,encoded]of Object.entries(raw))faces[kind]=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));const ready=Promise.all(Object.entries(faces).map(async([kind,bytes])=>{const font=new FontFace('PLANO Courier',bytes,{weight:kind==='bold'||kind==='both'?'700':'400',style:kind==='italic'||kind==='both'?'italic':'normal'});await font.load();document.fonts.add(font);}));root.PlanoScreenplayFonts={face:kind=>faces[kind],ready};})(globalThis);
+`);
+console.log('Courier Prime empaquetada para editor y PDF.');

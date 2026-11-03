@@ -2,6 +2,20 @@
 
 Aplicación web de producción audiovisual en HTML, CSS y JavaScript. Interfaz en español y adaptable a escritorio, tableta y móvil. Incluye un visor propio basado en [PDF.js de Mozilla](https://mozilla.github.io/pdf.js/), distribuido en `vendor/` con sus recursos y licencias. El acceso requiere una cuenta de Firebase con correo verificado; los PDF y las anotaciones se procesan en el navegador. No requiere compilación.
 
+## Formato físico del guion y portada
+
+Editor y PDF usan los mismos archivos locales de Courier Prime: 12 pt (16 px CSS), Carta 612 × 792 pt, interlineado de 12 pt, margen izquierdo de acción de 1,5 pulgadas y los otros de 1 pulgada. Los bloques se alinean a la izquierda con sus sangrías de guion; hay una línea entre párrafos y dos antes de una nueva escena. Los números de escena quedan fuera del texto en los márgenes. La portada no se numera: título centrado en mayúsculas y negrita, autores en caja normal debajo y datos de contacto abajo a la izquierda. El tamaño cambia visualmente con el zoom, sin alterar las medidas del PDF.
+
+La importación agrupa los renglones consecutivos de un mismo párrafo según su geometría. `sourceLayout.rows` conserva el rango de caracteres de cada renglón y las cifras marginales por separado; así se mantiene la disposición original y se puede editar y repaginar sin añadir una línea vacía por cada renglón. Los proyectos anteriores que conservan esa disposición se reparan al abrirlos, remapeando los vínculos de planos y correcciones. No se fusionan automáticamente los párrafos de documentos escritos por el usuario sin geometría de importación.
+
+Se contrastó con [Taller de Escritores](https://www.tallerdeescritores.com/el-formato-del-guion-de-cine), [Aprendercine](https://aprendercine.com/guion-literario-formato-plantilla/), la guía de [Scribd](https://es.scribd.com/document/1055189074/Formato-de-Guion-de-Cine) y la documentación de [WriterDuet](https://www.writerduet.com/blog/the-why-and-how-of-screenplay-formatting/). Sus márgenes varían y no se presentan como una norma universal: la aplicación mantiene una convención coherente de Carta/Courier compatible con la referencia visual. `tests/writer-format.cjs` mide tamaño, interlineado, espacios, márgenes, portada y PDF, además de la reparación de una importación anterior con cobertura.
+
+## Ortografía y personajes en el redactor
+
+El cuerpo editable combina el corrector nativo con revisión local del diccionario español y reglas conservadoras de redacción. Las palabras no reconocidas se subrayan en rojo y los avisos de sintaxis en azul; pulsarlos muestra sugerencias compactas, sin interceptar el menú contextual nativo. Las correcciones admiten deshacer. Los avisos son decoraciones de ProseMirror: no cambian el modelo, no se guardan en el guion ni se exportan. Se revisan solo los párrafos modificados después de una pausa; mover el cursor reutiliza los resultados. El diccionario se carga localmente y el texto no se envía a servicios de revisión. La opción de ortografía de la barra inferior controla ambas revisiones.
+
+Un nombre ya conocido escrito solo en un párrafo de acción se convierte en personaje de diálogo al pulsar Enter; el siguiente elemento es una acotación y luego un diálogo. Las coincidencias en acciones admiten prefijos, mayúsculas/minúsculas y tildes. Marcar un nombre que coincide con otro existente reutiliza su identidad; pulsar o seleccionar texto ya marcado no ofrece registrarlo otra vez. `tests/writer-assistance.cjs` usa el diccionario real y comprueba subrayados, sugerencias, sintaxis, deshacer, activación, revisión incremental y estos recorridos de personajes.
+
 ## Conversión de PDF con tildes combinadas
 
 El generador usa una fuente local Unicode cuando Courier/WinAnsi no puede representar un carácter, por ejemplo U+0301 incluso separado de su vocal. La disposición inicial mantiene las mismas páginas, dimensiones, coordenadas y texto seleccionable. No se borran caracteres ni se convierte una fila completa en imagen para eludir el error. Los recursos adicionales solo se cargan al necesitarlos y se incrustan subconjuntos en el PDF generado; no aumentan el JSON guardado en la cuenta.

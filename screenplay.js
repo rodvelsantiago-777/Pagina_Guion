@@ -14,7 +14,7 @@
   const authorIds=new Set();for(const author of value.authors){if(!author||typeof author.id!=='string'||!/^[-\w]{1,80}$/.test(author.id)||authorIds.has(author.id))throw Error('Hay autores inválidos.');authorIds.add(author.id);const item={id:author.id};for(const [key,max]of Object.entries({name:120,email:254,phone:80,contact:300})){if(typeof author[key]!=='string'||author[key].length>max)throw Error('Los datos de un autor son demasiado largos.');item[key]=author[key].replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');}clean.authors.push(item);}
   const registry=new Set();for(const name of value.characters){if(typeof name!=='string'||!name.trim()||name.length>80)throw Error('Hay personajes inválidos.');registry.add(canonical(name));}clean.characters=[...registry];
   if(value.doc?.type!=='doc'||!Array.isArray(value.doc.content)||!value.doc.content.length||value.doc.content.length>8000)throw Error('El contenido del guion no es válido.');
-  const ids=new Set();let length=0;
+  const ids=new Set(),nodeLengths=new Map();let length=0;
   for(const paragraph of value.doc.content){
    if(paragraph.type!=='paragraph'||!Object.hasOwn(types,paragraph.attrs?.kind)||typeof paragraph.attrs.id!=='string'||!/^[-\w]{1,80}$/.test(paragraph.attrs.id)||ids.has(paragraph.attrs.id))throw Error('Hay párrafos de guion inválidos.');ids.add(paragraph.attrs.id);
    const node={type:'paragraph',attrs:{kind:paragraph.attrs.kind,id:paragraph.attrs.id},content:[]};
@@ -22,15 +22,16 @@
     if(piece.type!=='text'||typeof piece.text!=='string'||!piece.text.length)throw Error('Hay texto de guion inválido.');length+=piece.text.length;if(length>220000)throw Error('Este guion supera el tamaño de texto admitido.');
     const item={type:'text',text:piece.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'')},seen=new Set();if(!item.text)continue;
     for(const mark of piece.marks||[]){if(!['bold','italic','underline','character'].includes(mark.type)||seen.has(mark.type))throw Error('Hay formato de texto inválido.');seen.add(mark.type);if(mark.type==='character'){const name=mark.attrs?.name;if(typeof name!=='string'||!name.trim()||name.length>80)throw Error('Hay referencias de personaje inválidas.');(item.marks||=[]).push({type:'character',attrs:{name:canonical(name)}});}else(item.marks||=[]).push({type:mark.type});}node.content.push(item);
-   }if(!node.content.length)delete node.content;clean.doc.content.push(node);
+   }if(!node.content.length)delete node.content;clean.doc.content.push(node);nodeLengths.set(node.attrs.id,plain(node).length);
   }
   if(value.sourceLayout){
    const source=value.sourceLayout;
    if(source.version!==1||!Number.isSafeInteger(source.revision)||source.revision<0||!Array.isArray(source.pages)||!source.pages.length||source.pages.length>2000||!Array.isArray(source.rows)||source.rows.length>12000)throw Error('La disposición del guion importado no es válida.');
-   clean.sourceLayout={version:1,revision:source.revision,pages:source.pages.map(page=>{if(!Number.isFinite(page.width)||!Number.isFinite(page.height)||page.width<1||page.height<1||page.width>20000||page.height>20000)throw Error('Hay tamaños de página inválidos.');return{width:page.width,height:page.height};}),rows:source.rows.map(row=>{
+   clean.sourceLayout={version:1,revision:source.revision,...(source.paragraphs===1?{paragraphs:1}:{}),pages:source.pages.map(page=>{if(!Number.isFinite(page.width)||!Number.isFinite(page.height)||page.width<1||page.height<1||page.width>20000||page.height>20000)throw Error('Hay tamaños de página inválidos.');return{width:page.width,height:page.height};}),rows:source.rows.map(row=>{
     if(!Number.isInteger(row.page)||row.page<1||row.page>source.pages.length||['x','y','width','height'].some(key=>!Number.isFinite(row[key])||row[key]<0||row[key]>1.1)||row.id&&!ids.has(row.id)||!row.id&&(typeof row.text!=='string'||row.text.length>3000))throw Error('Hay posiciones de texto inválidas.');
     const parts=row.parts;if(parts&&(!Array.isArray(parts)||parts.length>500||parts.some(p=>!Array.isArray(p)||p.length!==4||!Number.isInteger(p[0])||!Number.isInteger(p[1])||p[0]<0||p[1]<p[0]||p[1]>3000||!Number.isFinite(p[2])||!Number.isFinite(p[3])||p[2]<0||p[2]>1.1||p[3]<0||p[3]>1.1)))throw Error('Hay fragmentos de texto inválidos.');
-    return{...(row.id?{id:row.id}:{text:row.text}),page:row.page,x:row.x,y:row.y,width:row.width,height:row.height,...(parts?{parts:parts.map(p=>[...p])}:{})};
+    if(row.from!==undefined||row.to!==undefined){if(!row.id||!Number.isInteger(row.from)||!Number.isInteger(row.to)||row.from<0||row.to<row.from||row.to>nodeLengths.get(row.id))throw Error('Hay rangos de texto importado inválidos.');}
+    return{...(row.id?{id:row.id}:{text:row.text}),page:row.page,x:row.x,y:row.y,width:row.width,height:row.height,...(row.from!==undefined?{from:row.from,to:row.to}:{}),...(parts?{parts:parts.map(p=>[...p])}:{})};
    })};
   }
   return clean;
@@ -47,14 +48,15 @@
   }return lines;
  }
  function layout(doc){
-  const blocks=[],pages=[[]];let page=0,row=0,pos=0,speaker='';
+  const blocks=[],pages=[[]];let page=0,row=0,pos=0,speaker='',sceneNumber=0;
   for(const node of doc.content){
    const text=plain(node),kind=node.attrs.kind,spec=types[kind],lines=wrap(spec.upper?text.toLocaleUpperCase('es'):text,spec.columns);
    if(kind==='character')speaker=cue(text);else if(!['dialogue','parenthetical'].includes(kind))speaker='';
-   let space=row&& !['dialogue','parenthetical'].includes(kind)?1:0;
+   if(kind==='scene'&&text.trim())sceneNumber++;
+   let space=row&&!['dialogue','parenthetical'].includes(kind)?kind==='scene'?2:1:0;
    const keep=kind==='scene'?Math.min(4,lines.length+2):kind==='character'?Math.min(3,lines.length+2):1;
    let before=0,breakBefore=false;if(row+space+keep>format.lines){before=format.lines-row;page++;pages.push([]);row=0;space=0;breakBefore=true;}
-   const block={id:node.attrs.id,kind,text,pos,size:text.length+2,lines:[],space,before,breakBefore,page,startRow:row};row+=space;
+   const block={id:node.attrs.id,kind,text,pos,size:text.length+2,lines:[],space,before,breakBefore,page,startRow:row,...(kind==='scene'&&text.trim()?{sceneNumber}: {})};row+=space;
    for(const [index,line]of lines.entries()){
     let continuation=null;
     if(kind==='dialogue'&&speaker&&row===53&&lines.length-index>1){
@@ -80,12 +82,13 @@
   }return{scenes,characters:[...characters.values()]};
  }
  function runs(node,from,to){const result=[];let offset=0;for(const piece of node.content||[]){const a=Math.max(from-offset,0),b=Math.min(to-offset,piece.text.length);if(a<b)result.push({text:piece.text.slice(a,b),marks:piece.marks||[]});offset+=piece.text.length;}return result;}
- async function pdf(value,{loadUnicode}={}){
+ async function pdf(value,{loadUnicode,primaryFonts}={}){
   const script=validate(value);if(!root.PDFLib)throw Error('No se pudo cargar el generador PDF.');const {PDFDocument,StandardFonts,rgb}=root.PDFLib;
   const document=await PDFDocument.create(),fonts={normal:await document.embedFont(StandardFonts.Courier),bold:await document.embedFont(StandardFonts.CourierBold),italic:await document.embedFont(StandardFonts.CourierOblique),both:await document.embedFont(StandardFonts.CourierBoldOblique)};
-  const unicodeFonts=new Map();
+  const unicodeFonts=new Map(),primary=new Map();
   async function textFont(text,kind){
-   const standard=fonts[kind];try{standard.encodeText(text);return standard;}catch{}
+   if(primaryFonts){if(!primary.has(kind)){document.registerFontkit(primaryFonts.fontkit);const font=await document.embedFont(primaryFonts.face(kind),{subset:true});primary.set(kind,{font,supported:new Set(font.getCharacterSet())});}const face=primary.get(kind);if(Array.from(text).every(char=>face.supported.has(char.codePointAt(0))))return face.font;}
+   else{const standard=fonts[kind];try{standard.encodeText(text);return standard;}catch{}}
    if(!unicodeFonts.has(kind)){
     const resources=root.PlanoPdfUnicode||await loadUnicode?.();
     if(!resources?.fontkit)throw Error('No se pudieron cargar las fuentes Unicode del guion. El PDF original se conserva.');
@@ -107,25 +110,58 @@
   }
   if(script.sourceLayout?.revision===script.revision){
    const source=script.sourceLayout,pages=source.pages.map(size=>document.addPage([size.width,size.height])),nodes=new Map(script.doc.content.map(node=>[node.attrs.id,node]));
-   for(const row of source.rows){const node=nodes.get(row.id),text=node?plain(node):row.text;if(!text)continue;const page=pages[row.page-1],size=source.pages[row.page-1],kind=node&&['scene','section'].includes(node.attrs.kind)?'bold':'normal',fontSize=row.height*size.height;
+   for(const row of source.rows){const node=nodes.get(row.id),text=node?plain(node).slice(row.from||0,row.to):row.text;if(!text)continue;const page=pages[row.page-1],size=source.pages[row.page-1],kind=node&&['scene','section'].includes(node.attrs.kind)?'bold':'normal',fontSize=row.height*size.height;
     for(const part of row.parts||[[0,text.length,row.x,row.width]]){const fragment=text.slice(part[0],part[1]),font=await textFont(fragment,kind);page.drawText(fragment,{x:part[2]*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});}
    }
    return{bytes:await document.save(),titlePages:0,pages:pages.length};
   }
-  const cover=document.addPage([612,792]),titleLines=wrap(script.title||'Sin título',60);let top=252;
-  for(const line of titleLines){await draw(cover,line.text,108+(432-line.text.length*7.2)/2,top,[{type:'bold'}]);top+=12;}
-  top+=24;await draw(cover,'Escrito por',108+(432-10*7.2)/2,top);top+=24;
-  for(const author of script.authors.filter(a=>a.name.trim())){for(const line of wrap(author.name,60)){await draw(cover,line.text,108+(432-line.text.length*7.2)/2,top);top+=12;}top+=6;}
+  const cover=document.addPage([612,792]),titleLines=wrap((script.title||'Sin título').toLocaleUpperCase('es'),60);let top=252;
+  for(const line of titleLines){await draw(cover,line.text,(612-line.text.length*7.2)/2,top,[{type:'bold'}]);top+=12;}
+  top+=24;await draw(cover,'Escrito por',(612-10*7.2)/2,top);top+=24;
+  for(const author of script.authors.filter(a=>a.name.trim())){for(const line of wrap(author.name,60)){await draw(cover,line.text,(612-line.text.length*7.2)/2,top);top+=12;}top+=6;}
   const contactLines=[];for(const author of script.authors){const lines=[author.name,author.email,author.phone,author.contact].filter(text=>text.trim());if(!author.email&&!author.phone&&!author.contact)continue;for(const text of lines)contactLines.push(...wrap(text,60).map(line=>line.text));contactLines.push('');}if(contactLines.at(-1)==='')contactLines.pop();
   let current=cover,contactTop=Math.max(top+36,720-contactLines.length*12);for(const text of contactLines){if(contactTop>708){current=document.addPage([612,792]);contactTop=72;}await draw(current,text,72,contactTop);contactTop+=12;}
   const titlePages=document.getPageCount(),flow=layout(script.doc),nodesById=new Map(script.doc.content.map(node=>[node.attrs.id,node]));
   for(const [number,lines]of flow.pages.entries()){
    const page=document.addPage([612,792]);if(number>0)await draw(page,(number+1)+'.',540-String(number+1).length*7.2,36);
    for(const line of lines){if(line.virtual){await draw(page,line.text,line.left,72+line.row*12);continue;}const node=nodesById.get(line.blockId),spec=types[line.kind];let x=spec.right?540-line.text.trimEnd().length*7.2:spec.left;
+    if(line.kind==='scene'&&line.first){const number=String(flow.blocks.find(block=>block.id===line.blockId).sceneNumber||'');if(number){await draw(page,number,54,72+line.row*12);await draw(page,number,564,72+line.row*12);}}
     for(const run of runs(node,line.from,line.to)){let text=spec.upper?run.text.toLocaleUpperCase('es'):run.text;text=text.replace(/\n/g,'');const marks=['scene','section'].includes(line.kind)?[...run.marks,{type:'bold'}]:run.marks;await draw(page,text,x,72+line.row*12,marks);x+=text.length*7.2;}
    }
   }
   if(canvas)canvas.width=canvas.height=0;return{bytes:await document.save(),titlePages,pages:flow.pageCount};
+ }
+ function repairPdf(value){
+  const script=validate(value),source=script?.sourceLayout,mapping=new Map();
+  if(!source||source.revision!==script.revision||source.paragraphs===1)return{script,mapping,changed:false};
+  const first=source.rows.findIndex(row=>row.id),cover=source.rows.slice(0,Math.max(0,first)).map(row=>row.text).filter(Boolean);
+  if(script.authors[0]){
+   if(!script.authors[0].phone)script.authors[0].phone=(cover.find(text=>/^\+?[\d ()-]{7,}$/.test(text.trim()))||'').slice(0,80);
+   if(!script.authors[0].contact)script.authors[0].contact=cover.filter(text=>/^(?:copyright|©|v\d|versi[oó]n\b)/i.test(text)).join('\n').slice(0,300);
+  }
+  const nodes=new Map(script.doc.content.map(node=>[node.attrs.id,node])),content=[],rows=[];let previous=null;
+  const numbered=text=>/^\d+[A-Z]?[.)]?$/i.test(text),heading=text=>/^(?:(?:ESCENA|SCENE)\s*)?(?:\d+[A-Z]?[.\s-]+)?(?:INT\.?|EXT\.?|INT\.?\s*[/.-]\s*EXT\.?)\s/i.test(text);
+  for(const row of source.rows){
+   if(!row.id){rows.push({...row});continue;}
+   const old=nodes.get(row.id),raw=plain(old);let text=raw,kind=old.attrs.kind,cut=0,parts=row.parts?.map(part=>[...part]),left=[],right=[];
+   if(heading(raw)&&parts?.length>1){
+    while(parts.length>1&&numbered(raw.slice(parts[0][0],parts[0][1]))){const part=parts.shift();left.push({...row,id:undefined,text:raw.slice(part[0],part[1]),x:part[2],width:part[3],parts:undefined});}
+    while(parts.length>1&&numbered(raw.slice(parts.at(-1)[0],parts.at(-1)[1]))){const part=parts.pop();right.unshift({...row,id:undefined,text:raw.slice(part[0],part[1]),x:part[2],width:part[3],parts:undefined});}
+    if(left.length||right.length){cut=parts[0][0];const end=parts.at(-1)[1];text=raw.slice(cut,end);parts=parts.map(part=>[part[0]-cut,part[1]-cut,part[2],part[3]]);}
+   }
+   if(heading(text))kind='scene';
+   const adjacent=previous&&previous.page===row.page&&row.y-previous.y>0&&row.y-previous.y<=Math.max(row.height,previous.height)*1.45;
+   if(adjacent&&previous.kind==='parenthetical'&&!previous.text.trimEnd().endsWith(')'))kind='parenthetical';
+   if(text.startsWith('(')&&row.x>.25)kind='parenthetical';
+   if(adjacent&&previous.kind==='scene'&&text===text.toLocaleUpperCase('es')&&!heading(text))kind='scene';
+   const merge=adjacent&&kind===previous.kind&&Math.abs((parts?.[0]?.[2]??row.x)-previous.x)<.025&&['action','dialogue','parenthetical','scene'].includes(kind)&&!heading(text);
+   const node=merge?content.at(-1):{type:'paragraph',attrs:{...old.attrs,kind},content:[]},prefix=merge?plain(node).length+1:0;
+   if(merge)node.content.push({type:'text',text:' '+text});else{node.content=[{type:'text',text}];content.push(node);}
+   mapping.set(row.id,{id:node.attrs.id,offset:prefix,cut,length:text.length});
+   rows.push(...left,{...row,id:node.attrs.id,from:prefix,to:prefix+text.length,...(parts?{parts}:{}),...(left.length||right.length?{x:parts[0][2],width:Math.max(...parts.map(part=>part[2]+part[3]))-parts[0][2]}:{})},...right);
+   previous={page:row.page,y:row.y,height:row.height,x:parts?.[0]?.[2]??row.x,kind,text};
+  }
+  script.doc.content=content;script.sourceLayout={...source,paragraphs:1,rows};return{script:validate(script),mapping,changed:true};
  }
  function fromPdf(pages,title,user){const value=create(title,user),blocks=[],rows=[],scene=text=>/^(?:(?:ESCENA|SCENE)\s*)?(?:\d+[A-Z]?[.\s-]+)?(?:INT\.?|EXT\.?|INT\.?\s*[/.-]\s*EXT\.?)\s/i.test(text),firstScene=pages.findIndex(page=>page.lines.some(line=>scene(line.text)));
   const round=number=>Math.round(Math.max(0,Math.min(1.1,number))*1000000)/1000000;
@@ -136,7 +172,7 @@
   }
   if(!blocks.length)throw Error('Este PDF no contiene texto seleccionable. Necesita OCR antes de convertirse; el original no se ha borrado.');
   if(firstScene>0){const cover=pages.slice(0,firstScene).flatMap(page=>page.lines.map(line=>line.text.trim())).filter(Boolean),written=cover.findIndex(text=>/^(?:escrito por|guion de|written by)\s*:?$/i.test(text));if(cover[0]&&!/^\d+[.]?$/.test(cover[0]))value.title=cover[0].slice(0,176);if(written>=0&&cover[written+1])value.authors=[{id:id(),name:cover[written+1].slice(0,120),email:(cover.find(text=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text))||'').slice(0,254),phone:'',contact:''}];}
-  value.doc.content=blocks;value.sourceLayout={version:1,revision:0,pages:pages.map(page=>({width:page.width,height:page.height})),rows};return validate(value);
+  value.doc.content=blocks;value.sourceLayout={version:1,revision:0,pages:pages.map(page=>({width:page.width,height:page.height})),rows};return repairPdf(value).script;
  }
  function portable(value){return JSON.stringify({format:'plano.screenplay',version:1,screenplay:validate(value)});}
  function importPortable(text){
@@ -151,5 +187,5 @@
   for(const author of value.authors)if(author.name){for(const line of wrap(author.name,60)){context.fillText(line.text,108*scale+(432-line.text.length*7.2)*scale/2,top);top+=12*scale;}top+=6*scale;}
   const contacts=value.authors.flatMap(author=>[author.name,author.email].filter(Boolean));top=Math.max(top+18*scale,720*scale-contacts.length*12*scale);for(const text of contacts){context.fillText(text,72*scale,top);top+=12*scale;}const result=canvas.toDataURL('image/jpeg',.72);canvas.width=canvas.height=0;return result.length<=20000?result:null;
  }
- const api={kinds,format,types,id,plain,canonical,cue,create,validate,wrap,layout,analyze,runs,pdf,fromPdf,portable,importPortable,thumbnail};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
+ const api={kinds,format,types,id,plain,canonical,cue,create,validate,wrap,layout,analyze,runs,pdf,fromPdf,repairPdf,portable,importPortable,thumbnail};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
 })(globalThis);

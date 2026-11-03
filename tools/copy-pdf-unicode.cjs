@@ -6,7 +6,8 @@ if(JSON.parse(fs.readFileSync(path.join(kit,'package.json'),'utf8')).version!=='
 const bundle=path.join(kit,'dist/fontkit.umd.min.js'),source=fs.existsSync(bundle)?bundle:path.join(kit,'fontkit.umd.min.js'),fonts={};
 for(const [key,name]of Object.entries({normal:'Regular',bold:'Bold',italic:'Italic',both:'BoldItalic'}))fonts[key]=fs.readFileSync(path.join(faces,`LiberationMono-${name}.ttf`)).toString('base64');
 const output=path.resolve(__dirname,'../vendor'),runtime=`\n(function(root){'use strict';const data=${JSON.stringify(fonts)},cache=new Map();root.PlanoPdfUnicode={fontkit:root.fontkit,face(kind){if(!cache.has(kind)){const raw=atob(data[kind]);cache.set(kind,Uint8Array.from(raw,c=>c.charCodeAt(0)));delete data[kind];}return cache.get(kind);}};})(globalThis);\n`;
-fs.writeFileSync(path.join(output,'pdf-unicode.js'),fs.readFileSync(source,'utf8')+runtime);
+fs.writeFileSync(path.join(output,'pdf-unicode.js'),runtime);
+fs.copyFileSync(source,path.join(output,'fontkit.min.js'));
 fs.copyFileSync(path.join(faces,'LICENSE'),path.join(output,'LICENSE-Liberation.txt'));
 fs.writeFileSync(path.join(output,'LICENSE-fontkit.txt'),`@pdf-lib/fontkit 1.1.1 — Andrew Dillon, Devon Govett and contributors.
 Upstream package and README declare the MIT license:
