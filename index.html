@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="technical-tools.css?v=20261022-shot-tools-1">
   <link rel="stylesheet" href="corrections.css?v=20261023-corrections-1">
   <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
-  <link rel="stylesheet" href="cloud.css?v=20261020-cloud-1">
+  <link rel="stylesheet" href="cloud.css?v=20261102-menu-cleanup-1">
   <link rel="stylesheet" href="library.css?v=20261102-project-archive-1">
   <link rel="stylesheet" href="patch-notes.css?v=20261022-history-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
@@ -25,7 +25,7 @@
   <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
   <script src="cloud.js?v=20261102-project-archive-1" defer></script>
   <script src="appearance-account.js?v=20261020-account-theme-1" defer></script>
-  <script src="cloud-library.js?v=20261102-header-1" defer></script>
+  <script src="cloud-library.js?v=20261102-menu-cleanup-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="export-ui.js?v=20261102-docx-1" defer></script>
   <link rel="stylesheet" href="export-ui.css?v=20261102-docx-1">
@@ -35,9 +35,9 @@
   <script src="shot-copy.js?v=20261022-copy-1" defer></script>
   <script src="shot-values.js" defer></script>
   <script src="project-crew.js?v=20261023-crew-2" defer></script>
-  <script src="language-review.js?v=20261102-concordance-1" defer></script>
-  <script src="spelling.js?v=20261102-concordance-1" defer></script>
-  <script src="writing-tools.js?v=20261102-project-archive-1" defer></script>
+  <script src="language-review.js?v=20261102-proper-names-1" defer></script>
+  <script src="spelling.js?v=20261102-proper-names-1" defer></script>
+  <script src="writing-tools.js?v=20261102-proper-names-1" defer></script>
   <link rel="stylesheet" href="crew.css?v=20261023-crew-2">
   <link rel="stylesheet" href="writing-feedback.css?v=20261023-review-2">
   <script src="shot-order.js" defer></script>
@@ -51,18 +51,18 @@
   <script src="pdf-export.js?v=20261023-bold-titles-2" defer></script>
   <script src="excel-export.js?v=20261023-crew-2" defer></script>
   <script src="script-preview.js?v=20261022-library-1" defer></script>
-  <link rel="stylesheet" href="writer.css?v=20261102-dialogue-syntax-1">
+  <link rel="stylesheet" href="writer.css?v=20261102-single-toolbar-1">
   <link rel="stylesheet" href="editor-status.css?v=20261102-status-1">
-  <link rel="stylesheet" href="header-ui.css?v=20261102-header-1">
-  <script src="screenplay.js?v=20261102-dialogue-syntax-1" defer></script>
+  <link rel="stylesheet" href="header-ui.css?v=20261102-cloud-next-title-1">
+  <script src="screenplay.js?v=20261102-find-characters-1" defer></script>
   <script src="screenplay-links.js?v=20261102-dialogue-syntax-1" defer></script>
   <script src="project-archive.js?v=20261102-archive-1" defer></script>
   <script src="editable-import.js?v=20261102-project-archive-1" defer></script>
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
-  <script src="writer-editor.js?v=20261102-dialogue-syntax-1" defer></script>
-  <script src="header-ui.js?v=20261102-header-1" defer></script>
-  <script src="app.js?v=20261102-dialogue-syntax-1" defer></script>
-  <script src="patch-notes.js?v=20261023-daily-1" defer></script>
+  <script src="writer-editor.js?v=20261102-single-toolbar-1" defer></script>
+  <script src="header-ui.js?v=20261102-cloud-next-title-1" defer></script>
+  <script src="app.js?v=20261102-logo-home-1" defer></script>
+  <script src="patch-notes.js?v=20261102-menu-cleanup-1" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -144,17 +144,17 @@
     <div class="main-shell">
       <header class="topbar">
         <button id="toggle-annotations" class="header-icon editor-only panel-toggle" type="button" aria-label="Mostrar u ocultar escenas y anotaciones" aria-controls="annotations-panel" aria-expanded="true" title="Escenas y anotaciones"><svg><use href="#i-panel"/></svg></button>
-        <button id="editor-home" class="editor-home editor-only" type="button" aria-label="Volver al proyecto" title="Volver al proyecto"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        <button id="editor-home" class="editor-home editor-only" type="button" aria-label="Ir a Inicio" title="Ir a Inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span></button>
         <div class="breadcrumb"><strong id="breadcrumb-current">Mis proyectos</strong></div>
-        <div class="editor-file header-project" hidden><button id="file-name" class="header-project-name" type="button" title="Cambiar nombre del proyecto" aria-label="Cambiar nombre del proyecto"></button><form id="project-title-form" hidden autocomplete="off"><label class="sr-only" for="project-title-input">Nombre del proyecto</label><input id="project-title-input" type="text" maxlength="120" autocomplete="off" spellcheck="true" aria-describedby="project-title-error"><span id="project-title-error" class="sr-only" role="alert"></span></form></div>
+        <div class="editor-file header-project" hidden><button id="file-name" class="header-project-name" type="button" title="Cambiar nombre del proyecto" aria-label="Cambiar nombre del proyecto"></button><form id="project-title-form" hidden autocomplete="off"><label class="sr-only" for="project-title-input">Nombre del proyecto</label><input id="project-title-input" type="text" maxlength="120" autocomplete="off" spellcheck="true" aria-describedby="project-title-error"><span id="project-title-error" class="sr-only" role="alert"></span></form><button id="open-cloud" class="cloud-launch header-cloud" type="button" aria-label="Guardar proyecto" title="Guardar proyecto" hidden><svg viewBox="0 0 28 26" aria-hidden="true"><path d="M6 19a4.5 4.5 0 0 1-1-8.9 7.4 7.4 0 0 1 14-2A5.5 5.5 0 0 1 20 19H6Z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle class="cloud-mark-backdrop" cx="21" cy="19" r="5.5"/><path class="cloud-mark-check" d="m18 19 2 2 4-4"/><circle class="cloud-mark-saving" cx="21" cy="19" r="3.3"/><path class="cloud-mark-error" d="m19 17 4 4m0-4-4 4"/></svg><span id="open-cloud-label" class="sr-only">Guardar proyecto</span></button></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" aria-selected="false" aria-controls="writing-view" title="Escribir el guion"><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
-        <button id="open-cloud" class="cloud-launch header-cloud" type="button" aria-label="Guardar proyecto" title="Guardar proyecto" hidden><svg viewBox="0 0 28 26" aria-hidden="true"><path d="M6 19a4.5 4.5 0 0 1-1-8.9 7.4 7.4 0 0 1 14-2A5.5 5.5 0 0 1 20 19H6Z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle class="cloud-mark-backdrop" cx="21" cy="19" r="5.5"/><path class="cloud-mark-check" d="m18 19 2 2 4-4"/><circle class="cloud-mark-saving" cx="21" cy="19" r="3.3"/><path class="cloud-mark-error" d="m19 17 4 4m0-4-4 4"/></svg><span id="open-cloud-label" class="sr-only">Guardar proyecto</span></button>
         <div class="editor-actions account-actions">
           
-          <details id="project-menu" class="project-menu"><summary id="account-menu-toggle" class="header-avatar" aria-label="Cuenta y menú del proyecto" aria-haspopup="menu" title="Cuenta y preferencias"><span id="header-avatar" aria-hidden="true">P</span></summary><div class="project-menu-content account-menu"><div class="account-menu-identity"><strong id="header-account-name">Mi cuenta</strong><span id="header-account-email"></span></div><button id="open-account" type="button" aria-haspopup="dialog" aria-controls="account-dialog" title="Mi cuenta"><span>Mi cuenta</span></button><button id="toggle-theme" type="button" aria-label="Activar modo oscuro" aria-pressed="false"><span id="header-theme-label">Modo oscuro</span><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" type="button" aria-label="Elegir tema" title="Elegir tema"><span>Color del tema</span><svg><use href="#i-sliders"/></svg></button><button id="open-cloud-library" type="button" aria-haspopup="dialog" aria-controls="cloud-library" hidden>Mis proyectos y recuperación</button><div class="project-menu-section editor-only"><span class="menu-caption">PROYECTO</span><button id="open-export" type="button" aria-haspopup="dialog" aria-controls="export-dialog" aria-expanded="false">Exportar</button><button id="menu-home" type="button">Volver al proyecto</button><button id="menu-patch-notes" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="rename-file-menu" type="button">Cambiar nombre del guion</button><button id="edit-crew" type="button">Equipo de producción</button><button id="replace-button" type="button">Importar otro guion</button><a id="open-document" target="_blank" rel="noopener">Ver PDF generado <svg><use href="#i-external"/></svg></a><button id="save-backup" type="button" hidden>Exportar copia del proyecto (.json)</button><button id="restore-backup" type="button" hidden>Restaurar copia del proyecto</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></div></details>
+          <details id="project-menu" class="project-menu"><summary id="account-menu-toggle" class="header-avatar" aria-label="Cuenta y menú del proyecto" aria-haspopup="menu" title="Cuenta y preferencias"><span id="header-avatar" aria-hidden="true">P</span></summary><div class="project-menu-content account-menu"><div class="account-menu-identity"><strong id="header-account-name">Mi cuenta</strong><span id="header-account-email"></span></div><button id="open-account" type="button" aria-haspopup="dialog" aria-controls="account-dialog" title="Mi cuenta"><span>Mi cuenta</span></button><button id="toggle-theme" type="button" aria-label="Activar modo oscuro" aria-pressed="false"><span id="header-theme-label">Modo oscuro</span><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" type="button" aria-label="Elegir tema" title="Elegir tema"><span>Color del tema</span><svg><use href="#i-sliders"/></svg></button><div class="project-menu-section editor-only"><span class="menu-caption">PROYECTO</span><button id="open-export" type="button" aria-haspopup="dialog" aria-controls="export-dialog" aria-expanded="false">Exportar</button><button id="menu-home" type="button">Volver al proyecto</button><button id="edit-crew" type="button">Equipo de producción</button><button id="save-backup" type="button" hidden>Exportar copia del proyecto (.json)</button><button id="restore-backup" type="button" hidden>Restaurar copia del proyecto</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></div></details>
         </div>
       </header>
+      <div id="cloud-sync-alert" class="cloud-alert" role="status" hidden><p id="cloud-sync-error"></p><div><button id="cloud-retry-save" type="button">Reintentar guardado</button><button id="cloud-reload" type="button" hidden>Recargar versión de la nube</button><button id="cloud-export-draft" type="button">Descargar copia de mis notas</button></div></div>
       <main id="main-content">
         <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">TU ESPACIO DE TRABAJO</p><h1 id="page-title">Tus proyectos.</h1><p class="page-description" id="page-description">Retoma una historia o empieza a preparar la siguiente.</p></div><div class="edition-stamp" aria-hidden="true"><span>ESTUDIO DE GUION</span><strong>01 <span>/</span></strong><span>LA HISTORIA PRIMERO</span></div></section>
 
@@ -321,14 +321,6 @@
       <div class="dialog-actions"><button id="cancel-color-picker" class="button button-secondary" type="button">Cancelar</button><button id="save-custom-color" class="button button-primary" type="submit" hidden>Usar color</button></div>
     </form>
   </div>
-  <dialog id="cloud-library" class="cloud-library" aria-labelledby="cloud-library-title">
-    <header><div><h2 id="cloud-library-title">Mis proyectos</h2><p id="cloud-library-count">Tu biblioteca privada</p></div><button id="close-cloud" class="shot-close" type="button" aria-label="Cerrar proyectos"><svg><use href="#i-close"/></svg></button></header>
-    <div class="cloud-library-tools"><button id="cloud-new" class="button button-primary" type="button">Nuevo proyecto</button><button id="cloud-refresh" class="button button-secondary" type="button">Actualizar</button></div>
-    <div id="cloud-sync-alert" class="cloud-alert" role="status" hidden><p id="cloud-sync-error"></p><div><button id="cloud-retry-save" type="button">Reintentar guardado</button><button id="cloud-reload" type="button" hidden>Recargar versión de la nube</button><button id="cloud-export-draft" type="button">Descargar copia de mis notas</button></div></div>
-    <p id="cloud-library-message" class="account-message" role="status" hidden></p>
-    <div id="cloud-projects"></div><p id="cloud-empty" class="cloud-empty" hidden>Todavía no tienes proyectos. Sube un PDF para empezar.</p>
-    <p class="cloud-library-note">Plan gratuito. Las subidas y descargas se detienen al alcanzar los límites; no se contrata espacio adicional. Espera la confirmación del guardado antes de cerrar.</p>
-  </dialog>
   <dialog id="account-dialog" class="account-modal" aria-labelledby="account-title">
 
   </dialog>

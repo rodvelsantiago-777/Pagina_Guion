@@ -67,6 +67,9 @@
  input.addEventListener('blur',()=>{if(!input.disabled)commit();});
  input.addEventListener('input',()=>{input.setCustomValidity('');$('#project-title-error').textContent='';manualError='';});
  input.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!renaming){cancel();nameButton.focus({preventScroll:true});}}});
+ // El blur del título inicia el renombrado y desactiva la nube antes del click.
+ // Conserva el foco hasta que save() confirme ambos guardados en el orden correcto.
+ cloudButton.addEventListener('pointerdown',event=>{if(editing&&!renaming)event.preventDefault();});
  cloudButton.addEventListener('click',save);
  $('#project-menu').addEventListener('toggle',()=>$('#account-menu-toggle').setAttribute('aria-expanded',String($('#project-menu').open)));
  document.addEventListener('plano-account-change',()=>{cancel();manualError='';refreshIdentity();refresh();});

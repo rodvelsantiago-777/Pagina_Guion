@@ -39,7 +39,8 @@
    state.controller?.abort();state.controller=new AbortController();const revision=++state.revision;
    panel.hidden=false;panel.open=false;panel.dataset.errors='false';summary.textContent='Revisando ortografía y redacción…';list.replaceChildren();
    try{
-    const issues=await root.PlanoSpelling.checkText(text,{load,signal:state.controller.signal});
+    let context;try{if(document.body.dataset.detached==='true')context=root.opener?.PlanoSpelling.context();}catch{}
+    const issues=await root.PlanoSpelling.checkText(text,{load,signal:state.controller.signal,context});
     if(revision!==state.revision||!input.isConnected||input.value!==text)return;
     state.lastText=text;show(issues,text);
    }catch(error){if(error.name==='AbortError'||revision!==state.revision||!input.isConnected)return;summary.textContent='Revisión no disponible';panel.open=true;list.replaceChildren(button('Reintentar',()=>{state.lastText=null;check();}));}

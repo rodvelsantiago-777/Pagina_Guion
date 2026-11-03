@@ -45,7 +45,7 @@
  let owner='',epoch=0,current=null,feed=[],feedPromise=null,feedStatus='idle',displayed=null,automatic=false;
  const read=uid=>{try{return JSON.parse(localStorage.getItem(key(uid)));}catch{return null;}};
  function remember(){if(!current)return;try{localStorage.setItem(key(owner),JSON.stringify({receipt:current.seen,pending:current.pending}));}catch{}}
- const launchers=['#open-patch-notes','#menu-patch-notes','#sidebar-patch-notes'];
+ const launchers=['#open-patch-notes','#sidebar-patch-notes'];
  function buttons(){for(const id of launchers)if($(id))$(id).hidden=!owner;}
  async function loadFeed(force=false){
   if(force&&feedStatus!=='loading')feedPromise=null;

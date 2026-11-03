@@ -4,6 +4,10 @@
  const tokens=text=>[...text.matchAll(/[\p{L}\p{M}]+/gu)].map(match=>({text:match[0],word:match[0].toLocaleLowerCase('es').normalize('NFC'),start:match.index,end:match.index+match[0].length}));
  const articles=new Set(['el','la','los','las','un','una','unos','unas']);
  const vocabulary=new Set(['travelling','travellings','dolly','zoom','pan','tilt','flashback','flashbacks','off','whip','steadycam','steadicam','int','ext','cont','insert','fade','out','cut','dissolve','intercut','montage','smash','match','jump','more','continued']);
+ // Complemento de nombres frecuentes que faltan en el diccionario general.
+ // La tilde forma parte de la identidad: reconocer Sofía no acepta automáticamente Sofia.
+ const properNames=new Set(('Aarón Abel Abigail Adela Adelaida Adrián Adriana Agustín Ainhoa Aitana Alan Alba Alberto Alejandra Alejandro Alex Álex Alfonso Alfredo Alicia Alma Alonso Álvaro Amalia Amanda Amelia Amparo Ana Andrea Andrés Ángel Ángela Ángeles Antonio Ariadna Ariel Armando Arturo Aurora Bárbara Beatriz Belén Benjamín Blanca Bruno Camila Camilo Candela Carla Carlos Carmen Carolina Catalina Cecilia César Clara Claudia Claudio Cristina Cristóbal Damián Daniel Daniela Darío David Diana Diego Dolores Domingo Eduardo Elena Eliana Elisa Elías Emilia Emiliano Emilio Emma Enrique Eric Erika Érika Ernesto Esteban Esther Eva Fabián Fabiola Fátima Federico Felipe Fernanda Fernando Florencia Francisco Gabriel Gabriela Gael Gloria Gonzalo Graciela Gregorio Guadalupe Guillermo Gustavo Héctor Helena Hugo Ignacio Inés Irene Iris Isabel Isabela Ismael Iván Jacobo Jaime Javier Jazmín Jesús Jimena Joaquín Joel Jorge José Josefina Juan Juana Julián Juliana Julia Julio Lara Laura Leandro Leonardo Leonor Leticia Lidia Liliana Lola Lorena Lorenzo Lourdes Lucía Luciano Luis Luisa Luna Luz Magdalena Manuela Manuel Marcela Marcelo Marcos Margarita María Mariana Mariano Marina Mario Marisol Marta Martín Martina Mateo Matías Mauricio Maximiliano Mercedes Micaela Miguel Milena Miriam Mónica Natalia Nicolás Noa Noelia Nora Nuria Óscar Pablo Paloma Paola Patricia Paula Paulina Pedro Pilar Rafael Raquel Ramón Rebeca Regina Renata Ricardo Rita Roberto Rocío Rodrigo Rosa Rosario Rubén Ruth Salomé Salvador Samuel Sandra Santiago Sara Sebastián Sergio Silvia Simón Sofía Soledad Sonia Susana Tamara Teresa Tomás Valentina Valentín Valeria Vanessa Vera Verónica Vicente Víctor Victoria Violeta Virginia Xavier Ximena Yolanda Zoe Zoé Zulema García González Rodríguez Fernández López Martínez Sánchez Pérez Gómez Martín Jiménez Ruiz Hernández Díaz Moreno Muñoz Álvarez Romero Gutiérrez Alonso Navarro Torres Domínguez Vázquez Velázquez Vásquez Ramos Ramírez Gil Serrano Blanco Suárez Molina Morales Ortega Delgado Castro Ortiz Rubio Marín Sanz Núñez Medina Iglesias Garrido Cortés Castillo Santos Guerrero Lozano Méndez Cruz Prieto Flores Herrera Peña León Márquez Cabrera Ríos Vega Fuentes Carrillo Acosta Arias Cárdenas Ospina Quintero Restrepo Rojas Pardo Castaño Pineda').toLocaleLowerCase('es').split(' '));
+ function nameWords(names){return new Set(names.flatMap(name=>tokens(name).map(token=>token.word)));}
  const nouns=Object.assign(Object.create(null),{habitación:'f',habitaciones:'fp',casa:'f',casas:'fp',puerta:'f',puertas:'fp',ventana:'f',ventanas:'fp',mesa:'f',mesas:'fp',silla:'f',sillas:'fp',cama:'f',camas:'fp',escena:'f',escenas:'fp',pared:'f',paredes:'fp',mochila:'f',mochilas:'fp',mano:'f',manos:'fp',calle:'f',calles:'fp',plano:'m',planos:'mp',guion:'m',guiones:'mp',personaje:'m',personajes:'mp',sonido:'m',sonidos:'mp',micrófono:'m',micrófonos:'mp'});
  const agreement={f:['la','una'],fp:['las','unas'],m:['el','un'],mp:['los','unos']};
  const plural=word=>word.endsWith('z')?word.slice(0,-1)+'ces':/[aeiouáéíóú]$/.test(word)?word+'s':word.replace(/[áéíóú](?=n$)/,char=>char.normalize('NFD')[0])+'es';
@@ -77,6 +81,7 @@
  function candidates(text){
   return tokens(text).filter(word=>{
    if(word.text.length<3||word.text.length>40||vocabulary.has(word.word))return false;
+   if(word.text!==word.word&&properNames.has(word.word))return false;
    if(/[\d_]/.test(text[word.start-1]||'')||/[\d_]/.test(text[word.end]||''))return false;
    const segment=text.slice(Math.max(0,text.lastIndexOf(' ',word.start-1)+1),text.indexOf(' ',word.end)<0?text.length:text.indexOf(' ',word.end));
    if(/https?:|@|www\./i.test(segment))return false;
@@ -90,5 +95,5 @@
   const wrong=new Set(result.wrong);
   return candidates(text).filter(word=>wrong.has(word.lookup)).map(word=>({kind:'spelling',start:word.start,end:word.end,text:word.text,key:word.word,message:'Palabra no reconocida por el diccionario de español.',suggestions:(Array.isArray(result.suggestions?.[word.lookup])?result.suggestions[word.lookup]:[]).map(value=>preserveCase(value,word.text))}));
  }
- const api={tokens,syntax,candidates,spelling,preserveCase,hash};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoLanguageReview=api;
+ const api={tokens,syntax,candidates,spelling,preserveCase,hash,nameWords};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoLanguageReview=api;
 })(globalThis);

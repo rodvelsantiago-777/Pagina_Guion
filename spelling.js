@@ -1,8 +1,11 @@
 /* Revisión local compartida por el PDF y los campos de escritura, sin servicios externos. */
 (function(root){
  'use strict';
- const version='es-4.0.0-review-3';
+ const version='es-4.0.0-review-4';
  const review=typeof module==='object'&&module.exports?require('./language-review.js'):root.PlanoLanguageReview;
+ let contextSource=()=>({names:[],ignored:[]});
+ const documentContext=()=>contextSource();
+ function filterNames(issues,{names=[],ignored=[]}){const known=review.nameWords(names),skip=new Set(ignored.map(word=>word.toLocaleLowerCase('es').normalize('NFC')));return issues.filter(issue=>!skip.has(issue.key)&&!(issue.kind==='spelling'&&known.has(issue.text.toLocaleLowerCase('es').normalize('NFC'))));}
  function validate(value){
   if(value===undefined)return{enabled:true,dictionary:'',ignored:[]};
   if(!value||typeof value!=='object'||typeof value.enabled!=='boolean'||!Array.isArray(value.ignored)||value.ignored.length>500||value.ignored.some(word=>typeof word!=='string'||word.length>60))throw Error('La configuración de ortografía no es válida.');
@@ -37,10 +40,10 @@
    pending.set(id,{resolve,reject,cleanup});signal.addEventListener('abort',cancel,{once:true});active.postMessage({id,words,suggest:suggestions});
   });
  }
- async function checkText(text,{load,signal}){
+ async function checkText(text,{load,signal,context:currentContext}){
   const grammar=review.syntax(text),words=[...new Set(review.candidates(text).map(item=>item.lookup))];
   const result=await checkWords(words,{load,signal,suggestions:true});
-  return [...grammar,...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind));
+  return filterNames([...grammar,...review.spelling(text,result)],currentContext||documentContext()).sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind));
  }
  async function checkBlocks(texts,{load,signal,suggestions=false}){
   const words=[...new Set(texts.flatMap(text=>review.candidates(text).map(item=>item.lookup)))].slice(0,20000);
@@ -81,7 +84,7 @@
  }
  async function scan({pages,scenes,ignored,load,signal}){
   const blocks=await blocksFrom(pages,scenes,signal),words=[...new Set(blocks.flatMap(block=>review.candidates(block.text).map(item=>item.lookup)))].slice(0,20000);
-  const names=new Set(pages.flatMap(page=>page.lines.filter(line=>!root.PlanoScenes.isSceneHeading(line.text)&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33).flatMap(line=>review.tokens(line.text).map(word=>word.word))));
+  const names=review.nameWords([...documentContext().names,...pages.flatMap(page=>page.lines.filter(line=>!root.PlanoScenes.isSceneHeading(line.text)&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33).map(line=>line.text))]);
   const result=await checkWords(words,{load,signal}),skip=new Set(ignored),found=[];
   const canvas=document.createElement('canvas'),context=canvas.getContext('2d');context.font='16px "Courier New",monospace';
   try{
@@ -93,5 +96,5 @@
   }finally{canvas.width=canvas.height=0;}
   return found;
  }
- const api={version,validate,scan,checkText,checkBlocks,stop};if(typeof module==='object'&&module.exports)module.exports=api;else{root.PlanoSpelling=api;root.addEventListener('beforeunload',()=>stop());}
+ const api={version,validate,scan,checkText,checkBlocks,stop,context:documentContext,configureContext(source){contextSource=source;}};if(typeof module==='object'&&module.exports)module.exports=api;else{root.PlanoSpelling=api;root.addEventListener('beforeunload',()=>stop());}
 })(globalThis);

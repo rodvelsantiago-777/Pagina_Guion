@@ -2,7 +2,7 @@
 (function(root){
  'use strict';
  const fold=text=>text.toLocaleLowerCase('es').normalize('NFC');
- root.PlanoWriterReview={create({P,active,load,characters,preferences,onOpen,status}){
+ root.PlanoWriterReview={create({P,active,load,characters,preferences,acceptName,onOpen,status}){
   let editor=null,timer=0,controller=null,epoch=0,destroyed=false;
   const cache=new WeakMap(),popup=document.createElement('div');popup.className='writer-review-popup';popup.hidden=true;popup.setAttribute('role','dialog');popup.setAttribute('aria-label','Revisar escritura');document.body.append(popup);
   function hide(){popup.hidden=true;popup.replaceChildren();}
@@ -34,6 +34,9 @@
    const apply=value=>{if(editor.state.doc!==doc||!active()){hide();return;}const replacement=root.PlanoLanguageReview.preserveCase(value,issue.text);editor.dispatch(editor.state.tr.insertText(replacement,issue.from,issue.to));hide();editor.focus();};
    if(issue.replacement){options.append(action(`Usar «${issue.replacement}»`,()=>apply(issue.replacement)));return;}
    if(issue.kind!=='spelling')return;
+   if(acceptName&&/^\p{Lu}/u.test(issue.text)){
+    const accept=action('Aceptar como nombre propio',()=>{if(editor.state.doc!==doc||!active())return;if(acceptName(issue.text)){refresh();editor.focus();}else{description.textContent='No se pudo guardar el nombre. Comprueba el guardado del proyecto o el límite de palabras aceptadas.';}});accept.className='writer-review-accept';popup.insertBefore(accept,close);
+   }
    const job=new AbortController();controller=job;
    try{const result=await root.PlanoSpelling.checkText(issue.text,{load,signal:job.signal});if(token!==epoch||destroyed||popup.hidden||editor.state.doc!==doc)return;for(const value of result[0]?.suggestions?.slice(0,5)||[])options.append(action(value,()=>apply(value)));if(!options.children.length)options.textContent='Sin sugerencias disponibles.';}catch(error){if(token===epoch&&error.name!=='AbortError')options.textContent='No se pudieron cargar las sugerencias.';}
    finally{if(controller===job)controller=null;}

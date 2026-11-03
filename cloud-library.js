@@ -33,14 +33,13 @@
   if(identityChanged||storageChanged)renderStorage();
   $('#open-cloud').hidden=!cloud.configured;
   $('#open-cloud-label').textContent=labels[state.status];$('#open-cloud').dataset.syncState=state.status;
-  $('#open-cloud-library').hidden=!cloud.configured;
   root.PlanoHeader?.syncCloud(state);
   $('#cloud-sync-alert').hidden=!state.error;$('#cloud-sync-error').textContent=state.error;
   $('#cloud-reload').hidden=state.code!=='CONFLICT';$('#cloud-retry-save').hidden=!state.pending||state.code==='CONFLICT';
   if(cloud.configured&&root.PlanoAccounts.getUser())$('#save-status').textContent=state.error||labels[state.status];
  }
  function message(text='',error=false){
-  for(const id of ['#cloud-library-message','#home-library-message']){
+  for(const id of ['#home-library-message']){
    const node=$(id);node.textContent=text;node.hidden=!text;node.classList.toggle('is-error',error);
   }
  }
@@ -48,7 +47,6 @@
   const node=document.createElement('button');node.type='button';node.textContent=text;node.className=className;node.addEventListener('click',callback);return node;
  }
  function icon(name){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),use=document.createElementNS(svg.namespaceURI,'use');use.setAttribute('href','#i-'+name);svg.append(use);svg.setAttribute('aria-hidden','true');return svg;}
- function size(project){return project.size_bytes<1048576?`${Math.max(1,Math.ceil(project.size_bytes/1024)).toLocaleString('es')} KB`:`${(project.size_bytes/1048576).toLocaleString('es',{maximumFractionDigits:1})} MB`;}
  function thumbnail(project){return previews.get(previewKey(project))||project.thumbnail;}
  function applyPreview(node,project){
   const image=thumbnail(project);
@@ -134,9 +132,9 @@
  async function task(action){
   if(working)return;working=true;
   const owner=accountOwner,disabled=new Map();
-  for(const container of [$('#cloud-library'),$('#drop-zone')]){
+  for(const container of [$('#drop-zone'),$('#cloud-sync-alert')]){
    container.setAttribute('aria-busy','true');
-   for(const button of container.querySelectorAll('button')){disabled.set(button,button.disabled);if(button.id!=='close-cloud')button.disabled=true;}
+   for(const button of container.querySelectorAll('button')){disabled.set(button,button.disabled);button.disabled=true;}
   }
   try{
    // Terminar una miniatura antigua antes de leer o cambiar su revisión.
@@ -145,30 +143,18 @@
    await action();
   }catch(error){if(owner===accountOwner)message(error.message||'No se pudo completar la operación.',true);}
   finally{
-   working=false;for(const container of [$('#cloud-library'),$('#drop-zone')])container.setAttribute('aria-busy','false');
+   working=false;for(const container of [$('#drop-zone'),$('#cloud-sync-alert')])container.setAttribute('aria-busy','false');
    for(const [button,value] of disabled)if(button.isConnected)button.disabled=value;
    queueMicrotask(pumpPreviews);
   }
  }
  function openProject(project){
   if(working||project.state!=='ready')return;
-  if($('#cloud-library').open)$('#cloud-library').close();showProject(project);
+  showProject(project);
  }
  function deleteProject(project){
   if(working||!confirm(`¿Eliminar el proyecto «${projectName(project)}»? Se borrarán su guion, sus planos y su guion técnico de la nube.`))return;
   task(async()=>{await cloud.remove(project);previews.delete(previewKey(project));if(selectedProject?.id===project.id)selectedProject=null;await hooks.deleted?.(project.id);await refresh(true);});
- }
- function renderModal(){
-  $('#cloud-projects').replaceChildren();$('#cloud-empty').hidden=Boolean(projects.length);
-  $('#cloud-library-count').textContent=`${projects.length} / ${storageLimits?.projectsPerUser||10} proyectos · Guiones editables`;
-  for(const project of projects){
-   const row=document.createElement('article');row.className='cloud-project';
-   const content=document.createElement('div'),title=button(projectName(project),()=>openProject(project),'cloud-project-title');title.title=projectName(project);content.append(title);
-   const detail=document.createElement('p');detail.textContent=project.state==='ready'?`${size(project)} · ${new Date(project.updated_at).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'})}`:'Subida pendiente de completar';content.append(detail);
-   const actions=document.createElement('div');actions.className='cloud-project-actions';
-   if(project.state==='ready')actions.append(button('Renombrar',()=>{$('#cloud-library').close();renameFile(project,'project');}));
-   actions.append(button('Eliminar',()=>deleteProject(project),'cloud-delete'));row.append(content,actions);$('#cloud-projects').append(row);
-  }
  }
  async function refresh(fresh=false){
   const expected=accountOwner;
@@ -180,7 +166,7 @@
   const work=(async()=>{
    try{
     const result=await cloud.list();if(version!==loadingVersion||expected!==accountOwner)return;
-    projects=result.projects;storageLimits=result.limits||null;storageLoaded=true;storageFailed=false;if(selectedProject&&!projects.some(project=>project.id===selectedProject.id))selectedProject=null;message();renderHome();renderModal();
+    projects=result.projects;storageLimits=result.limits||null;storageLoaded=true;storageFailed=false;if(selectedProject&&!projects.some(project=>project.id===selectedProject.id))selectedProject=null;message();renderHome();
    }catch(error){if(version===loadingVersion&&expected===accountOwner){storageFailed=true;renderStorage();message(error.message,true);}}
    finally{if(version===loadingVersion)$('#drop-zone').setAttribute('aria-busy','false');}
   })();
@@ -188,7 +174,6 @@
   try{return await work;}finally{if(libraryRequest?.promise===work)libraryRequest=null;}
  }
  function showHome(){if(atHome())return refresh();}
- function open(){if(!root.PlanoAccounts.getUser())return;sync(cloud.info());if(!$('#cloud-library').open)$('#cloud-library').showModal();refresh();}
  function renameFile(project=hooks.currentProject?.(),scope='file'){
   if(!project||working||renaming||hooks.canRename?.()===false)return;
   renameTarget={project,owner:accountOwner,scope};$('#rename-file-error').hidden=true;
@@ -213,8 +198,8 @@
  }
  function closeOnIdentity(){
   loadingVersion++;libraryRequest=null;projects=[];selectedProject=null;previews.clear();previewTried.clear();renameTarget=null;storageLimits=null;storageLoaded=false;storageFailed=false;
-  $('#cloud-projects').replaceChildren();renderHome();message();
-  for(const id of ['#cloud-library','#rename-file-dialog'])if($(id).open)$(id).close();
+  renderHome();message();
+  for(const id of ['#rename-file-dialog'])if($(id).open)$(id).close();
  }
  function init(options){
   hooks=options;cloud.subscribe(sync,{payload:false});
@@ -224,9 +209,7 @@
    const project=selectedProject;if(!project)return;
    task(async()=>{await hooks.open(project.id,entry.dataset.projectStage);});
   });
-  $('#open-cloud-library').addEventListener('click',open);$('#close-cloud').addEventListener('click',()=>$('#cloud-library').close());
-  $('#cloud-refresh').addEventListener('click',()=>task(refresh));$('#home-refresh').addEventListener('click',()=>task(refresh));
-  $('#cloud-new').addEventListener('click',()=>{$('#cloud-library').close();if(hooks.newScript)hooks.newScript();else $('#file-input').click();});
+  $('#home-refresh').addEventListener('click',()=>task(refresh));
   $('#cloud-retry-save').addEventListener('click',()=>task(()=>cloud.flush()));
   $('#cloud-export-draft').textContent='Exportar';
   $('#cloud-export-draft').addEventListener('click',event=>{if(!hooks.openExport?.(event.currentTarget))message('Abre el guion para exportarlo.');});
@@ -234,7 +217,6 @@
    if(!confirm('¿Recargar las anotaciones de la nube y descartar los cambios pendientes de esta pestaña? Descarga una copia antes si quieres conservarlos.'))return;
    task(async()=>{const project=await cloud.reload();await hooks.reload(project);message('Versión de la nube recuperada.');});
   });
-  $('#rename-file-menu').addEventListener('click',()=>renameFile());
   $('#cancel-file-rename').addEventListener('click',()=>{if(!renaming)$('#rename-file-dialog').close();});
   $('#rename-file-dialog').addEventListener('cancel',event=>{if(renaming)event.preventDefault();});
   $('#rename-file-dialog').addEventListener('close',()=>{if(!$('#rename-file-dialog').open)renameTarget=null;});
@@ -267,5 +249,5 @@
   document.addEventListener('plano-account-change',showHome);
   root.PlanoAccounts.ready.then(showHome);
  }
- root.PlanoCloudLibrary={init,open,showHome,showProject,showRoot,openStage,selected:()=>selectedProject,renameFile,renameProjectInline,updatePreview,closeOnIdentity,finishPreview:()=>previewWork,refreshStatus:()=>sync(cloud.info(false))};
+ root.PlanoCloudLibrary={init,showHome,showProject,showRoot,openStage,selected:()=>selectedProject,renameFile,renameProjectInline,updatePreview,closeOnIdentity,finishPreview:()=>previewWork,refreshStatus:()=>sync(cloud.info(false))};
 })(globalThis);

@@ -77,17 +77,31 @@
    blocks.push(block);pos+=raw.length+2;
   }return{blocks,pages,endRows:row,pageCount:pages.length,totalHeight:pages.length*1056+(pages.length-1)*28,tail:format.lines-row};
  }
+ const characterKey=text=>cue(text).normalize('NFD').replace(/\p{M}/gu,'').replace(/[’‘]/g,"'");
+ const nameTokens=text=>[...text.matchAll(/[\p{L}\p{M}\p{N}]+(?:['’‘-][\p{L}\p{M}\p{N}]+)*/gu)].map(match=>({key:characterKey(match[0]),from:match.index,to:match.index+match[0].length}));
+ function characterMatcher(names){
+  const trie=new Map();for(const name of names){const words=nameTokens(name);if(!words.length)continue;let branch=trie;for(const word of words){if(!branch.has(word.key))branch.set(word.key,new Map());branch=branch.get(word.key);}branch.name=name;}
+  return text=>{const words=nameTokens(text),matches=[];for(let i=0;i<words.length;i++){let branch=trie,last=null;for(let j=i;j<words.length;j++){if(j>i&&!/^\s+$/.test(text.slice(words[j-1].to,words[j].from)))break;branch=branch.get(words[j].key);if(!branch)break;if(branch.name)last={name:branch.name,from:words[i].from,to:words[j].to,end:j};}if(last){matches.push({name:last.name,from:last.from,to:last.to});i=last.end;}}return matches;};
+ }
+ function characterMarks(node){
+  const groups=[];let offset=0;for(const piece of node.content||[]){const name=(piece.marks||[]).find(mark=>mark.type==='character')?.attrs.name,previous=groups.at(-1);if(name){if(previous?.to===offset&&characterKey(previous.name)===characterKey(name)){previous.text+=piece.text;previous.to+=piece.text.length;}else groups.push({name,text:piece.text,from:offset,to:offset+piece.text.length});}offset+=piece.text.length;}
+  return groups.filter(group=>characterKey(group.text)===characterKey(group.name));
+ }
  function analyze(value){
-  const screenplay=validate(value),scenes=[],characters=new Map(screenplay.characters.map(name=>[name,{name,mentions:[],dialogues:[]}]));let scene=null,speaker='';
-  const ensure=name=>{name=cue(name);if(!name)return null;if(!characters.has(name))characters.set(name,{name,mentions:[],dialogues:[]});return characters.get(name);};
-  for(const node of screenplay.doc.content){const text=plain(node),kind=node.attrs.kind;
+  const screenplay=validate(value),scenes=[],characters=new Map(),records=[];let scene=null,speaker='';
+  const ensure=name=>{name=cue(name);if(!name||name.length>80||!/[\p{L}]/u.test(name))return null;const key=characterKey(name);if(!characters.has(key))characters.set(key,{name,mentions:[],dialogues:[]});const item=characters.get(key);if(name.normalize('NFD').length>name.length&&item.name.normalize('NFD').length===item.name.length)item.name=name;return item;};
+  for(const name of screenplay.characters)ensure(name);
+  for(const node of screenplay.doc.content){const text=plain(node),kind=node.attrs.kind,marks=characterMarks(node);
    if(kind==='scene'){speaker='';if(text.trim()){scene={id:node.attrs.id,number:scenes.length+1,title:text};scenes.push(scene);}}
-   if(kind==='character'){speaker=cue(text);ensure(speaker);}
+   if(kind==='character'){speaker=cue(text);}
    else if(kind==='dialogue'&&speaker&&text.trim())ensure(speaker)?.dialogues.push({id:node.attrs.id,text,scene:scene?.title||'Sin escena'});
    else if(!['dialogue','parenthetical'].includes(kind))speaker='';
-   const names=new Set((node.content||[]).flatMap(piece=>(piece.marks||[]).filter(mark=>mark.type==='character').map(mark=>mark.attrs.name)));
-   for(const name of names)ensure(name)?.mentions.push({id:node.attrs.id,text,scene:scene?.title||'Sin escena'});
-  }return{scenes,characters:[...characters.values()]};
+   for(const mark of marks)ensure(mark.name);records.push({node,text,scene:scene?.title||'Sin escena',marks});
+  }
+  const match=characterMatcher([...characters.values()].map(item=>item.name));
+  for(const {node,text,scene,marks}of records){const found=['action','dialogue','parenthetical','insert'].includes(node.attrs.kind)?match(text):[],groups=new Map();for(const mention of [...found,...marks]){const key=characterKey(mention.name);if(!groups.has(key))groups.set(key,[]);const ranges=groups.get(key);if(!ranges.some(range=>range.from===mention.from&&range.to===mention.to))ranges.push({from:mention.from,to:mention.to});}for(const [key,ranges]of groups)characters.get(key)?.mentions.push({id:node.attrs.id,text,scene,ranges:ranges.sort((a,b)=>a.from-b.from)});}
+  // Un nombre histórico sin texto ni diálogo asociado no es un personaje activo.
+  return{scenes,characters:[...characters.values()].filter(item=>item.mentions.length||item.dialogues.length)};
  }
  function runs(node,from,to){const result=[];let offset=0;for(const piece of node.content||[]){const a=Math.max(from-offset,0),b=Math.min(to-offset,piece.text.length);if(a<b)result.push({text:piece.text.slice(a,b),marks:piece.marks||[]});offset+=piece.text.length;}return result;}
  function normalizeSyntax(value){
@@ -216,5 +230,5 @@
   for(const author of value.authors)if(author.name){for(const line of wrap(author.name,60)){context.fillText(line.text,108*scale+(432-line.text.length*7.2)*scale/2,top);top+=12*scale;}top+=6*scale;}
   const contacts=value.authors.flatMap(author=>[author.name,author.email].filter(Boolean));top=Math.max(top+18*scale,720*scale-contacts.length*12*scale);for(const text of contacts){context.fillText(text,72*scale,top);top+=12*scale;}const result=canvas.toDataURL('image/jpeg',.72);canvas.width=canvas.height=0;return result.length<=20000?result:null;
  }
- const api={kinds,format,types,id,plain,canonical,cue,create,validate,wrap,layout,analyze,runs,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
+ const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,create,validate,wrap,layout,analyze,runs,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
 })(globalThis);
