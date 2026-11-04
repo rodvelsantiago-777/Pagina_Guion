@@ -80,7 +80,7 @@
     };
     for (const [name, value] of Object.entries(tokens)) root.style.setProperty("--" + name, value);
     root.dataset.theme = settings.mode; root.dataset.palette = settings.preset; root.style.colorScheme = settings.mode;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", tokens.paper);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", tokens.sidebar);
     if (persist && !accountManaged) { try { localStorage.setItem(key, JSON.stringify(settings)); } catch {} }
     sync();
   }

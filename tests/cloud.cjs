@@ -206,10 +206,10 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   releaseList();await library.page.evaluate(()=>concurrentLibraryReads);
   await library.page.locator('.script-card-preview img').waitFor();assert.equal(listCalls,1,'Las cargas simultáneas del inicio comparten una única petición a la biblioteca');assert(await library.page.locator('#account-storage').isVisible());
   assert.equal(await library.page.evaluate(()=>performance.getEntriesByType('resource').filter(entry=>entry.name.includes('action=download')).length),0);await library.context.close();
-  // Guion antiguo sin miniatura: se prepara una vez y conserva sus anotaciones.
+  // La vista previa antigua solo lee: no cambia el documento ni su revisión en segundo plano.
   const legacyDoc=await PDFDocument.create(),legacyFont=await legacyDoc.embedFont(StandardFonts.Courier);legacyDoc.addPage([595,842]).drawText('LA SIGUIENTE HISTORIA',{x:85,y:600,size:18,font:legacyFont});
   const legacyProject=(await create(Buffer.from(await legacyDoc.save()),'La siguiente historia.pdf')).project;await two.page.locator('#home-refresh').click();await two.page.locator(`.script-card[data-project-id="${legacyProject.id}"] img`).waitFor();await two.page.evaluate(()=>PlanoCloudLibrary.finishPreview());
-  assert((await rpc('ana','read',legacyProject.id,{})).payload.thumbnail.startsWith('data:image/jpeg;base64,'));assert.equal((await rpc('ana','read',legacyProject.id,{})).payload.annotations.length,0);
+  assert((await two.page.locator(`.script-card[data-project-id="${legacyProject.id}"] img`).getAttribute('src')).startsWith('data:image/jpeg;base64,'));assert.equal((await rpc('ana','read',legacyProject.id,{})).revision,legacyProject.revision);assert.equal((await rpc('ana','read',legacyProject.id,{})).payload.annotations.length,0);
   await two.page.screenshot({path:path.join(root,'tests/.output/biblioteca-guiones-varios.png'),fullPage:true});
   // «+» permite elegir escritura o importación; las tarjetas abren el guion correspondiente.
   await two.page.locator('#upload-button').click();const chooser=two.page.waitForEvent('filechooser');await two.page.locator('#new-script-import').click();await chooser;

@@ -137,8 +137,7 @@
    for(const button of container.querySelectorAll('button')){disabled.set(button,button.disabled);button.disabled=true;}
   }
   try{
-   // Terminar una miniatura antigua antes de leer o cambiar su revisión.
-   await previewWork;
+   // Las miniaturas solo leen; nunca bloquean una apertura ni modifican revisiones.
    if(owner!==accountOwner)return;
    await action();
   }catch(error){if(owner===accountOwner)message(error.message||'No se pudo completar la operación.',true);}
@@ -162,13 +161,13 @@
   if(!expected||root.PlanoAccounts.getUser()?.id!==expected)return;
   if(!fresh&&libraryRequest?.owner===expected)return libraryRequest.promise;
   const version=++loadingVersion;
-  storageFailed=false;renderStorage();message('Cargando tus proyectos…');$('#drop-zone').setAttribute('aria-busy','true');
+  storageFailed=false;$('#home-loading').hidden=projects.length>0||storageLoaded;$('#home-projects').hidden=!$('#home-loading').hidden;renderStorage();message('Cargando tus proyectos…');$('#drop-zone').setAttribute('aria-busy','true');
   const work=(async()=>{
    try{
     const result=await cloud.list();if(version!==loadingVersion||expected!==accountOwner)return;
     projects=result.projects;storageLimits=result.limits||null;storageLoaded=true;storageFailed=false;if(selectedProject&&!projects.some(project=>project.id===selectedProject.id))selectedProject=null;message();renderHome();
    }catch(error){if(version===loadingVersion&&expected===accountOwner){storageFailed=true;renderStorage();message(error.message,true);}}
-   finally{if(version===loadingVersion)$('#drop-zone').setAttribute('aria-busy','false');}
+   finally{if(version===loadingVersion){$('#home-loading').hidden=true;$('#home-projects').hidden=Boolean(selectedProject);$('#drop-zone').setAttribute('aria-busy','false');}}
   })();
   libraryRequest={owner:expected,promise:work};
   try{return await work;}finally{if(libraryRequest?.promise===work)libraryRequest=null;}

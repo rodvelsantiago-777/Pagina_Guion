@@ -75,16 +75,16 @@ function createAccountService({db,lookup,revokeTokens,deleteUser,removeFile,capa
   if(!state.exists||state.disabled)reject('SESSION_REVOKED');
   if(!Number.isSafeInteger(state.validSince)||state.validSince<0)reject('UNAVAILABLE');
   if(state.validSince>0)await db(identity.owner,'credential_epoch',{...data,validSince:state.validSince});
-  if(identity.authTime<state.validSince)reject('SESSION_REVOKED');
+  if(identity.authTime<state.validSince)reject('SESSION_REVOKED');return state;
  }
  async function guard(identity,request){const data=await dataFor(identity,request);await observeCredentials(identity,data);return db(identity.owner,'guard',data);}
  async function action(name,identity,request,body,token){
-  const data=await dataFor(identity,request),owner=identity.owner;await observeCredentials(identity,data);
+  const data=await dataFor(identity,request),owner=identity.owner,credentials=await observeCredentials(identity,data);
   if(!body||typeof body!=='object'||Array.isArray(body))reject('INVALID_INPUT');
   if(name==='account_session_open'){
    if(!data.secretHash)reject('SESSION_REVOKED');
-   const user=await lookup(token);if(user.localId!==owner||user.emailVerified!==true)reject('UNAUTHORIZED');
-   return db(owner,'open',{...data,name:user.displayName||'',device:deviceName(request)});
+   const user=credentials?.user||await lookup(token);if(user.localId!==owner||user.emailVerified!==true)reject('UNAUTHORIZED');
+   const opened=await db(owner,'open',{...data,name:user.displayName||'',device:deviceName(request)});if(body.workspace===true)opened.account={...await db(owner,'read',data),email:identity.email,capabilities:capabilities()};return opened;
   }
   await db(owner,'guard',data);
   if(name==='account_ping')return{};
@@ -154,7 +154,7 @@ function accountRuntime({jose,service,projectId,removeFile}){
  async function credentialState(owner){
   if(!adminReady)return null;
   if(lookups.has(owner))return lookups.get(owner);
-  const work=(async()=>{const result=await firebase('lookup',{localId:[owner]},true),user=result.users?.[0];return{exists:Boolean(user),disabled:Boolean(user?.disabled),validSince:Number(user?.validSince||0)};})();lookups.set(owner,work);
+  const work=(async()=>{const result=await firebase('lookup',{localId:[owner]},true),user=result.users?.[0];return{exists:Boolean(user),disabled:Boolean(user?.disabled),validSince:Number(user?.validSince||0),user};})();lookups.set(owner,work);
   try{return await work;}finally{if(lookups.get(owner)===work)lookups.delete(owner);}
  }
  const account=createAccountService({db,credentialState,
@@ -222,6 +222,13 @@ function createHandler({verify,rpc,preferences,releases,download,remove,origins,
    if(action==='create')fail('UPGRADE_REQUIRED');
    const bytes=await readLimited(request,PAYLOAD_LIMIT+4096);
    let body;try{body=JSON.parse(new TextDecoder().decode(bytes)||'{}');}catch{fail('INVALID_INPUT');}
+   if(action==='workspace_open'){
+    if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
+    if(!account||!preferences||!releases)fail('ACCOUNT_SETUP');
+    const session=await account.action('account_session_open',identity,request,{workspace:true},token);
+    const [library,settings,seen]=await Promise.all([call('list'),preferences(owner,'read'),releases(owner,'read',{})]);
+    const {account:profile,...opened}=session;return json({...opened,workspace:{list:library,preferences_read:{preferences:settings},release_read:{receipt:seen},account_read:profile}});
+   }
    if(action?.startsWith('account_')){if(!account)fail('ACCOUNT_SETUP');return json(await account.action(action,identity,request,body,token));}
    if(account)await account.guard(identity,request);
    if(action==='create_editable'){
@@ -312,4 +319,4 @@ const handler=createHandler({
  download:async(owner:string,id:string)=>(await service(object(owner,id).replace('/object/','/object/authenticated/'))).blob(),
  remove:removeFile
 });
-Deno.serve(async request=>{await runtime.prepare();return handler(request);});
+Deno.serve(async request=>{const action=new URL(request.url).searchParams.get('action');if(['workspace_open','account_read','account_suspend'].includes(action||''))await runtime.prepare();return handler(request);});

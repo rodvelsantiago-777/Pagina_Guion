@@ -65,6 +65,12 @@
  if(typeof document==='undefined')return;
  const $=selector=>document.querySelector(selector),dialog=$('#patch-notes-dialog'),cloud=root.PlanoCloud,key=uid=>'plano-release-seen-v1:'+encodeURIComponent(uid);
  let owner='',epoch=0,current=null,feed=[],feedPromise=null,feedStatus='idle',displayed=null,automatic=false;
+ let publishedVersion='';
+ function paintVersion(value){
+  const meta=document.querySelector('meta[name="plano-version"]');publishedVersion=semver(value)?value:semver(meta?.content)?meta.content:'0.2.1';
+  if(meta)meta.content=publishedVersion;
+  for(const label of document.querySelectorAll('[data-app-version]'))label.textContent='v'+publishedVersion;
+ }
  const read=uid=>{try{return JSON.parse(localStorage.getItem(key(uid)));}catch{return null;}};
  function remember(){if(!current)return;try{localStorage.setItem(key(owner),JSON.stringify({receipt:current.seen,pending:current.pending}));}catch{}}
  const launchers=['#open-patch-notes','#sidebar-patch-notes'];
@@ -78,7 +84,7 @@
     if(!response.ok||Number(response.headers.get('content-length'))>150000)throw new Error('No disponible');
     const text=await response.text();if(text.length>150000)throw new Error('Demasiado grande');
     const data=JSON.parse(text);if(data?.schema!==1||!Array.isArray(data.releases))throw new Error('Formato inválido');
-    feedStatus='ready';return releases(data);
+    const history=releases(data);paintVersion(history[0]?.version);feedStatus='ready';return history;
    }catch{feedStatus='error';return [];}
   })();
   return feedPromise;
@@ -169,6 +175,6 @@
   const cached=read(owner);current.seen=later(current.seen,receipt(cached?.receipt));
   if(automatic&&dialog.open&&displayed&&current.seen?.releaseId===displayed.release.id){displayed=null;dialog.close();}
  });
- root.PlanoPatchNotes={...root.PlanoPatchNotes,flush,show:()=>show(true),info:()=>({owner,ready:current?.ready||false,seen:current?.seen||null,pending:Boolean(current?.pending)})};
+ paintVersion();root.PlanoPatchNotes={...root.PlanoPatchNotes,version:()=>publishedVersion,flush,show:()=>show(true),info:()=>({owner,ready:current?.ready||false,seen:current?.seen||null,pending:Boolean(current?.pending)})};
  root.PlanoAccounts.ready.then(changeAccount);
 })(globalThis);

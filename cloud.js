@@ -7,13 +7,17 @@
  const endpoint=configured?config.url.replace(/\/$/,'')+'/functions/v1/plano-cloud':'';
  const FILE_LIMIT=10485760,PAYLOAD_LIMIT=350000;
  let owner='',epoch=0,current=null,pending=null,sequence=0,inflight=null,timer,error=null,status='idle';
+ const reading=new Map();
  const copy=value=>structuredClone(value),key=(uid,id)=>uid+':'+id;
  const failure=(code,message)=>Object.assign(new Error(message),{code});
  function notify(next=status){status=next;for(const entry of listeners)entry.listener(info(entry.payload));}
  function info(includePayload=true){const metadata=current&&Object.fromEntries(Object.entries(current).filter(([key])=>key!=='payload'));return{configured,owner,project:current?copy(includePayload?current:metadata):null,pending:Boolean(pending),status,error:error?.message||'',code:error?.code||'',drafts:drafts.size};}
  // pending ya es una copia privada: cada edición lo reemplaza, nunca lo modifica.
  function remember(){if(current&&pending)drafts.set(key(owner,current.id),{payload:pending,revision:current.revision});}
- async function request(action,data={},binary=false){
+ function request(action,data={},binary=false){
+  if(binary||!['list','read','preferences_read','release_read'].includes(action))return send(action,data,binary);const tag=epoch+':'+action+':'+JSON.stringify(data);if(reading.has(tag))return reading.get(tag);const work=send(action,data,binary);reading.set(tag,work);const done=()=>{if(reading.get(tag)===work)reading.delete(tag);};work.then(done,done);return work;
+ }
+ async function send(action,data={},binary=false){
   if(!configured)throw failure('SETUP','El almacenamiento de la nube todavía no está configurado.');
   const expectedOwner=owner,expectedEpoch=epoch,user=root.PlanoAccounts.getUser();
   if(!user||user.id!==expectedOwner)throw failure('SESSION','Vuelve a iniciar sesión para acceder a tus proyectos.');
@@ -21,6 +25,7 @@
   const token=await root.PlanoAccounts.getAccessToken();
   const device=await root.PlanoAccountSession?.ensure(token);
   if(epoch!==expectedEpoch||owner!==expectedOwner)throw failure('CANCELLED','La cuenta ha cambiado.');
+  const bundled=root.PlanoAccountSession?.take(action);if(bundled)return bundled;
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
   try{
    const form=data instanceof FormData;
@@ -40,7 +45,7 @@
   }finally{clearTimeout(timeout);}
  }
  function changeOwner(nextOwner){
-  remember();clearTimeout(timer);epoch++;owner=nextOwner||'';current=null;pending=null;inflight=null;sequence=0;error=null;notify('idle');
+  remember();reading.clear();clearTimeout(timer);epoch++;owner=nextOwner||'';current=null;pending=null;inflight=null;sequence=0;error=null;notify('idle');
  }
  function attach(project){
   clearTimeout(timer);current=copy(project);pending=null;sequence=0;error=null;

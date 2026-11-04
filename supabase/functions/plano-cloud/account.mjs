@@ -20,16 +20,16 @@ export function createAccountService({db,lookup,revokeTokens,deleteUser,removeFi
   if(!state.exists||state.disabled)reject('SESSION_REVOKED');
   if(!Number.isSafeInteger(state.validSince)||state.validSince<0)reject('UNAVAILABLE');
   if(state.validSince>0)await db(identity.owner,'credential_epoch',{...data,validSince:state.validSince});
-  if(identity.authTime<state.validSince)reject('SESSION_REVOKED');
+  if(identity.authTime<state.validSince)reject('SESSION_REVOKED');return state;
  }
  async function guard(identity,request){const data=await dataFor(identity,request);await observeCredentials(identity,data);return db(identity.owner,'guard',data);}
  async function action(name,identity,request,body,token){
-  const data=await dataFor(identity,request),owner=identity.owner;await observeCredentials(identity,data);
+  const data=await dataFor(identity,request),owner=identity.owner,credentials=await observeCredentials(identity,data);
   if(!body||typeof body!=='object'||Array.isArray(body))reject('INVALID_INPUT');
   if(name==='account_session_open'){
    if(!data.secretHash)reject('SESSION_REVOKED');
-   const user=await lookup(token);if(user.localId!==owner||user.emailVerified!==true)reject('UNAUTHORIZED');
-   return db(owner,'open',{...data,name:user.displayName||'',device:deviceName(request)});
+   const user=credentials?.user||await lookup(token);if(user.localId!==owner||user.emailVerified!==true)reject('UNAUTHORIZED');
+   const opened=await db(owner,'open',{...data,name:user.displayName||'',device:deviceName(request)});if(body.workspace===true)opened.account={...await db(owner,'read',data),email:identity.email,capabilities:capabilities()};return opened;
   }
   await db(owner,'guard',data);
   if(name==='account_ping')return{};

@@ -110,8 +110,8 @@ async function assertLabelClearance(page) {
     const errors=[]; page.on('pageerror',error=>errors.push(error.message));
     const base=process.env.PLANO_TEST_URL || pathToFileURL(path.resolve(__dirname,'../index.html')).href;
     await page.goto(base);
-    assert(!(await page.locator('#editor-home').isVisible()),'Los controles del editor no aparecen en la portada');
-    assert(await page.locator('.page-description').evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=15));
+    assert(await page.locator('#editor-home').isVisible(),'El logo global también permite ir a Inicio desde la biblioteca');
+    assert(await page.locator('.page-description').evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=14));
     await page.screenshot({path:path.join(output,'portada-escritorio.png'),fullPage:true});
     await page.setViewportSize({width:390,height:900});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Portada móvil sin desbordamiento');

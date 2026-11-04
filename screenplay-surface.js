@@ -28,5 +28,7 @@
   }
   layer.replaceChildren(fragment);
  }
- root.PlanoScreenplaySurface={render};
+ // Las posiciones ya existen: no se vuelven a extraer de todas las páginas del PDF.
+ function pages(surface){return surface.map(page=>({width:page.width,height:page.height,lines:root.PlanoScenes.linesFromItems(page.runs.map(run=>({str:run.text,width:run.width,transform:[run.size,0,0,run.size,run.x,run.baseline]})),{width:page.width,height:page.height,scale:1,transform:[1,0,0,1,0,0]},(_,matrix)=>matrix)}));}
+ root.PlanoScreenplaySurface={render,pages};
 })(globalThis);

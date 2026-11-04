@@ -2,7 +2,9 @@
 
 /* El lateral conserva el contraste del inicio en todas las etapas. Los tokens
    son locales: no cambian las marcas de color ni la superficie del guion. */
-.account-center-nav,.writer-navigation,.annotations-panel{
+.account-center-nav,.writer-navigation,.annotations-panel,
+.topbar,.account-center-header,.auth-entry-header,.detached-heading,
+.writer-toolbar,.writer-kind-toolbar,.annotation-toolbar,.technical-heading,.editor-status{
  --paper:var(--sidebar);--surface-alt:var(--side-hover);--surface-hover:var(--side-hover);
  --ink:var(--side-ink);--muted:var(--side-muted);--faint:var(--side-muted);
  --line:var(--side-line);--line-strong:var(--side-line);
@@ -24,7 +26,11 @@
    las áreas de trabajo y las tarjetas. Sin degradados ni transparencias. */
 .writer-toolbar,.writer-kind-toolbar,.annotation-toolbar,.technical-heading,
 .account-settings-card>header,.account-setting-row{background:var(--surface-alt)}
-.editor-status,.account-center-header,.topbar{background:var(--paper)}
+.topbar,.account-center-header,.auth-entry-header,.detached-heading,
+.writer-toolbar,.writer-kind-toolbar,.annotation-toolbar,.technical-heading,.editor-status{background:var(--sidebar);border-color:var(--side-line)}
+.topbar .stage-picker{background:var(--sidebar)}
+.topbar .stage-picker button[aria-selected=true]{background:var(--side-hover);border-color:var(--side-line);color:var(--side-ink)}
+.topbar .brand-mark i,.account-center-header .brand-mark i,.auth-entry-header .brand-mark i{background:var(--side-accent,#d0aa8e)}
 .account-center-header{height:64px;padding-inline:28px}
 .account-center-layout{grid-template-columns:240px minmax(0,1fr)}
 .account-center-nav{padding:32px 18px 24px;border-color:var(--side-line)}
@@ -44,8 +50,8 @@ body:not(.is-editing) #editor-home{display:flex}
 body:not(.is-editing) .topbar .breadcrumb{padding-left:24px;border-left:1px solid var(--line);min-height:18px;align-items:center}
 body:not(.is-editing) .topbar .breadcrumb strong{font:600 12px/1.5 var(--sans);color:var(--muted)}
 body:not(.is-editing) .sidebar{grid-column:1;grid-row:2/4;position:sticky;top:64px;width:auto;height:calc(100dvh - 64px);padding:32px 18px 24px;border-right:1px solid var(--side-line)}
-body:not(.is-editing) .sidebar>.brand,body:not(.is-editing) .sidebar>.studio-label,
-body:not(.is-editing) .sidebar>.sidebar-footer{display:none}
+body:not(.is-editing) .sidebar>.brand,body:not(.is-editing) .sidebar>.studio-label{display:none}
+body:not(.is-editing) .sidebar>.sidebar-footer{display:flex;margin-top:auto}
 body:not(.is-editing) .project-label{margin:0 0 16px;padding:0 12px;font-size:9px;letter-spacing:1.5px}
 body:not(.is-editing) .navigation{gap:5px}
 body:not(.is-editing) .nav-item{padding:12px 13px;font:500 13px/1.5 var(--sans);border-radius:3px;gap:11px}
@@ -126,3 +132,15 @@ body:not(.is-editing) .page-footer{display:none}
 @media print{
  .sidebar,.account-center,.writer-navigation,.annotations-panel{display:none!important}
 }
+
+/* La versión publicada se mantiene visible en los paneles del estudio. */
+.studio-version-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;border-top:1px solid var(--side-line);padding:13px 16px;color:var(--side-muted);font:11px/1.5 var(--sans)}
+.studio-version-footer [data-app-version]{color:var(--side-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.account-center-nav{display:flex;flex-direction:column}.account-center-nav nav{flex-shrink:0}.account-version{margin-top:auto;padding-inline:10px}
+.writer-nav-foot .studio-version-footer{padding:10px 0 0;margin-top:12px}
+.editor-status [data-app-version]{color:var(--muted);font:inherit;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:680px){.account-version{padding:7px 18px;font-size:10px}}
+
+.auth-entry{--auth-gutter:46px}.auth-entry-header{max-width:none;min-height:64px;margin-inline:calc(-1 * var(--auth-gutter));padding-inline:28px}
+@media(max-width:900px){.auth-entry{--auth-gutter:26px}}
+@media(max-width:700px){.auth-entry{--auth-gutter:19px}.auth-entry-header{padding-inline:20px}}

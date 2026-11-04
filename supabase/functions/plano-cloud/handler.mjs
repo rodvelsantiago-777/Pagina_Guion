@@ -53,6 +53,13 @@ export function createHandler({verify,rpc,preferences,releases,download,remove,o
    if(action==='create')fail('UPGRADE_REQUIRED');
    const bytes=await readLimited(request,PAYLOAD_LIMIT+4096);
    let body;try{body=JSON.parse(new TextDecoder().decode(bytes)||'{}');}catch{fail('INVALID_INPUT');}
+   if(action==='workspace_open'){
+    if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
+    if(!account||!preferences||!releases)fail('ACCOUNT_SETUP');
+    const session=await account.action('account_session_open',identity,request,{workspace:true},token);
+    const [library,settings,seen]=await Promise.all([call('list'),preferences(owner,'read'),releases(owner,'read',{})]);
+    const {account:profile,...opened}=session;return json({...opened,workspace:{list:library,preferences_read:{preferences:settings},release_read:{receipt:seen},account_read:profile}});
+   }
    if(action?.startsWith('account_')){if(!account)fail('ACCOUNT_SETUP');return json(await account.action(action,identity,request,body,token));}
    if(account)await account.guard(identity,request);
    if(action==='create_editable'){

@@ -37,7 +37,7 @@
     if(shell.inert!==!unlocked)shell.inert=!unlocked;
     shell.setAttribute('aria-hidden',String(!unlocked));
     $('#close-account').hidden=!unlocked;$('#account-continue').hidden=!unlocked;
-    const pendingEditor=Boolean(current?.emailVerified)&&!workspaceConnected;
+    const pendingEditor=Boolean(current?.emailVerified)&&!workspaceConnected;document.body.classList.toggle('auth-restoring',connecting||pendingEditor);const boot=$('#startup-loading');if(boot)boot.hidden=!(connecting||pendingEditor);
     $('#auth-loading').hidden=!connecting&&!pendingEditor;
     $('#auth-loading').textContent=pendingEditor?'Preparando tu espacio de trabajo…':'Conectando con el servicio de cuentas…';
   }
@@ -91,9 +91,9 @@
       current=next;
       connecting=false;
       if(!['forgot','reset'].includes(view))view=current?current.emailVerified?'profile':'verify':view==='signup'?'signup':'login';
-      render();resolveReady();
-      // El token y el usuario ya están disponibles cuando se restaura la apariencia.
-      document.dispatchEvent(new CustomEvent('plano-account-change'));
+      render();if(!current?.emailVerified||workspaceConnected){resolveReady();
+      // El espacio pertenece ya al usuario antes de iniciar sus lecturas.
+      document.dispatchEvent(new CustomEvent('plano-account-change'));}
     });
     return queue;
   }
@@ -111,7 +111,7 @@
     await current.sendEmailVerification(actionSettings());resendAt=Date.now()+60000;
     message('Enlace enviado. Revisa tu correo y la carpeta de spam.');updateResend();
   }
-  function loadScript(src){return new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=src;const timer=setTimeout(()=>{script.remove();reject(new Error('SDK timeout'));},15000);script.onload=()=>{clearTimeout(timer);resolve();};script.onerror=()=>{clearTimeout(timer);script.remove();reject(new Error('SDK unavailable'));};document.head.append(script);});}
+  function loadScript(src){return new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=src+(new URL(document.querySelector('script[src^="accounts.js"]').src).search);const timer=setTimeout(()=>{script.remove();reject(new Error('SDK timeout'));},15000);script.onload=()=>{clearTimeout(timer);resolve();};script.onerror=()=>{clearTimeout(timer);script.remove();reject(new Error('SDK unavailable'));};document.head.append(script);});}
   async function handleEmailAction(){
     const params=new URL(location.href).searchParams,mode=params.get('mode'),code=params.get('oobCode');
     if(!code||!['resetPassword','verifyEmail'].includes(mode))return;
@@ -182,7 +182,12 @@
     }catch{connecting=false;unavailable='No se pudo conectar con el servicio de cuentas. Comprueba tu conexión y vuelve a intentarlo.';render();resolveReady();}
     return ready;
   }
-  function connectWorkspace(options){hooks={...hooks,...options};workspaceConnected=true;if(initialized)render();}
+  function connectWorkspace(options){
+    hooks={...hooks,...options};
+    if(current?.emailVerified&&!workspaceConnected){
+      const expected=current.uid;queue=queue.catch(()=>{}).then(async()=>{if(current?.uid!==expected)return;await hooks.change?.(expected,'');workspaceConnected=true;render();resolveReady();document.dispatchEvent(new CustomEvent('plano-account-change'));}).catch(()=>{connecting=false;unavailable='No se pudo preparar el estudio. Recarga la página para reintentar.';workspaceConnected=false;render();resolveReady();});
+    }else{workspaceConnected=true;if(initialized)render();}
+  }
   async function signOut(forced=false,text='Sesión cerrada.'){
     if(!forced){if(hooks.canChange&&!hooks.canChange())throw Error('Termina la edición o exportación en curso antes de cerrar sesión.');await hooks.beforeChange?.();await root.PlanoAccountSession?.closeCurrent().catch(()=>{});}
     root.PlanoAccountCenter?.close();root.PlanoAccountSession?.forget();await client.signOut();await acceptUser(null);setView('login');message(text);
@@ -209,7 +214,7 @@
     }catch(error){throw error;}
   }
   document.addEventListener('plano-session-revoked',event=>{if(current)signOut(true,event.detail||'Esta sesión se ha cerrado. Inicia sesión de nuevo.').catch(()=>{});});
-  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,manage,signOut,setProfileName:name=>{profileName=name;root.PlanoHeader?.refreshIdentity();},setProfilePhoto:photo=>{profilePhoto=globalThis.PlanoAvatarImage?.valid(photo)?photo:'';root.PlanoHeader?.refreshIdentity();},notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:profileName??current.displayName??'',email:current.email,...(profilePhoto?{photo:profilePhoto}:{})}:null,
+  root.PlanoAccounts={init,ready,configured,restoring:()=>connecting||Boolean(current?.emailVerified)&&!workspaceConnected,open,connectWorkspace,manage,signOut,setProfileName:name=>{profileName=name;root.PlanoHeader?.refreshIdentity();},setProfilePhoto:photo=>{profilePhoto=globalThis.PlanoAvatarImage?.valid(photo)?photo:'';root.PlanoHeader?.refreshIdentity();},notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:profileName??current.displayName??'',email:current.email,...(profilePhoto?{photo:profilePhoto}:{})}:null,
     getAccessToken:async()=>{if(!current?.emailVerified||client?.currentUser?.uid!==current.uid)throw new Error('SESSION');return current.getIdToken();}};
   // El acceso se inicia por sí mismo, aunque el editor tarde en cargar o falle.
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>init());else init();

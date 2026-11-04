@@ -52,3 +52,10 @@ Las migraciones de cuenta, guardia de sesiones y programador están instaladas e
 - Suite general: `node tools/run-checks.cjs`, con dependencias y navegador definidos como en README. Las pruebas no crean cuentas de producción, no borran usuarios reales y no mandan correos reales.
 
 Para publicar la interfaz hay que incluir los archivos nuevos, crear el commit y hacer **Push origin**. El servidor ya está instalado; no requiere activar Firebase Storage, Functions/Blaze ni un plan de pago de Supabase.
+
+
+## Carga inicial y lecturas rápidas
+
+`workspace_open` realiza la misma validación de firma, identidad, estado de Firebase y secreto de dispositivo que el registro de sesión. Reutiliza la respuesta administrativa de Firebase para evitar otra consulta equivalente con el token. Después registra la sesión y obtiene el listado de proyectos, preferencias, recibo de novedades y perfil. Las comprobaciones de revocación y permisos permanecen activas; las operaciones posteriores siguen validándose en el servidor.
+
+Las lecturas iniciales se comparten una vez durante 30 segundos en memoria. Mi cuenta conserva su última lectura en memoria mientras esa cuenta permanece abierta en la aplicación y la actualiza al volver a entrar. Los campos en edición no se sustituyen por una lectura tardía. El cambio de UID o el cierre de sesión retiran estos datos. No se introduce una caché de perfil o documentos en localStorage ni se habilitan permisos nuevos de base de datos.

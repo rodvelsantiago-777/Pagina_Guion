@@ -135,7 +135,13 @@ function loadScript(src) {
 function readLocalScreenplayPayload(hash) {
   try { return JSON.parse(localStorage.getItem(PlanoAccounts.notesKey(hash)) || "null") || {}; } catch { return {}; }
 }
+const generatedPdfCache=new Map();
 async function generateScreenplayPdf(screenplay) {
+  const key=PlanoAccounts.getUser()?.id+':'+JSON.stringify(screenplay);if(generatedPdfCache.has(key))return generatedPdfCache.get(key);
+  const work=buildScreenplayPdf(screenplay);generatedPdfCache.set(key,work);while(generatedPdfCache.size>2)generatedPdfCache.delete(generatedPdfCache.keys().next().value);
+  try{const result=await work;if(result.bytes.byteLength>4*1024*1024&&generatedPdfCache.get(key)===work)generatedPdfCache.delete(key);return result;}catch(error){if(generatedPdfCache.get(key)===work)generatedPdfCache.delete(key);throw error;}
+}
+async function buildScreenplayPdf(screenplay) {
   const version = new URL($("script[src^='app.js']").src).search;
   if (!window.PDFLib) await loadScript(`vendor/pdf-lib.min.js${version}`);
   await Promise.all([window.fontkit?null:loadScript(`vendor/fontkit.min.js${version}`),window.PlanoScreenplayFonts?null:loadScript(`vendor/screenplay-fonts.js${version}`)]);
@@ -226,7 +232,7 @@ async function upload(file,options={}){
   const converting=Boolean(!options.screenplay&&options.project?.storage_kind!=='editable'&&file&&!/\.(?:plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i.test(file.name));
   const identity=state.fingerprint;busy(true);
   try{
-    await PlanoCloudLibrary.finishPreview();if(PlanoCloud.configured)await PlanoCloud.flush();
+    if(PlanoCloud.configured)await PlanoCloud.flush();
     let project=options.project||null,payload=options.payload||project?.payload||{},script=PlanoScreenplay.validate(options.screenplay||payload.screenplay),basis=PlanoScreenplay.validate(payload.screenplayCoverage)||script,fingerprintHint=options.fingerprint||null,archive=null,importWarning='';
     if(file&&/\.plano$/i.test(file.name)&&!script){archive=PlanoProjectArchive.parse(await file.text());script=archive.payload.screenplay;payload=archive.payload;basis=script;}
     if(importingDocx){message('Importando el guion DOCX…');await prepareDocx();script=await PlanoDocx.read(file,{user:owner});basis=script;payload={};}
@@ -294,7 +300,6 @@ async function openDocumentPdf(file, options = {}) {
   busy(true); message("");
   const previousStatus = state.pdf ? "Guion listo" : "Sin documento";
   try {
-    await PlanoCloudLibrary.finishPreview();
     if (PlanoCloud.configured) await PlanoCloud.flush();
     if (!file.size) throw new Error("El archivo está vacío. Selecciona un PDF con contenido.");
     if (file.size > MAX_SIZE) throw new Error("El PDF supera el límite de 100 MB.");
@@ -326,7 +331,8 @@ async function openDocumentPdf(file, options = {}) {
       candidate.promise.then(resolve, reject);
     });
     const pages = [];
-    for (let number = 1; number <= pdf.numPages; number++) {
+    if(generated?.surface)pages.push(...PlanoScreenplaySurface.pages(generated.surface));
+    else for (let number = 1; number <= pdf.numPages; number++) {
       if (id !== state.loadId) { await candidate.destroy(); return; }
       status(`Detectando escenas… ${number}/${pdf.numPages}`);
       const page = await pdf.getPage(number);
@@ -426,27 +432,13 @@ function renameDocumentFile(name) {
   PlanoTechnicalWindow.publish();
 }
 async function buildLibraryPreview(project) {
-  const owner = PlanoCloud.info().owner;
-  await prepareEngine();
-  const loaded = await PlanoCloud.open(project.id);
+  const owner = PlanoCloud.info(false).owner;
+  const loaded={project:(await PlanoCloud.request('read',{id:project.id})).project};
   if(loaded.project.storage_kind==='editable')return{thumbnail:PlanoScreenplay.thumbnail(PlanoScreenplay.validate(loaded.project.payload.screenplay)),project:loaded.project};
-  const loading = pdfjsLib.getDocument({ data: new Uint8Array(await loaded.file.arrayBuffer()), isEvalSupported: false, useWasm: true, useSystemFonts: false, useWorkerFetch: false, BinaryDataFactory: LocalBinaryFactory });
-  try {
-    const pdf = await loading.promise, thumbnail = await PlanoScriptPreview.create(pdf);
-    if (!thumbnail || owner !== PlanoCloud.info().owner) return null;
-    let updated = loaded.project;
-    // Mantener las anotaciones completas y la revisión; jamás sobrescribir un borrador.
-    if (state.cloudProject?.id === project.id) {
-      state.thumbnail = thumbnail; saveNotes(); await PlanoCloud.flush(); updated = PlanoCloud.info().project;
-    } else {
-      const payload = { ...loaded.project.payload, thumbnail };
-      if (new TextEncoder().encode(JSON.stringify(payload)).length <= 350000) {
-        try { updated = (await PlanoCloud.request("save", { id: project.id, revision: loaded.project.revision, payload })).project; }
-        catch (error) { if (error.code !== "CONFLICT") throw error; }
-      }
-    }
-    return { thumbnail, project: updated };
-  } finally { await loading.destroy(); }
+  await prepareEngine();
+  const file=await PlanoCloud.request('download',{id:project.id},true);
+  const loading=pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory});
+  try{const pdf=await loading.promise,thumbnail=await PlanoScriptPreview.create(pdf);return owner===PlanoCloud.info(false).owner?{thumbnail,project:loaded.project}:null;}finally{await loading.destroy();}
 }
 
 function updateSceneOptions() {
@@ -2113,8 +2105,9 @@ smallScreen.addEventListener("change", () => { if (state.screen === "editor") se
 function goToHome(event) {
   event.preventDefault();
   if (state.busy || state.exporting || state.pdf && !canSelectShots() || !PlanoTechnicalScript.finishEditing()) return;
-  message(""); PlanoCloudLibrary.showRoot();
+  if(document.querySelector("#account-center")?.hidden===false)PlanoAccountCenter.close();message(""); PlanoCloudLibrary.showRoot();return true;
 }
+globalThis.PlanoNavigation={home:goToHome};
 $("#editor-home").addEventListener("click", goToHome);
 $(".sidebar .brand").addEventListener("click", goToHome);
 $("#menu-home").addEventListener("click", () => { if (!canSelectShots() || !PlanoTechnicalScript.finishEditing()) return; message(""); PlanoCloudLibrary.showProject(); });
@@ -2323,7 +2316,7 @@ PlanoAccounts.connectWorkspace({
   canChange: () => !creatingScript && !state.busy && !PlanoHeader.pending() && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
   beforeChange: async () => { await globalThis.PlanoAccountAppearance?.flush(); try { if (PlanoCloud.configured) await PlanoCloud.flush(); } catch { throw Object.assign(new Error("Cloud save pending"), { code: "plano/cloud-unsaved" }); } },
   change: async nextOwner => {
-    const shell = $(".app-shell"); shell.inert = true;
+    generatedPdfCache.clear();const shell = $(".app-shell"); shell.inert = true;
     try {
       // Las exportaciones ya capturaron sus datos; terminan antes de destruir el PDF.
       while (state.exporting) await new Promise(resolve => setTimeout(resolve, 100));
@@ -2344,7 +2337,7 @@ PlanoCloudLibrary.init({
   renameLock: value=>busy(value),
   preview: buildLibraryPreview,
   home: () => showScreen("import"),
-  open: async (id, stage = "coverage") => { if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); if (state.pdf && (id === state.cloudProject?.id || id === "local")) { await switchStage(stage); showScreen("editor"); return; } const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project, stage })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
+  open: async (id, stage = "coverage") => { if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); if (state.pdf && (id === state.cloudProject?.id || id === "local")) { if(state.screen==='editor')await switchStage(stage);else{state.stage=stage;showScreen("editor");}return; } const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project, stage })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
   renameLocal: (name, isProject) => { if (isProject) { state.localProjectName = name; } else renameDocumentFile(name); return currentLibraryProject(); },
   projectRenamed: project => { if (state.cloudProject?.id === project.id) { state.cloudProject = {...state.cloudProject, ...project}; if (state.screen === "editor") $("#breadcrumb-current").textContent = project.project_name; } PlanoHeader.refresh();PlanoTechnicalWindow.publish(); },
   renamed: project => { if (state.cloudProject?.id !== project.id) return; state.cloudProject = project; renameDocumentFile(project.name); if (state.screenplay) PlanoWriter.syncTitle(project.name.replace(/\.(pdf|plano)$/i,"")); },
@@ -2388,10 +2381,8 @@ async function createNativeScript(value, metadata = {}) {
   try{
     if(PlanoCloud.configured)await PlanoCloud.flush();
     const screenplay=value?PlanoScreenplay.validate(value):PlanoScreenplay.create('Sin título',owner);
-    const result=await generateScreenplayPdf(screenplay);
     if(PlanoAccounts.getUser()?.id!==owner.id)return false;
-    const name=(screenplay.title.trim()||'Sin título')+'.pdf';
-    const loaded=await upload(new File([result.bytes],name,{type:'application/pdf'}),{screenplay});
+    const loaded=await upload(null,{screenplay,stage:'writing'});
     if(!loaded)return false;
     if(metadata.crew)state.crew=PlanoCrew.validate(metadata.crew);
     if(metadata.proofreading)state.proofreading=PlanoSpelling.validate(metadata.proofreading);
@@ -2408,7 +2399,7 @@ async function refreshWriterCoverage(){
     let candidate=null,committed=false;
     try{
       const generated=await generateScreenplayPdf(script);await prepareEngine();candidate=pdfjsLib.getDocument({data:new Uint8Array(generated.bytes),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory});const pdf=await candidate.promise,pages=[];
-      for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),text=await readPageText(page),viewport=page.getViewport({scale:1});pages.push({width:viewport.width,height:viewport.height,lines:sceneTools.linesFromItems(text.items,viewport,pdfjsLib.Util.transform)});}
+      if(generated.surface)pages.push(...PlanoScreenplaySurface.pages(generated.surface));else for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),text=await readPageText(page),viewport=page.getViewport({scale:1});pages.push({width:viewport.width,height:viewport.height,lines:sceneTools.linesFromItems(text.items,viewport,pdfjsLib.Util.transform)});}
       if(PlanoAccounts.getUser()?.id!==owner||state.fingerprint!==key||state.screenplay?.revision!==script.revision){retry=state.fingerprint===key&&state.screenplay?.id===script.id;await candidate.destroy();return false;}
       const notes=validateNotes(PlanoScreenplayLinks.reflow(state.annotations,script),pdf.numPages),corrections=PlanoCorrections.validate(flowCorrections(state.corrections,script),pdf.numPages);
       const previous=state.pdf;cancelRendering();cancelSpelling();if(state.url)URL.revokeObjectURL(state.url);

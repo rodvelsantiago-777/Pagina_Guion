@@ -28,7 +28,7 @@ export function accountRuntime({jose,service,projectId,removeFile}){
  async function credentialState(owner){
   if(!adminReady)return null;
   if(lookups.has(owner))return lookups.get(owner);
-  const work=(async()=>{const result=await firebase('lookup',{localId:[owner]},true),user=result.users?.[0];return{exists:Boolean(user),disabled:Boolean(user?.disabled),validSince:Number(user?.validSince||0)};})();lookups.set(owner,work);
+  const work=(async()=>{const result=await firebase('lookup',{localId:[owner]},true),user=result.users?.[0];return{exists:Boolean(user),disabled:Boolean(user?.disabled),validSince:Number(user?.validSince||0),user};})();lookups.set(owner,work);
   try{return await work;}finally{if(lookups.get(owner)===work)lookups.delete(owner);}
  }
  const account=createAccountService({db,credentialState,

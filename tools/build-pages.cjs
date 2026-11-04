@@ -68,7 +68,10 @@ function writeSite(root,output,feed,sha){
  fs.cpSync(path.join(root,'vendor'),path.join(output,'vendor'),{recursive:true});
  for(const name of fs.readdirSync(output).filter(name=>name.endsWith('.html'))){
   const html=path.join(output,name);
-  fs.writeFileSync(html,fs.readFileSync(html,'utf8').replace(/\b(src|href)="((?!https?:|data:)[^"#?]+\.(?:css|js))(?:\?[^\"]*)?"/g,(_,attr,url)=>`${attr}="${url}?v=${sha}"`));
+  let source=fs.readFileSync(html,'utf8').replace(/\b(src|href)="((?!https?:|data:)[^"#?]+\.(?:css|js))(?:\?[^\"]*)?"/g,(_,attr,url)=>`${attr}="${url}?v=${sha}"`);
+  const version=feed.releases?.[0]?.version;
+  if(/^\d+\.\d+\.\d+$/.test(version||''))source=source.replace(/(<meta name="plano-version" content=")[^"]*(")/g,(_,start,end)=>start+version+end).replace(/(<[^>]*\bdata-app-version(?:="[^"]*")?[^>]*>)[^<]*/g,(_,start)=>start+'v'+version);
+  fs.writeFileSync(html,source);
  }
  fs.writeFileSync(path.join(output,'release-notes.json'),JSON.stringify(feed));fs.writeFileSync(path.join(output,'.nojekyll'),'');
 }
