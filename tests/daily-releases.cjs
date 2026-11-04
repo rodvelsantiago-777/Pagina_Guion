@@ -4,7 +4,7 @@ const stamp=(day,hour)=>`2026-10-${day}T${hour}:00:00.000Z`;
 assert.equal(releaseDay(stamp(24,'02')),'2026-10-23','La medianoche UTC no cambia el día de Colombia');
 assert.equal(releaseDay(stamp(24,'06')),'2026-10-24');
 const raw=Array.from({length:20},(_,i)=>({id:String(i+1).padStart(40,'a'),publishedAt:`2026-10-23T${String(6+Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}:00Z`,version:'push '+i,sections:[{category:'new',items:['Mejora '+i,'Común']}]}));
-const folded=releases({schema:1,releases:raw});assert.equal(folded.length,1);assert.equal(folded[0].version,'2026.10.23');assert.equal(folded[0].sections[0].items.length,21);assert.equal(folded[0].commit,raw.at(-1).id);
+const folded=releases({schema:1,releases:raw});assert.equal(folded.length,1);assert.equal(folded[0].version,'0.1.0');assert.equal(folded[0].sections[0].items.length,21);assert.equal(folded[0].commit,raw.at(-1).id);
 assert.deepEqual(releases({schema:1,releases:folded}),folded,'Agrupar otra vez no duplica las notas');
 assert.equal(unseen(folded,{releaseId:folded[0].id,publishedAt:raw[0].publishedAt}).length,0,'Veinte pushes no provocan veinte avisos diarios');
 const next=releases({schema:1,releases:[{...raw[0],id:'b'.repeat(40),publishedAt:stamp(24,'06'),sections:[{category:'fixed',items:['Nueva jornada']}]},...folded]});assert.equal(next.length,2);assert.equal(next[0].id,'day-2026-10-24');

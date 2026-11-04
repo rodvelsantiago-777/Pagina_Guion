@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="accounts.css?v=20261020-email-compat-1">
   <link rel="stylesheet" href="cloud.css?v=20261102-menu-cleanup-1">
   <link rel="stylesheet" href="library.css?v=20261102-project-archive-1">
-  <link rel="stylesheet" href="patch-notes.css?v=20261022-history-1">
+  <link rel="stylesheet" href="patch-notes.css?v=20261103-concise-versions-1">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
   <script src="accounts.js?v=20261103-avatar-1" defer></script>
   <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
@@ -30,7 +30,7 @@
   <script src="account-center.js?v=20261103-avatar-1" defer></script>
   <link rel="stylesheet" href="account-center.css?v=20261103-avatar-1">
   <script src="appearance-account.js?v=20261103-account-center-1" defer></script>
-  <script src="cloud-library.js?v=20261102-menu-cleanup-1" defer></script>
+  <script src="cloud-library.js?v=20261103-studio-ui-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="export-ui.js?v=20261102-docx-1" defer></script>
   <link rel="stylesheet" href="export-ui.css?v=20261102-docx-1">
@@ -68,8 +68,9 @@
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
   <script src="writer-editor.js?v=20261102-single-toolbar-1" defer></script>
   <script src="header-ui.js?v=20261103-avatar-1" defer></script>
+  <link rel="stylesheet" href="studio-shell.css?v=20261103-studio-ui-1">
   <script src="app.js?v=20261103-coverage-tools-1" defer></script>
-  <script src="patch-notes.js?v=20261102-menu-cleanup-1" defer></script>
+  <script src="patch-notes.js?v=20261103-concise-versions-1" defer></script>
 </head>
 <body class="auth-locked">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -162,14 +163,14 @@
       </header>
       <div id="cloud-sync-alert" class="cloud-alert" role="status" hidden><p id="cloud-sync-error"></p><div><button id="cloud-retry-save" type="button">Reintentar guardado</button><button id="cloud-reload" type="button" hidden>Recargar versión de la nube</button><button id="cloud-export-draft" type="button">Descargar copia de mis notas</button></div></div>
       <main id="main-content">
-        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">TU ESPACIO DE TRABAJO</p><h1 id="page-title">Tus proyectos.</h1><p class="page-description" id="page-description">Retoma una historia o empieza a preparar la siguiente.</p></div><div class="edition-stamp" aria-hidden="true"><span>ESTUDIO DE GUION</span><strong>01 <span>/</span></strong><span>LA HISTORIA PRIMERO</span></div></section>
+        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">TU ESPACIO DE TRABAJO</p><h1 id="page-title">Mis proyectos</h1><p class="page-description" id="page-description">Retoma una historia o empieza a preparar la siguiente.</p></div></section>
 
         <section class="script-workspace" aria-labelledby="workspace-title">
           <div class="workspace-toolbar"><div class="workspace-tab"><svg><use href="#i-script"/></svg><h2 id="workspace-title">Importar guion</h2></div><span class="workspace-status" id="workspace-status"><span></span>Sin documento</span></div>
 
           <div id="upload-view" class="upload-view">
             <div class="home-library" id="drop-zone" aria-labelledby="home-library-title">
-              <div class="home-library-heading"><div><h2 id="home-library-title">Tus proyectos</h2><span id="home-library-count">Todos tus guiones, en un solo lugar.</span></div><div class="home-library-tools"><button id="open-patch-notes" class="patch-notes-launch" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="return-editor" class="library-return" type="button" hidden>Volver al guion abierto <span aria-hidden="true">↗</span></button><button id="home-refresh" class="header-icon" type="button" aria-label="Actualizar biblioteca" title="Actualizar biblioteca">↻</button></div></div>
+              <div class="home-library-heading"><div><h2 id="home-library-title">Biblioteca</h2><span id="home-library-count">Todos tus guiones, en un solo lugar.</span></div><div class="home-library-tools"><button id="open-patch-notes" class="patch-notes-launch" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="return-editor" class="library-return" type="button" hidden>Volver al guion abierto <span aria-hidden="true">↗</span></button><button id="home-refresh" class="header-icon" type="button" aria-label="Actualizar biblioteca" title="Actualizar biblioteca">↻</button></div></div>
               <div id="account-storage" class="account-storage" role="group" aria-labelledby="account-storage-title" hidden>
                 <div class="storage-copy"><span id="account-storage-title">Almacenamiento de guiones</span><span id="storage-summary" role="status" aria-live="polite">Calculando almacenamiento…</span></div>
                 <progress id="storage-meter" max="1" value="0" aria-label="Almacenamiento utilizado para guiones" hidden></progress>

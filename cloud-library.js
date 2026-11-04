@@ -83,13 +83,13 @@
   const selected=selectedProject;
   $('#project-overview').hidden=!selected;$('#home-projects').hidden=Boolean(selected);
   $('.library-footnote').hidden=Boolean(selected);$('#return-editor').hidden=Boolean(selected)||!hooks.currentProject?.();
-  $('#home-library-title').textContent=selected?'Dentro del proyecto':'Tus proyectos';
+  $('#home-library-title').textContent=selected?'Dentro del proyecto':'Biblioteca';
   $('#home-library-count').textContent=selected?'Tres apartados, una misma historia.':projects.length?`${projects.length} ${projects.length===1?'proyecto':'proyectos'}${cloud.configured?' en tu cuenta':''}`:'Tu próxima historia empieza con un «+».';
   if(atHome())$('#nav-editor').disabled=!selected&&!hooks.currentProject?.();
   $('#project-breadcrumb').hidden=!selected;
   root.PlanoHeader?.refresh();
   if(!atHome())return;
-  $('#page-title').textContent=selected?projectName(selected):'Tus proyectos.';
+  $('#page-title').textContent=selected?projectName(selected):'Mis proyectos';
   $('#page-description').textContent=selected?'Del texto al rodaje. Elige dónde quieres continuar.':'Organiza cada historia en su propio proyecto.';
   $('#page-eyebrow').textContent=selected?'CARPETA DEL PROYECTO':'TU ESPACIO DE TRABAJO';
   $('#breadcrumb-current').textContent=selected?projectName(selected):'Mis proyectos';

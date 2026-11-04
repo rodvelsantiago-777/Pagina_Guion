@@ -21,3 +21,6 @@
 .patch-notes-state button:hover{background:var(--accent-soft);border-color:var(--accent)}
 @media(max-width:540px){.patch-notes-dialog>header{padding:22px 20px 18px}.patch-notes-dialog h2{font-size:23px}#patch-notes-content{padding:0 20px 5px}.patch-notes-dialog>footer{padding:13px 20px}.patch-notes-launch{font-size:11px}.home-library-tools{gap:10px}.patch-release ul{font-size:13px}}
 @media(max-width:620px){.home-library-heading{flex-wrap:wrap}.home-library-tools{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}}
+
+/* Detalles breves, como los formatos compatibles, bajo una única novedad. */
+.patch-release li>ul{margin:7px 0 12px;padding-left:19px;font-size:13px;line-height:1.5}.patch-release li>ul>li{margin-bottom:3px}.patch-release-meta strong{font-variant-numeric:tabular-nums}
