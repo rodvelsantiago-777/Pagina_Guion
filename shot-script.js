@@ -1,4 +1,4 @@
-/* Duración orientativa y fragmentos: coordenadas del PDF original, independientes del zoom. */
+/* Duración orientativa y fragmentos: coordenadas de las páginas del guion, independientes del zoom. */
 (function(root){
  'use strict';
  const coverage=typeof module!=='undefined'&&module.exports?require('./coverage-lines.js'):root.PlanoCoverage;

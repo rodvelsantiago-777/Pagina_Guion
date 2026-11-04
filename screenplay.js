@@ -125,7 +125,14 @@
  async function pdf(value,{loadUnicode,primaryFonts}={}){
   const script=normalizeSyntax(value).script;if(!root.PDFLib)throw Error('No se pudo cargar el generador PDF.');const {PDFDocument,StandardFonts,rgb}=root.PDFLib;
   const document=await PDFDocument.create(),fonts={normal:await document.embedFont(StandardFonts.Courier),bold:await document.embedFont(StandardFonts.CourierBold),italic:await document.embedFont(StandardFonts.CourierOblique),both:await document.embedFont(StandardFonts.CourierBoldOblique)};
-  const unicodeFonts=new Map(),primary=new Map();
+  const unicodeFonts=new Map(),primary=new Map(),surfaceRows=new Map();
+  function surfaceText(page,text,x,baseline,size,marks,font){
+   if(!text)return;
+   const kind=marks.some(mark=>mark.type==='bold')?(marks.some(mark=>mark.type==='italic')?'both':'bold'):(marks.some(mark=>mark.type==='italic')?'italic':'normal');
+   if(!surfaceRows.has(page))surfaceRows.set(page,[]);
+   surfaceRows.get(page).push({text,x,baseline,size,width:font?font.widthOfTextAtSize(text,size):text.length*size*.6,kind,underline:marks.some(mark=>mark.type==='underline'),unicode:font&&unicodeFonts.get(kind)?.font===font});
+  }
+  const surface=()=>document.getPages().map(page=>({width:page.getWidth(),height:page.getHeight(),runs:surfaceRows.get(page)||[]}));
   async function textFont(text,kind){
    if(primaryFonts){if(!primary.has(kind)){document.registerFontkit(primaryFonts.fontkit);const font=await document.embedFont(primaryFonts.face(kind),{subset:true});primary.set(kind,{font,supported:new Set(font.getCharacterSet())});}const face=primary.get(kind);if(Array.from(text).every(char=>face.supported.has(char.codePointAt(0))))return face.font;}
    else{const standard=fonts[kind];try{standard.encodeText(text);return standard;}catch{}}
@@ -142,19 +149,19 @@
   const fallback=new Map();let canvas,context;
   async function draw(page,text,x,top,marks=[]){
    const bold=marks.some(mark=>mark.type==='bold'),italic=marks.some(mark=>mark.type==='italic');
-   try{const font=await textFont(text,bold&&italic?'both':bold?'bold':italic?'italic':'normal');page.drawText(text,{x,y:792-top-12,font,size:12,color:rgb(0,0,0)});}catch{
+   try{const font=await textFont(text,bold&&italic?'both':bold?'bold':italic?'italic':'normal');page.drawText(text,{x,y:792-top-12,font,size:12,color:rgb(0,0,0)});surfaceText(page,text,x,top+12,12,marks,font);}catch{
     canvas||=root.document.createElement('canvas');context=canvas.getContext('2d');const key=[text,bold,italic].join('|');let image=fallback.get(key);
-    if(!image){canvas.width=Math.max(1,Math.ceil(text.length*7.2+4))*3;canvas.height=60;context.scale(3,3);context.font=`${italic?'italic ':''}${bold?'bold ':''}12px "Courier New",monospace`;context.fillStyle='#000';context.textBaseline='top';context.fillText(text,0,1);image=await document.embedPng(canvas.toDataURL('image/png'));fallback.set(key,image);}page.drawImage(image,{x,y:792-top-16,width:canvas?Math.max(1,Math.ceil(text.length*7.2+4)):image.width/3,height:20});
+    if(!image){canvas.width=Math.max(1,Math.ceil(text.length*7.2+4))*3;canvas.height=60;context.scale(3,3);context.font=`${italic?'italic ':''}${bold?'bold ':''}12px "Courier New",monospace`;context.fillStyle='#000';context.textBaseline='top';context.fillText(text,0,1);image=await document.embedPng(canvas.toDataURL('image/png'));fallback.set(key,image);}page.drawImage(image,{x,y:792-top-16,width:canvas?Math.max(1,Math.ceil(text.length*7.2+4)):image.width/3,height:20});surfaceText(page,text,x,top+12,12,marks);
    }
    if(marks.some(mark=>mark.type==='underline'))page.drawLine({start:{x,y:792-top-13},end:{x:x+text.length*7.2,y:792-top-13},thickness:.55,color:rgb(0,0,0)});
   }
   if(script.sourceLayout?.revision===script.revision){
    const source=script.sourceLayout,pages=source.pages.map(size=>document.addPage([size.width,size.height])),nodes=new Map(script.doc.content.map(node=>[node.attrs.id,node])),labels=continuations(script.doc),lastRows=new Map();for(const row of source.rows)if(row.id)lastRows.set(row.id,row);
    for(const row of source.rows){const node=nodes.get(row.id),text=node?plain(node).slice(row.from||0,row.to):row.text;if(!text)continue;const page=pages[row.page-1],size=source.pages[row.page-1],kind=node&&['scene','section'].includes(node.attrs.kind)?'bold':'normal',fontSize=row.height*size.height;
-    for(const part of row.parts||[[0,text.length,row.x,row.width]]){const fragment=text.slice(part[0],part[1]),font=await textFont(fragment,kind);page.drawText(fragment,{x:part[2]*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});}
-    if(node?.attrs.kind==='character'&&labels.get(node.attrs.id)&&lastRows.get(row.id)===row){const font=await textFont(" (CONT'D)",'normal');page.drawText(" (CONT'D)",{x:(row.x+row.width)*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});}
+    for(const part of row.parts||[[0,text.length,row.x,row.width]]){const fragment=text.slice(part[0],part[1]),font=await textFont(fragment,kind);page.drawText(fragment,{x:part[2]*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});surfaceText(page,fragment,part[2]*size.width,row.y*size.height+fontSize*.9,fontSize,kind==='bold'?[{type:'bold'}]:[],font);}
+    if(node?.attrs.kind==='character'&&labels.get(node.attrs.id)&&lastRows.get(row.id)===row){const font=await textFont(" (CONT'D)",'normal');page.drawText(" (CONT'D)",{x:(row.x+row.width)*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});surfaceText(page," (CONT'D)",(row.x+row.width)*size.width,row.y*size.height+fontSize*.9,fontSize,[],font);}
    }
-   return{bytes:await document.save(),titlePages:0,pages:pages.length};
+   return{bytes:await document.save(),titlePages:0,pages:pages.length,surface:surface()};
   }
   const cover=document.addPage([612,792]),titleLines=wrap((script.title||'Sin título').toLocaleUpperCase('es'),60);let top=252;
   for(const line of titleLines){await draw(cover,line.text,(612-line.text.length*7.2)/2,top,[{type:'bold'}]);top+=12;}
@@ -172,7 +179,7 @@
     if(line.suffix)await draw(page,line.suffix,x,72+line.row*12);
    }
   }
-  if(canvas)canvas.width=canvas.height=0;return{bytes:await document.save(),titlePages,pages:flow.pageCount};
+  if(canvas)canvas.width=canvas.height=0;return{bytes:await document.save(),titlePages,pages:flow.pageCount,surface:surface()};
  }
  function repairPdf(value){
   const script=validate(value),source=script?.sourceLayout,mapping=new Map();

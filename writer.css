@@ -33,6 +33,9 @@ body.is-writing .editor-actions .view-mode-control,body.is-writing #toggle-annot
 /* Avisos del corrector local: no forman parte del documento ni de sus exportaciones. */
 .writer-editor .writer-review-issue{text-decoration-line:underline;text-decoration-style:wavy;text-decoration-color:#bb3535;text-underline-offset:3px;text-decoration-thickness:1px;cursor:pointer}
 .writer-editor .writer-review-syntax{text-decoration-color:#326aa8}
+.writer-editor .writer-review-punctuation{text-decoration-color:#8a4fbd}
+.writer-review-popup[data-kind=punctuation]>strong{color:#8a4fbd}
+[data-theme=dark] .writer-review-popup[data-kind=punctuation]>strong{color:#b48cda}
 .writer-review-popup{position:fixed;z-index:160;box-sizing:border-box;width:280px;max-width:calc(100vw - 16px);padding:12px 14px;border:1px solid var(--line-strong);border-radius:6px;background:var(--paper);color:var(--ink);box-shadow:0 8px 24px #0002;font:12px/1.5 var(--sans)}
 .writer-review-popup[hidden]{display:none}.writer-review-popup>strong,.writer-review-popup>span{display:block;overflow-wrap:anywhere}.writer-review-popup>span{color:var(--muted);margin-top:4px}.writer-review-options{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}.writer-review-popup button{border:1px solid var(--line);border-radius:3px;padding:4px 7px;color:var(--ink);background:var(--surface-alt);font:inherit;cursor:pointer}.writer-review-popup .writer-review-close{display:block;margin:9px 0 0 auto;border-color:transparent;background:none;color:var(--muted)}
 .writer-syntax-frame{font:inherit;white-space:pre;user-select:none;pointer-events:none}

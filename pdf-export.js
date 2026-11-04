@@ -1,4 +1,4 @@
-/* Exporta sobre el PDF original; el tema y los recortes de trabajo no se imprimen. */
+/* Exporta las páginas generadas del guion con sus marcas; sin el tema ni los recortes de trabajo. */
 (function () {
   "use strict";
   const pause = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -78,7 +78,7 @@
       for (const p of [...(item.continuesBefore ? [] : [start]), ...(item.continuesAfter ? [] : [end])]) target.drawLine({ start: { x: p.x - nx, y: p.y - ny }, end: { x: p.x + nx, y: p.y + ny }, ...style });
     }
     for (const item of annotations.filter(item => item.correction)) for (const points of PlanoCorrections.zigzags(item.rects, natural)) {
-      for (let index=1;index<points.length;index++) target.drawLine({start:point(points[index-1]),end:point(points[index]),color:color(PlanoCorrections.color),thickness:.9,lineCap:PDFLib.LineCapStyle.Round});
+      for (let index=1;index<points.length;index++) target.drawLine({start:point(points[index-1]),end:point(points[index]),color:color(item.color||PlanoCorrections.color),thickness:.9,lineCap:PDFLib.LineCapStyle.Round});
     }
   }
   async function references(document, labels) {

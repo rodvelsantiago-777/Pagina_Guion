@@ -6,6 +6,7 @@
   const configured=['apiKey','authDomain','projectId','appId'].every(key=>typeof config[key]==='string'&&config[key].trim()&&!/[<>]/.test(config[key]));
   let client=null,current=null,owner='',view='signup',working=false,initialized=false,unavailable='',hooks={},queue=Promise.resolve(),resetCode='',resendAt=0,resendTimer,connecting=true,workspaceConnected=false;
   let resolveReady; const ready=new Promise(resolve=>resolveReady=resolve);
+  let profileName=null;
   const titles={login:'Bienvenido de nuevo',signup:'Crea tu cuenta',forgot:'Recupera tu acceso',reset:'Nueva contraseña',verify:'Verifica tu correo',profile:'Mi cuenta'};
   function message(text='',error=false){const node=$('#account-message');node.textContent=text;node.hidden=!text;node.classList.toggle('is-error',error);}
   function safeError(error){
@@ -71,6 +72,7 @@
   }
   function setView(next,clear=true){view=next;if(clear)message();$('#account-password').value='';$('#account-confirm').value='';$('#account-password').type='password';$('#account-show-password').textContent='Mostrar';$('#account-show-password').setAttribute('aria-pressed','false');render();}
   function open(next){
+    if((!next||next==='profile')&&current?.emailVerified&&root.PlanoCloud?.configured&&root.PlanoAccountCenter){root.PlanoAccountCenter.open();return;}
     setView(next|| (current?current.emailVerified?'profile':'verify':'signup'));
     if(!document.body.classList.contains('auth-locked')&&!$('#account-dialog').open)$('#account-dialog').showModal();
     (configured&&!unavailable&&!current?(view==='signup'?$('#account-name'):$('#account-email')):document.body.classList.contains('auth-locked')?$('#account-title'):$('#close-account')).focus();
@@ -85,7 +87,7 @@
   function acceptUser(next){
     queue=queue.catch(()=>{}).then(async()=>{
       const nextOwner=next?.emailVerified?next.uid:'';
-      if(nextOwner!==owner){await hooks.change?.(nextOwner,owner);owner=nextOwner;}
+      if(nextOwner!==owner){profileName=null;await hooks.change?.(nextOwner,owner);owner=nextOwner;}
       current=next;
       connecting=false;
       if(!['forgot','reset'].includes(view))view=current?current.emailVerified?'profile':'verify':view==='signup'?'signup':'login';
@@ -164,7 +166,7 @@
         }
       },['login','signup'].includes(mode));
     });
-    $('#account-signout').addEventListener('click',()=>task(async()=>{await client.signOut();await acceptUser(null);setView('login');message(root.PlanoCloud?.configured?'Sesión cerrada. Tus proyectos confirmados siguen guardados en tu cuenta.':'Sesión cerrada. Tus anotaciones siguen guardadas en este navegador.');},true));
+    $('#account-signout').addEventListener('click',()=>task(async()=>{await root.PlanoAccountSession?.closeCurrent().catch(()=>{});await client.signOut();await acceptUser(null);setView('login');message(root.PlanoCloud?.configured?'Sesión cerrada. Tus proyectos confirmados siguen guardados en tu cuenta.':'Sesión cerrada. Tus anotaciones siguen guardadas en este navegador.');},true));
     $('#account-other-email').addEventListener('click',()=>task(async()=>{await client.signOut();await acceptUser(null);$('#account-email').value='';setView('login');},true));
     $('#account-resend').addEventListener('click',()=>{if(Date.now()>=resendAt)task(sendVerification);});
     $('#account-check-email').addEventListener('click',()=>task(async()=>{if(!client.currentUser)return;await client.currentUser.reload();await client.currentUser.getIdToken(true);await acceptUser(client.currentUser);message(current?.emailVerified?'Correo verificado. Tu cuenta ya está activa.':'El correo aún no está verificado. Abre el enlace recibido y vuelve a intentarlo.');},true));
@@ -181,7 +183,32 @@
     return ready;
   }
   function connectWorkspace(options){hooks={...hooks,...options};workspaceConnected=true;if(initialized)render();}
-  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:current.displayName||'',email:current.email}:null,
+  async function signOut(forced=false,text='Sesión cerrada.'){
+    if(!forced){if(hooks.canChange&&!hooks.canChange())throw Error('Termina la edición o exportación en curso antes de cerrar sesión.');await hooks.beforeChange?.();await root.PlanoAccountSession?.closeCurrent().catch(()=>{});}
+    root.PlanoAccountCenter?.close();root.PlanoAccountSession?.forget();await client.signOut();await acceptUser(null);setView('login');message(text);
+  }
+  async function manage(action,data={}){
+    if(!current?.emailVerified||!client)throw Error('Inicia sesión de nuevo.');
+    const managedUser=current;
+    if(!['password_link','email','profile','session_close','suspend','sessions_close'].includes(action))throw Error('Operación no disponible.');
+    if(action==='password_link'){if(hooks.canChange&&!hooks.canChange())throw Error('Termina la edición o exportación en curso antes de continuar.');await hooks.beforeChange?.();if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');try{await client.sendPasswordResetEmail(managedUser.email,actionSettings());return{};}catch(error){throw Error(safeError(error));}}
+    if(['email','suspend','sessions_close'].includes(action)){
+      if(hooks.canChange&&!hooks.canChange())throw Error('Termina la edición o exportación en curso antes de continuar.');
+      await hooks.beforeChange?.();
+      try{await managedUser.reauthenticateWithCredential(root.firebase.auth.EmailAuthProvider.credential(managedUser.email,data.currentPassword));await managedUser.getIdToken(true);}catch(error){throw Error(safeError(error));}
+    }
+    if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');
+    if(action==='email'){try{await managedUser.verifyBeforeUpdateEmail(data.email,actionSettings());return{};}catch(error){throw Error(safeError(error));}}
+    try{
+      const result=await root.PlanoAccountSession.request('account_'+action,Object.fromEntries(Object.entries(data).filter(([key])=>key!=='currentPassword')));
+      if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');
+      if(action==='profile'){await managedUser.updateProfile({displayName:data.name}).catch(()=>{});if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');profileName=data.name;root.PlanoHeader?.refreshIdentity();document.dispatchEvent(new CustomEvent('plano-account-profile-change'));}
+      if(['suspend','sessions_close'].includes(action))await signOut(true,action==='suspend'?'Cuenta suspendida. Inicia sesión antes de 30 días para recuperarla.':'Las sesiones se han cerrado. Inicia sesión de nuevo.');
+      return result;
+    }catch(error){throw error;}
+  }
+  document.addEventListener('plano-session-revoked',event=>{if(current)signOut(true,event.detail||'Esta sesión se ha cerrado. Inicia sesión de nuevo.').catch(()=>{});});
+  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,manage,signOut,setProfileName:name=>{profileName=name;root.PlanoHeader?.refreshIdentity();},notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:profileName??current.displayName??'',email:current.email}:null,
     getAccessToken:async()=>{if(!current?.emailVerified||client?.currentUser?.uid!==current.uid)throw new Error('SESSION');return current.getIdToken();}};
   // El acceso se inicia por sí mismo, aunque el editor tarde en cargar o falle.
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>init());else init();

@@ -10,16 +10,16 @@
   function publish(issues){if(!editor||destroyed)return;const decorations=issues.map((issue,index)=>P.Decoration.inline(issue.from,issue.to,{class:'writer-review-issue writer-review-'+issue.kind,'data-writer-issue':String(index),'aria-label':issue.message}));editor.dispatch(editor.state.tr.setMeta(plugin,{issues,decorations:P.DecorationSet.create(editor.state.doc,decorations)}).setMeta('addToHistory',false));}
   async function scan(){
    if(!editor||destroyed||!active()||root.PlanoTestDisableSpelling)return;
-   const doc=editor.state.doc,token=epoch,job=new AbortController();controller=job;const blocks=[],missing=[];
-   doc.forEach((node,pos)=>{if(node.attrs.kind==='character'||!node.textContent.trim())return;const entry={node,pos};blocks.push(entry);if(!cache.has(node))missing.push(entry);});
+   const doc=editor.state.doc,token=epoch,job=new AbortController();controller=job;const blocks=[],missing=[];let speaker='';
+   doc.forEach((node,pos)=>{const kind=node.attrs.kind;if(kind==='character'){speaker=node.textContent;return;}if(!['dialogue','parenthetical'].includes(kind))speaker='';if(!node.textContent.trim())return;const entry={node,pos,kind,speaker};blocks.push(entry);if(!cache.has(node))missing.push(entry);});
    status('Revisando escritura…');
    try{
     if(missing.length){const results=await root.PlanoSpelling.checkBlocks(missing.map(({node})=>node.textContent),{load,signal:job.signal});for(let i=0;i<missing.length;i++)cache.set(missing[i].node,results[i]);}
     if(token!==epoch||job.signal.aborted||destroyed||!active()||editor.state.doc!==doc)return;
     const names=new Set(characters().flatMap(name=>name.match(/[\p{L}\p{M}]+/gu)||[]).map(fold)),ignored=new Set(preferences().ignored||[]),issues=[];
-    for(const {node,pos}of blocks)for(const raw of cache.get(node)||[]){
+    for(const {node,pos,kind,speaker}of blocks)for(const raw of [...cache.get(node)||[],...root.PlanoLanguageReview.contextual(node.textContent,{kind,speaker})]){
      const from=pos+1+raw.start,to=pos+1+raw.end,text=node.textContent.slice(raw.start,raw.end);
-     if(ignored.has(raw.key)||raw.kind==='spelling'&&names.has(fold(text))||doc.rangeHasMark(from,to,editor.state.schema.marks.character))continue;
+     if(ignored.has(raw.key)||raw.kind==='spelling'&&(names.has(fold(text))||doc.rangeHasMark(from,to,editor.state.schema.marks.character)))continue;
      issues.push({...raw,text,from,to});
     }
     publish(issues);status(issues.length?`${issues.length} ${issues.length===1?'aviso':'avisos'} de escritura`:'Sin avisos de escritura');
@@ -29,10 +29,10 @@
   function refresh(){cancel();if(!editor||destroyed)return;if(!active()){if(plugin.getState(editor.state).issues.length)publish([]);status('');return;}if(!root.PlanoTestDisableSpelling)timer=setTimeout(scan,450);}
   function action(text,run){const button=document.createElement('button');button.type='button';button.textContent=text;button.addEventListener('pointerdown',event=>event.preventDefault());button.addEventListener('click',run);return button;}
   async function open(issue,target){
-   cancel();onOpen();const token=epoch,doc=editor.state.doc,title=document.createElement('strong'),description=document.createElement('span'),options=document.createElement('div');title.textContent=issue.text;description.textContent=issue.message;options.className='writer-review-options';popup.append(title,description,options);popup.hidden=false;
+   cancel();onOpen();const token=epoch,doc=editor.state.doc,title=document.createElement('strong'),description=document.createElement('span'),options=document.createElement('div');popup.dataset.kind=issue.kind;title.textContent=issue.text;description.textContent=issue.message;options.className='writer-review-options';popup.append(title,description,options);popup.hidden=false;
    const close=action('Cerrar',hide);close.className='writer-review-close';popup.append(close);const rect=target.getBoundingClientRect();popup.style.left=Math.max(8,Math.min(innerWidth-popup.offsetWidth-8,rect.left))+'px';popup.style.top=Math.max(8,Math.min(innerHeight-popup.offsetHeight-8,rect.bottom+7))+'px';
-   const apply=value=>{if(editor.state.doc!==doc||!active()){hide();return;}const replacement=root.PlanoLanguageReview.preserveCase(value,issue.text);editor.dispatch(editor.state.tr.insertText(replacement,issue.from,issue.to));hide();editor.focus();};
-   if(issue.replacement){options.append(action(`Usar «${issue.replacement}»`,()=>apply(issue.replacement)));return;}
+   const apply=value=>{if(editor.state.doc!==doc||!active()){hide();return;}const replacement=issue.kind==='punctuation'?value:root.PlanoLanguageReview.preserveCase(value,issue.text);editor.dispatch(editor.state.tr.insertText(replacement,issue.from,issue.to));hide();editor.focus();};
+   if(issue.replacement!==undefined){options.append(action(issue.replacement===''?`Eliminar «${issue.text}»`:`Usar «${issue.replacement}»`,()=>apply(issue.replacement)));return;}
    if(issue.kind!=='spelling')return;
    if(acceptName&&/^\p{Lu}/u.test(issue.text)){
     const accept=action('Aceptar como nombre propio',()=>{if(editor.state.doc!==doc||!active())return;if(acceptName(issue.text)){refresh();editor.focus();}else{description.textContent='No se pudo guardar el nombre. Comprueba el guardado del proyecto o el límite de palabras aceptadas.';}});accept.className='writer-review-accept';popup.insertBefore(accept,close);

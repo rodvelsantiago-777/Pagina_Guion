@@ -1,10 +1,9 @@
-/* Correcciones editoriales: selección real, geometría, separación de planos y persistencia. */
+/* Compatibilidad con correcciones guardadas; ya no se ofrece su herramienta manual. */
 const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),{pathToFileURL}=require('node:url');
 const load=name=>require(process.env.PLANO_RUNTIME_MODULES?path.join(process.env.PLANO_RUNTIME_MODULES,name):name);
 const {chromium}=load('playwright'),{PDFDocument,StandardFonts}=load('pdf-lib'),corrections=require('../script-corrections.js');
 const output=path.join(__dirname,'.output');fs.mkdirSync(output,{recursive:true});
 const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document.querySelector('#render-status').hidden);
-async function selectText(page){const spans=page.locator('.page-slot[data-page="1"] .textLayer span'),first=spans.filter({hasText:'Hay'}).first(),last=spans.filter({hasText:'frase.'}).first();await first.scrollIntoViewIfNeeded();const a=await first.boundingBox(),b=await last.boundingBox();await page.mouse.move(a.x+1,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width-1,b.y+b.height/2,{steps:12});await page.mouse.up();}
 (async()=>{
  assert.deepEqual(corrections.validate(undefined,2),[]);
  const part={page:1,text:'Texto con error.',rects:[{x:.1,y:.2,width:.3,height:.02}]};
@@ -16,24 +15,25 @@ async function selectText(page){const spans=page.locator('.page-slot[data-page="
  try{
   const page=await browser.newPage({viewport:{width:1540,height:1200}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);await page.locator('#file-input').setInputFiles({name:'Redaccion.pdf',mimeType:'application/pdf',buffer});await ready(page);
-  await page.locator('[data-tool=correction]').click();assert(await page.locator('#correction-tool-bar').isVisible());assert(!(await page.locator('.color-picker').isVisible()));
-  await selectText(page);await page.waitForFunction(()=>state.corrections.length===1);
+  assert.equal(await page.locator('[data-tool=correction],#correction-tool-bar,#finish-corrections').count(),0);
+  await page.keyboard.press('r');assert.equal(await page.evaluate(()=>state.tool),'select');await page.evaluate(()=>setTool('correction'));assert.equal(await page.evaluate(()=>state.tool),'select');
+  await page.evaluate(()=>{const line=state.pages[0].lines.find(l=>l.text.includes('Hay'));remember();state.corrections.push(PlanoCorrections.create([{page:1,text:line.text,rects:[{x:line.x,y:line.y,width:line.width,height:line.height}]}],state.pdf.numPages));changed();});
   assert.equal(await page.evaluate(()=>state.annotations.length),0);assert(!(await page.locator('#shot-name-dialog').isVisible()));assert.equal(await page.locator('#annotation-count').textContent(),'0');assert.equal(await page.locator('.document-shot-label').count(),0);
   assert(await page.locator('.script-correction-underline').count()>0);assert.equal(await page.locator('#script-correction-count').textContent(),'1');assert((await page.locator('.script-correction-jump').textContent()).includes('heror'));
   await page.screenshot({path:path.join(output,'correcciones-redaccion.png'),fullPage:true});
   const onlyCorrections=page.waitForEvent('download');await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator('#export-pdf').click();const onlyPath=path.join(output,'solo-correcciones.pdf');await(await onlyCorrections).saveAs(onlyPath);await page.waitForFunction(()=>!state.exporting);assert(!fs.readFileSync(onlyPath).equals(buffer),'Exporta las correcciones aunque todavía no haya planos');
   await page.locator('#undo-button').click();assert.equal(await page.evaluate(()=>state.corrections.length),0);await page.locator('#redo-button').click();assert.equal(await page.evaluate(()=>state.corrections.length),1);
   const original=await page.evaluate(()=>structuredClone(state.corrections[0]));await page.locator('#zoom-in').click();await ready(page);assert.deepEqual(await page.evaluate(()=>state.corrections[0]),original);await page.locator('#fit-width').click();await ready(page);
-  await page.locator('#finish-corrections').click();assert.equal(await page.evaluate(()=>state.tool),'select');assert(!(await page.locator('#correction-tool-bar').isVisible()));
+  assert.equal(await page.evaluate(()=>state.tool),'select');
   const mark=page.locator('.correction-hit-target').first();await mark.click();await page.locator('#delete-correction').waitFor({state:'visible'});await page.keyboard.press('Escape');await mark.focus();await page.keyboard.press('Enter');await page.locator('#delete-correction').click();assert.equal(await page.evaluate(()=>state.corrections.length),0);await page.locator('#undo-button').click();
   // El historial de planos y correcciones comparte el orden de las acciones.
   await page.evaluate(()=>{remember();state.annotations.push(createAnnotation({type:'line',page:1,color:'#64a7d9',shotName:'1',shotId:'shot-1',start:{x:.85,y:.1},end:{x:.85,y:.4}}));changed();});
   await page.locator('#undo-button').click();assert.deepEqual(await page.evaluate(()=>[state.annotations.length,state.corrections.length]),[0,1]);await page.locator('#redo-button').click();assert.deepEqual(await page.evaluate(()=>[state.annotations.length,state.corrections.length]),[1,1]);
   await page.locator('#stage-tabs [data-stage=technical]').click();assert.equal(await page.locator('tr[data-shot-id]').count(),1);await page.locator('#stage-tabs [data-stage=coverage]').click();await ready(page);
-  // Una selección entre páginas crea una sola corrección con partes en cada página.
-  await page.locator('#scene-select').selectOption('print',{force:true});await ready(page);await page.keyboard.press('r');
-  await page.evaluate(async()=>{const contexts=[...state.viewer.contexts.values()];await Promise.all(contexts.map(ensurePage));const a=contexts[0].content.querySelector('.textLayer span'),b=[...contexts[1].content.querySelectorAll('.textLayer span')].at(-1),range=document.createRange();range.setStart(a.firstChild,0);range.setEnd(b.firstChild,b.firstChild.length);getSelection().removeAllRanges();getSelection().addRange(range);});
-  await page.locator('#apply-highlight').waitFor({state:'visible'});assert.equal(await page.locator('#apply-highlight').textContent(),'Marcar corrección');await page.locator('#apply-highlight').click();assert.equal(await page.evaluate(()=>state.corrections.length),2);assert.deepEqual(await page.evaluate(()=>state.corrections[1].parts.map(part=>part.page)),[1,2]);
+  // Los proyectos anteriores pueden contener marcas que abarcan varias páginas.
+  await page.locator('#scene-select').selectOption('print',{force:true});await ready(page);
+  await page.evaluate(()=>{const parts=state.pages.map((page,index)=>{const line=page.lines.find(l=>l.text.includes('Hay'));return{page:index+1,text:line.text,rects:[{x:line.x,y:line.y,width:line.width,height:line.height}]};});remember();state.corrections.push(PlanoCorrections.create(parts,state.pdf.numPages));changed();});
+  assert.equal(await page.evaluate(()=>state.corrections.length),2);assert.deepEqual(await page.evaluate(()=>state.corrections[1].parts.map(part=>part.page)),[1,2]);
   const before=await page.evaluate(()=>structuredClone(state.corrections));
   const backup=page.waitForEvent('download');await page.locator('#save-backup').evaluate(button=>button.click());const backupPath=path.join(output,'correcciones.json');await(await backup).saveAs(backupPath);const data=JSON.parse(fs.readFileSync(backupPath,'utf8'));assert.deepEqual(data.corrections,before);
   // Exportación real con los zigzags vectoriales y el texto original conservado.
@@ -44,6 +44,6 @@ async function selectText(page){const spans=page.locator('.page-slot[data-page="
   await page.locator('#script-corrections summary').click();await page.locator('.script-correction-remove').first().click();assert.equal(await page.evaluate(()=>state.corrections.length),1);await page.locator('#backup-input').setInputFiles(backupPath);await page.waitForFunction(()=>state.corrections.length===2);await page.locator('#backup-input').setInputFiles(backupPath);assert.equal(await page.evaluate(()=>state.corrections.length),2,'Importar no duplica las correcciones');
   await page.setViewportSize({width:390,height:844});await ready(page);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(output,'correcciones-movil.png')});
   await page.evaluate(()=>closeDocument());assert.equal(await page.locator('.script-correction-card').count(),0);assert(!(await page.locator('#correction-action').isVisible()));assert.deepEqual(errors,[]);
-  console.log('OK: selección real, zigzag sin relleno/nombre, lista y eliminación, historial mixto, separación de planos, zoom, varias páginas, JSON sin duplicados, recuperación, PDF vectorial/texto original, cierre y móvil.');
+  console.log('OK: herramienta y atajo manual retirados, compatibilidad con marcas anteriores, zigzag sin relleno/nombre, lista y eliminación, historial mixto, separación de planos, zoom, varias páginas, JSON sin duplicados, recuperación, PDF vectorial/texto original, cierre y móvil.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

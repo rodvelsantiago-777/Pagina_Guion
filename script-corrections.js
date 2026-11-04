@@ -1,8 +1,9 @@
-/* Marcas editoriales independientes de los planos, sobre el PDF original. */
+/* Marcas editoriales independientes de los planos, vinculadas al texto del guion. */
 (function(root){
  'use strict';
  const script=typeof module!=='undefined'&&module.exports?require('./shot-script.js'):root.PlanoShotScript;
  const color='#d94f54';
+ const colors=Object.freeze({spelling:'#bb3535',syntax:'#326aa8',punctuation:'#8a4fbd'}),colorFor=item=>colors[item.category||item.source]||color;
  function validate(value,pageCount){
   if(value===undefined)return [];
   if(!Array.isArray(value)||value.length>1000)throw new Error('La lista de correcciones no es válida.');
@@ -17,13 +18,14 @@
     if(item.ignoreKey!==undefined){if(typeof item.ignoreKey!=='string'||item.ignoreKey.length>60)throw Error('Hay un identificador de revisión inválido.');clean.ignoreKey=item.ignoreKey;}
     if(item.message!==undefined){if(typeof item.message!=='string'||item.message.length>220)throw Error('Hay un aviso de revisión inválido.');clean.message=item.message;}
    }
+   if(item.category!==undefined){if(item.source!=='syntax'||item.category!=='punctuation')throw Error('Hay una categoría de revisión inválida.');clean.category=item.category;}
    ids.add(item.id);return clean;
   });
  }
  function create(parts,pageCount){
   return validate([{id:'correction-'+(root.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),createdAt:new Date().toISOString(),parts}],pageCount)[0];
  }
- const annotations=items=>items.flatMap(item=>item.parts.map(part=>({...part,id:'review-'+item.id,correctionId:item.id,type:'highlight',correction:true,color})));
+ const annotations=items=>items.flatMap(item=>item.parts.map(part=>({...part,id:'review-'+item.id,correctionId:item.id,type:'highlight',correction:true,color:colorFor(item),reviewKind:item.category||item.source||'manual'})));
  function zigzags(rects,{width,height}){
   const rows=[];
   for(const rect of rects){
@@ -45,5 +47,5 @@
  }
  const automatic=item=>item.source==='spelling'||item.source==='syntax';
  const ignoreKey=item=>item.ignoreKey||item.word;
- const api={color,validate,create,annotations,zigzags,automatic,ignoreKey};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PlanoCorrections=api;
+ const api={color,colors,colorFor,validate,create,annotations,zigzags,automatic,ignoreKey};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PlanoCorrections=api;
 })(globalThis);

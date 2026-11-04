@@ -83,3 +83,6 @@ El acceso inicial es una sección normal, presente en el HTML; no abre un diálo
 Este ajuste responde al cierre completo de Brave comunicado al escribir «san». No se consiguió reproducir ese cierre con un perfil nuevo: es una mitigación de compatibilidad y queda por confirmar en el perfil afectado. No se borraron preferencias, direcciones ni sesiones del navegador del usuario.
 
 `node tests/accounts-input.cjs` escribe tecla por tecla «san» y el correo completo, repite ediciones, comprueba Tab, verifica que el formulario no se regenere al escribir y rechaza correos inválidos sin consultar la API. Usa Edge y, si está instalado, Brave con ventana visible y perfil temporal; `PLANO_BRAVE_EXE` permite indicar otra ruta. El SDK es real y la API está simulada. Estas pruebas no contienen las direcciones guardadas ni las extensiones del usuario.
+
+
+La gestión actual de perfil, sesiones, cambio de correo y contraseña, apariencia y eliminación se documenta en [CUENTA_Y_SEGURIDAD.md](CUENTA_Y_SEGURIDAD.md). El servidor necesita FIREBASE_ADMIN_JSON, instalado de forma privada en Supabase; la configuración pública por sí sola no permite administrar ni eliminar identidades. No se utiliza una cuenta Gmail remitente ni SMTP: los enlaces de contraseña se envían con Firebase.

@@ -95,6 +95,8 @@ body.is-editing{height:100dvh;overflow:hidden}
 .textLayer .markedContent{display:contents}
 .textLayer ::selection{background:#7c9de47a;color:transparent}
 .textLayer br::selection{background:transparent}
+.screenplay-text-surface>span{color:#111}
+.screenplay-text-surface>span::selection{background:#7c9de47a;color:#111}
 .hiddenCanvasElement{position:absolute;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none}
 .annotation-flash{animation:annotation-flash .45s ease-in-out 3}
 @keyframes annotation-flash{50%{opacity:.15}}
@@ -504,3 +506,16 @@ body.is-editing{height:100dvh;overflow:hidden}
 @media(max-width:620px){.is-editing .stage-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.stage-picker button{padding:6px 4px;font-size:12px;gap:4px;white-space:normal;min-width:0}.stage-name-full{display:none}.stage-name-short{display:inline}.technical-heading{padding:12px 14px;gap:10px}.technical-heading-title{display:block}.technical-heading h2{font-size:19px;margin-bottom:3px}.technical-heading p:last-child{font-size:11px}.technical-table-scroll{padding:10px 10px 16px}#technical-edit-status{display:none}.technical-cell-editor input,.technical-cell-editor textarea,.technical-cell-editor select{font-size:16px}}
 @media(max-width:540px){.color-picker-dialog.is-custom .palette-primary .palette-colors{grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;flex:1}.color-picker-dialog.is-custom #recent-colors{grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}.color-picker-dialog.is-custom .custom-color-button{margin-left:0}}
 @media(max-width:540px){.color-picker-dialog.is-custom{padding:22px 17px}.paint-color-editor{grid-template-columns:minmax(0,1fr) 20px;gap:14px}.color-spectrum{height:200px}.paint-color-values{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.paint-color-values #custom-color-preview{height:42px;margin:0}.paint-color-values .custom-color-rgb{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0}.paint-color-values .custom-color-rgb>div{display:block}.paint-color-values label{font-size:11px}.paint-color-values input{font-size:16px}.paint-color-values .custom-color-rgb label{margin-bottom:5px}.custom-color-button{width:34px;height:34px;padding:6px}.palette-primary{gap:10px}.palette-primary .palette-colors{gap:6px}}
+
+/* El acceso al panel comparte posición e icono con el redactor. */
+.editor-layout{position:relative;grid-template-rows:auto minmax(0,1fr) auto}
+.editor-layout>.annotation-toolbar{grid-column:1/-1;padding-left:16px}
+.annotation-toolbar #toggle-annotations{flex:0 0 32px;min-width:32px;min-height:32px;padding:5px 8px;border-color:transparent;color:var(--ink);font:17px var(--sans)}
+.annotation-toolbar #toggle-annotations:hover{background:var(--surface-hover)}
+@media(max-width:800px){
+ .editor-layout>.annotation-toolbar{padding-left:8px;z-index:21}
+ .editor-layout>.annotations-panel{position:absolute;grid-row:2;grid-column:1;top:0;bottom:0}
+}
+
+/* La barra de estado continúa por debajo de la lista, como en el redactor. */
+.editor-layout>.coverage-status{grid-column:1/-1;grid-row:3}

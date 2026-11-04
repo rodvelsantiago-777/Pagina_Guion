@@ -29,7 +29,7 @@ async function bottomBar(page,selector){
   assert((await page.locator('#writer-page-status').textContent()).startsWith('Página 2 de '));
   fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'barra-inferior-escritura.png')});
   await page.locator('#stage-tabs [data-stage=coverage]').click();await ready(page);await bottomBar(page,'.coverage-status');
-  assert(await page.locator('.page-slot[data-ready=true] canvas').count(),'El zoom se prueba sobre páginas renderizadas');
+  assert(await page.locator('.page-slot[data-ready=true] .screenplay-text-surface span').count(),'El zoom se prueba sobre páginas renderizadas');
   for(const id of ['#page-label','#zoom-in','#zoom-out','#fit-width','#coverage-zoom-range','#toggle-spelling','#save-status','#view-mode-button'])assert(await page.locator(id).evaluate(el=>Boolean(el.closest('footer.editor-status'))),'Control de cobertura al pie: '+id);
   assert.equal(await page.locator('#project-menu #toggle-spelling').count(),0);assert.equal(await page.locator('.annotation-toolbar .zoom-controls').count(),0);
   await page.locator('#coverage-zoom-range').evaluate(el=>{el.value='120';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});await ready(page);assert(Math.abs(await page.evaluate(()=>state.zoom)-1.2)<.01);

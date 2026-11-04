@@ -19,13 +19,16 @@
   if(!user||user.id!==expectedOwner)throw failure('SESSION','Vuelve a iniciar sesión para acceder a tus proyectos.');
   if(navigator.onLine===false)throw failure('OFFLINE','Sin conexión. Los cambios pendientes siguen en esta pestaña.');
   const token=await root.PlanoAccounts.getAccessToken();
+  const device=await root.PlanoAccountSession?.ensure(token);
   if(epoch!==expectedEpoch||owner!==expectedOwner)throw failure('CANCELLED','La cuenta ha cambiado.');
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
   try{
    const form=data instanceof FormData;
-   const response=await fetch(endpoint+'?action='+action,{method:'POST',headers:{apikey:config.publishableKey,Authorization:'Bearer '+token,...(!form?{'Content-Type':'application/json'}:{})},body:form?data:JSON.stringify(data),signal:controller.signal,cache:'no-store',credentials:'omit'});
+   const response=await fetch(endpoint+'?action='+action,{method:'POST',headers:{apikey:config.publishableKey,Authorization:'Bearer '+token,...(device?{'x-plano-session':device.secret}:{}),...(!form?{'Content-Type':'application/json'}:{})},body:form?data:JSON.stringify(data),signal:controller.signal,cache:'no-store',credentials:'omit'});
    if(!response.ok){
     let body;try{body=await response.json();}catch{}
+    if(epoch!==expectedEpoch||owner!==expectedOwner)throw failure('CANCELLED','La cuenta ha cambiado.');
+    if(['SESSION_REVOKED','ACCOUNT_DELETED'].includes(body?.code))document.dispatchEvent(new CustomEvent('plano-session-revoked',{detail:body.message}));
     throw failure(body?.code||'UNAVAILABLE',body?.message||'La nube no está disponible. Comprueba que se haya completado su instalación y que el proyecto esté activo.');
    }
    const result=binary?await response.blob():await response.json();

@@ -406,12 +406,12 @@ async function assertLabelClearance(page) {
     assert.equal(await page.locator('.script-scene-block[data-scene^="scene-"]').count(),16);
     await page.locator('#scene-select').selectOption('print', {force:true}); await ready(page);
     assert.equal(await page.locator('.page-slot').count(),16);
-    assert.equal(await page.locator('.page-slot[data-page="16"] canvas').count(),0,'No dibuja todo el documento de golpe');
+    assert.equal(await page.locator('.page-slot[data-page="16"] .screenplay-text-surface').count(),0,'No dibuja todo el documento de golpe');
     for(const number of [4,7,10,13,16]) { await page.locator(`.page-slot[data-page="${number}"]`).scrollIntoViewIfNeeded(); await pageReady(page,number); }
     assert((await page.locator('.page-slot[data-ready="true"]').count())<=8,'Libera páginas lejanas para limitar memoria');
-    assert.equal(await page.locator('.page-slot[data-page="1"] canvas').count(),0);
+    assert.equal(await page.locator('.page-slot[data-page="1"] .screenplay-text-surface').count(),0);
     await page.locator('.page-slot[data-page="1"]').scrollIntoViewIfNeeded(); await pageReady(page,1);
-    assert.equal(await page.locator('.page-slot[data-page="1"] canvas').count(),1,'Vuelve a dibujar al regresar');
+    assert.equal(await page.locator('.page-slot[data-page="1"] .screenplay-text-surface').count(),1,'Vuelve a dibujar al regresar');
     await menuAction(page,'#remove-button'); assert(await page.locator('#upload-view').isVisible());
     assert(await page.locator('.sidebar').isVisible(),'La portada mantiene su barra lateral');
     // Nombres consecutivos reales en una sesión nueva, sin depender de notas anteriores.

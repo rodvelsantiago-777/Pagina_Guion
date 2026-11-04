@@ -62,15 +62,19 @@ async function view(page,value){if(!await page.locator('#view-mode-button').isVi
     assert(await page.locator('.page-slot[data-page="1"] .textLayer').textContent().then(text=>text.includes('EL ULTIMO PLANO')));
     for(const number of [1,3]){
       const slot=page.locator(`.page-slot[data-page="${number}"]`);await slot.scrollIntoViewIfNeeded();await slot.locator('.textLayer').waitFor();
-      const identical=await page.evaluate(async number=>{
+      const printed=await page.evaluate(async number=>{
         const context=[...state.viewer.contexts.values()].find(c=>c.segment.page===number);await ensurePage(context);
-        const displayed=context.content.querySelector('canvas'),reference=document.createElement('canvas');reference.width=displayed.width;reference.height=displayed.height;
-        const page=await state.pdf.getPage(number),ratio=Math.min(devicePixelRatio||1,2);
-        await page.render({canvasContext:reference.getContext('2d'),viewport:context.viewport,transform:ratio===1?null:[ratio,0,0,ratio,0,0]}).promise;
-        const a=displayed.getContext('2d').getImageData(0,0,displayed.width,displayed.height).data,b=reference.getContext('2d').getImageData(0,0,reference.width,reference.height).data;
-        const same=a.every((value,index)=>value===b[index]);reference.width=reference.height=0;return same;
+        const spans=[...context.content.querySelectorAll('.screenplay-text-surface span')],bounds=context.content.getBoundingClientRect(),page=await state.pdf.getPage(number),text=await page.getTextContent(),clean=s=>s.replace(/\s/g,''),used=new Set();
+        const geometry=text.items.filter(item=>item.str?.trim()).flatMap(item=>{
+          const span=spans.find(span=>!used.has(span)&&span.textContent===item.str);if(!span)return[];used.add(span);
+          const rect=span.getBoundingClientRect(),t=pdfjsLib.Util.transform(page.getViewport({scale:context.viewport.scale}).transform,item.transform),height=Math.hypot(t[2],t[3]),ascent=text.styles[item.fontName]?.ascent??.8;
+          return[{dx:Math.abs(rect.left-bounds.left-t[4]),dy:Math.abs(rect.top-bounds.top-(t[5]-height*ascent)),tolerance:Math.max(3,height*.25)}];
+        });
+        return{shown:clean(spans.map(s=>s.textContent).join('')),expected:clean(text.items.map(i=>i.str||'').join('')),geometry,canvas:context.content.querySelectorAll('canvas').length};
       },number);
-      assert(identical,`La página ${number} en impresión es idéntica píxel a píxel al PDF original`);
+      assert.equal(printed.shown,printed.expected,`La página ${number} conserva todo el texto en la vista de impresión`);
+      assert.equal(printed.canvas,0,'Las páginas editables se muestran sin rasterizar');assert(printed.geometry.length>0);
+      assert(printed.geometry.every(item=>item.dx<1&&item.dy<item.tolerance),JSON.stringify(printed.geometry));
     }
     assert((await page.locator('.page-slot[data-page="3"] .textLayer').textContent()).includes('BORRADOR DE TRABAJO'),'Impresión recupera el pie original');
     const unchanged=await page.evaluate(async()=>Array.from(new Uint8Array(await(await fetch(state.url)).arrayBuffer())));assert.notDeepEqual(unchanged,Array.from(buffer),'El PDF es una vista regenerada del editable');assert.equal((await PDFDocument.load(Buffer.from(unchanged))).getPageCount(),(await PDFDocument.load(buffer)).getPageCount());
@@ -80,6 +84,6 @@ async function view(page,value){if(!await page.locator('#view-mode-button').isVi
     assert(Math.abs((await card.boundingBox()).width-(await page.locator('.page-window').first().boundingBox()).width)<1,'En móvil la portada conserva el ancho del guion');
     assert(await card.evaluate(el=>el.scrollHeight<=el.clientHeight+1&&el.querySelector('.cover-card-info').scrollHeight<=el.querySelector('.cover-card-info').clientHeight+1),'En móvil tampoco se recortan los datos');
     await page.screenshot({path:path.join(output,'portada-compacta-movil.png'),fullPage:true});
-    assert.deepEqual(errors,[]);console.log('OK: solo escenas, portada compacta con sus datos, cabeceras/pies/números ocultos, márgenes visuales, móvil y vista de impresión idéntica al PDF original (píxeles y bytes).');
+    assert.deepEqual(errors,[]);console.log('OK: solo escenas, portada compacta con sus datos, cabeceras/pies/números ocultos, márgenes visuales, móvil y vista de impresión con texto y posiciones del guion generado, sin rasterización.');
   }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

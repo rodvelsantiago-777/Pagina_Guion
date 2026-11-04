@@ -9,3 +9,7 @@
 .writing-feedback-fixes{display:flex;flex-wrap:wrap;gap:4px 10px;width:100%}
 .writing-feedback-fixes button:hover{color:var(--ink);text-decoration:underline}
 .writing-feedback-list>button{padding:3px 0}
+
+.writing-feedback[data-errors=true][data-kind=punctuation]>summary{color:#8a4fbd}.writing-feedback[data-errors=true][data-kind=syntax]>summary{color:#326aa8}.writing-feedback[data-errors=true][data-kind=mixed]>summary{color:var(--ink)}
+.writing-feedback-issue[data-kind=punctuation] .writing-feedback-fragment{text-decoration-color:#8a4fbd}.writing-feedback-issue[data-kind=syntax] .writing-feedback-fragment{text-decoration-color:#326aa8}
+[data-theme=dark] .writing-feedback[data-kind=punctuation]>summary{color:#b48cda}

@@ -1,4 +1,4 @@
-/* Nombres de plano separados del texto y de las marcas del PDF. */
+/* Nombres de plano separados del texto y de las marcas del guion. */
 (function (root) {
   "use strict";
   const geometry = root.PlanoLabels;
@@ -44,7 +44,9 @@
   function prepare(context) {
     const bounds = context.content.getBoundingClientRect();
     context.labelTextBoxes = Array.from(context.content.querySelectorAll(".textLayer span")).filter(span => span.textContent.trim()).flatMap(span => Array.from(span.getClientRects()).map(rect => ({ x: rect.left - bounds.left, y: rect.top - bounds.top, width: rect.width, height: rect.height })));
-    context.inkBlocked = makeInkMask(context.content.querySelector("canvas"), context.viewport);
+    context.inkBlocked = context.content.querySelector('.screenplay-text-surface')
+      ? rect => context.labelTextBoxes.some(box => rect.x < box.x + box.width && rect.x + rect.width > box.x && rect.y < box.y + box.height && rect.y + rect.height > box.y)
+      : makeInkMask(context.content.querySelector("canvas"), context.viewport);
   }
   function capSegments(item, viewport) {
     const start = { x: item.start.x * viewport.width, y: item.start.y * viewport.height };

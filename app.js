@@ -8,7 +8,7 @@ const colorPalette = window.PlanoColors.setup();
 const MAX_SIZE = 100 * 1024 * 1024;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const state = {
-  pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, thumbnail: null, pages: [], scenes: [], screenplay: null, screenplayCoverage: null, writerPdfRevision: null,
+  pdf: null, loading: null, file: null, url: null, key: null, fingerprint: null, cloudProject: null, thumbnail: null, pages: [], pageSurface: null, scenes: [], screenplay: null, screenplayCoverage: null, writerPdfRevision: null,
   annotations: [], corrections: [], crew: {}, proofreading: PlanoSpelling.validate(), crewEditing: false, activeCorrection: null, history: [], future: [], selectedShots: new Set(), scene: "all", segmentIndex: 0,
   tool: "select", zoom: 1, fit: true, renderId: 0, loadId: 0,
   viewer: null, panelOpen: null, viewAnchor: null, pending: null, editing: null, details: null, highlightCorrection: null, highlightAction: null, stage: "coverage", selectedLine: null, lineGesture: null,
@@ -102,7 +102,7 @@ async function switchStage(stage) {
   state.stage = stage; updateStageView();
   if (stage === "writing") await PlanoWriter.open(state.screenplay);
   else if (stage === "technical") refreshTechnicalScript();
-  else await renderDocument({ anchor: state.viewAnchor });
+  else { await renderDocument({ anchor: state.viewAnchor }); startSpelling(); }
 }
 for (const button of document.querySelectorAll("#stage-tabs [data-stage]")) button.addEventListener("click", () => switchStage(button.dataset.stage));
 $("#stage-tabs").addEventListener("keydown", async event => {
@@ -309,8 +309,9 @@ async function openDocumentPdf(file, options = {}) {
     const incomingScreenplay = PlanoScreenplay.validate(options.screenplay || sourcePayload.screenplay);
     const incomingCoverage = PlanoScreenplay.validate(options.screenplayCoverage || sourcePayload.screenplayCoverage);
     if (incomingCoverage && incomingCoverage.id !== incomingScreenplay?.id) throw new Error("La versión de cobertura no pertenece al guion editable.");
+    let generated = null;
     if (incomingScreenplay) {
-      const generated = options.generated || await generateScreenplayPdf(incomingCoverage || incomingScreenplay);
+      generated = options.generated || await generateScreenplayPdf(incomingCoverage || incomingScreenplay);
       data = new Uint8Array(generated.bytes); file = new File([data], file.name, {type:"application/pdf"});
     }
     if (id !== state.loadId) return;
@@ -369,7 +370,7 @@ async function openDocumentPdf(file, options = {}) {
     state.corrections = options.payload ? PlanoCorrections.validate(options.payload.corrections,pdf.numPages) : cloudPayload && !cloudProject.created ? incomingCorrections : readSavedCorrections();
     state.crew = options.payload ? PlanoCrew.validate(options.payload.crew) : cloudPayload && !cloudProject.created ? incomingCrew : readSavedCrew();
     state.proofreading = options.payload ? PlanoSpelling.validate(options.payload.proofreading) : cloudPayload && !cloudProject.created ? incomingProofreading : readSavedProofreading(); refreshSpelling();
-    state.screenplay = incomingScreenplay; state.screenplayCoverage = incomingCoverage;
+    state.screenplay = incomingScreenplay; state.screenplayCoverage = incomingCoverage; state.pageSurface = generated?.surface || null;
     state.pdfBasis = incomingScreenplay;
     cacheAnnotationShapes();
     state.writerPdfRevision = incomingScreenplay ? (incomingCoverage || incomingScreenplay).revision : null;
@@ -397,7 +398,7 @@ async function openDocumentPdf(file, options = {}) {
     if (id !== state.loadId) return;
     if (candidate) candidate.destroy().catch(() => {});
     state.loading = null; status(previousStatus, Boolean(state.pdf));
-    const text = error.name === "PasswordException" || /password|destroyed/i.test(error.message) ? "El PDF está protegido con contraseña. Abre una copia sin contraseña para trabajar la cobertura." : error.name === "InvalidPDFException" ? "El archivo está dañado o no es un PDF válido." : `No se pudo abrir el PDF. ${error.message || "Prueba con otro archivo."}`;
+    const text = error.name === "PasswordException" || /password|destroyed/i.test(error.message) ? "El PDF está protegido con contraseña. Importa una copia sin contraseña para convertirla en guion editable." : error.name === "InvalidPDFException" ? "El archivo está dañado o no es un PDF válido." : `No se pudo abrir el PDF. ${error.message || "Prueba con otro archivo."}`;
     message(text, true);
     return false;
   } finally {
@@ -559,7 +560,7 @@ async function renderDocument({ preservePosition = false, anchor = null } = {}) 
   cancelRendering();
   const stage = $("#pdf-stage");
   state.renderWidth = stage.clientWidth;
-  const viewer = { id: state.renderId, pdf: state.pdf, contexts: new Map(), queue: [], active: 0, nearby: new Set(), cancelled: false, observer: null };
+  const viewer = { id: state.renderId, pdf: state.pdf, surface: state.pageSurface, contexts: new Map(), queue: [], active: 0, nearby: new Set(), cancelled: false, observer: null };
   state.viewer = viewer;
   $("#render-status").hidden = false;
   $("#render-status").textContent = "Preparando guion…";
@@ -678,43 +679,52 @@ async function renderContext(context) {
   const { viewer, segment, crop } = context;
   context.status = "loading";
   try {
-    const page = await viewer.pdf.getPage(segment.page);
+    const surface = viewer.surface?.[segment.page - 1];
+    const page = surface ? null : await viewer.pdf.getPage(segment.page);
     if (viewer.cancelled) return;
-    const viewport = page.getViewport({ scale: context.viewport.scale });
+    const viewport = page ? page.getViewport({ scale: context.viewport.scale }) : context.viewport;
     context.viewport = viewport;
     const content = document.createElement("div"); content.className = "pdf-page-content";
     content.style.width = `${viewport.width}px`; content.style.height = `${viewport.height}px`; content.style.top = `${-segment.top * viewport.height}px`;
     content.style.setProperty("--scale-factor", viewport.scale); content.style.setProperty("--total-scale-factor", viewport.scale); content.style.setProperty("--user-unit", 1);
-    const canvas = document.createElement("canvas"); canvas.setAttribute("aria-hidden", "true");
+    const canvas = surface ? null : document.createElement("canvas");
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.floor(viewport.width * ratio); canvas.height = Math.floor(viewport.height * ratio);
-    canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`;
+    if (canvas) {
+      canvas.setAttribute("aria-hidden", "true");
+      canvas.width = Math.floor(viewport.width * ratio); canvas.height = Math.floor(viewport.height * ratio);
+      canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`;
+    }
     const textLayer = document.createElement("div"); textLayer.className = "textLayer"; textLayer.setAttribute("aria-label", `Texto de la página ${segment.page}`);
     const svg = document.createElementNS(SVG_NS, "svg"); svg.classList.add("annotation-overlay");
     svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-label", "Capa de líneas, resaltados y correcciones");
-    content.append(canvas, textLayer, svg); crop.replaceChildren(content);
+    content.append(...(surface ? [textLayer, svg] : [canvas, textLayer, svg])); crop.replaceChildren(content);
     context.content = content; context.svg = svg; context.paintKey = null;
-    const task = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null });
-    context.renderTask = task; await task.promise;
-    if (viewer.cancelled) return;
     const furniture = state.scene === "print" ? [] : state.pages[segment.page - 1].lines.filter(sceneTools.pageFurniture(state.pages));
-    if (furniture.length) {
-      const ink = canvas.getContext("2d"); ink.save(); ink.setTransform(ratio, 0, 0, ratio, 0, 0); ink.fillStyle = "#ffffff";
-      for (const line of furniture) ink.fillRect(0, (line.y - line.height * 0.25) * viewport.height, viewport.width, line.height * 1.75 * viewport.height);
-      ink.restore();
+    if (surface) {
+      await PlanoScreenplaySurface.render(surface, textLayer, viewport.scale, {top:segment.top,bottom:segment.bottom,excluded:furniture});
+    } else {
+      const task = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null });
+      context.renderTask = task; await task.promise;
+      if (viewer.cancelled) return;
+      if (furniture.length) {
+        const ink = canvas.getContext("2d"); ink.save(); ink.setTransform(ratio, 0, 0, ratio, 0, 0); ink.fillStyle = "#ffffff";
+        for (const line of furniture) ink.fillRect(0, (line.y - line.height * 0.25) * viewport.height, viewport.width, line.height * 1.75 * viewport.height);
+        ink.restore();
+      }
+      const text = await readPageText(page);
+      if (viewer.cancelled) return;
+      context.textLayer = new pdfjsLib.TextLayer({ textContentSource: text, container: textLayer, viewport });
+      await context.textLayer.render();
+      if (viewer.cancelled) return;
+      // Una página importada puede aparecer en varios recortes: solo su texto visible participa en la selección.
+      const contentBounds = content.getBoundingClientRect();
+      for (const span of Array.from(textLayer.querySelectorAll("span"))) {
+        const rect = span.getBoundingClientRect();
+        const top = (rect.top - contentBounds.top) / viewport.height, bottom = (rect.bottom - contentBounds.top) / viewport.height;
+        if (bottom <= segment.top || top >= segment.bottom || furniture.some(line => top < line.y + line.height * 1.5 && bottom > line.y - line.height * 0.25)) span.remove();
+      }
     }
-    const text = await readPageText(page);
     if (viewer.cancelled) return;
-    context.textLayer = new pdfjsLib.TextLayer({ textContentSource: text, container: textLayer, viewport });
-    await context.textLayer.render();
-    if (viewer.cancelled) return;
-    // El mismo PDF puede aparecer en varios recortes: solo su texto visible participa en la selección.
-    const contentBounds = content.getBoundingClientRect();
-    for (const span of Array.from(textLayer.querySelectorAll("span"))) {
-      const rect = span.getBoundingClientRect();
-      const top = (rect.top - contentBounds.top) / viewport.height, bottom = (rect.bottom - contentBounds.top) / viewport.height;
-      if (bottom <= segment.top || top >= segment.bottom || furniture.some(line => top < line.y + line.height * 1.5 && bottom > line.y - line.height * 0.25)) span.remove();
-    }
     PlanoDocumentLabels.prepare(context);
     context.status = "ready"; context.slot.dataset.ready = "true"; context.slot.setAttribute("aria-busy", "false");
     drawAnnotations(context); bindDrawing(context);
@@ -723,7 +733,7 @@ async function renderContext(context) {
     textLayer.addEventListener("pointerup", event => {
       const point = { x: event.clientX, y: event.clientY }, down = highlightDown; highlightDown = null;
       setTimeout(() => {
-        if (["highlight", "correction"].includes(state.tool) && state.pasteHighlight?.kind !== "script-link") highlightSelection();
+        if (state.tool === "highlight" && state.pasteHighlight?.kind !== "script-link") highlightSelection();
         else if (state.tool === "select" && !state.highlightCorrection && down && Math.hypot(point.x - down.x, point.y - down.y) < 5 && window.getSelection()?.isCollapsed) {
           const bounds = content.getBoundingClientRect(), x = (point.x - bounds.left) / viewport.width, y = (point.y - bounds.top) / viewport.height;
           const item = [...state.annotations].reverse().find(note => note.type === "highlight" && note.page === segment.page && note.rects.some(rect => x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height));
@@ -735,7 +745,10 @@ async function renderContext(context) {
     if (viewer.cancelled || error.name === "RenderingCancelledException" || error.name === "AbortException") return;
     context.status = "error";
     const warning = document.createElement("p"); warning.className = "page-error";
-    warning.textContent = `No se pudo mostrar la página ${segment.page}. Abre el PDF original desde el menú del proyecto.`;
+    warning.textContent = `No se pudo mostrar la página ${segment.page} del guion. `;
+    const retry = document.createElement('button');retry.type='button';retry.className='button button-secondary';retry.textContent='Volver a intentar';
+    retry.addEventListener('click',()=>{context.promise=null;ensurePage(context);});warning.append(retry);
+    console.error(`No se pudo generar la página de cobertura ${segment.page}:`,error);
     crop.replaceChildren(warning); context.slot.setAttribute("aria-busy", "false");
   } finally {
     context.resolve?.(context.status === "ready"); context.resolve = null;
@@ -778,13 +791,11 @@ function updatePageIndicator() {
 }
 
 function setTool(tool) {
-  if (state.pasteHighlight) return;
+  if (state.pasteHighlight || !["select", "highlight", "line"].includes(tool)) return;
   hideHighlightAction();
   if (state.highlightCorrection) cancelHighlightCorrection();
   cancelDrawing(false); cancelLineGesture(false); state.selectedLine = null;
   state.tool = tool; state.drawing = null;
-  $("#correction-tool-bar").hidden = tool !== "correction";
-  $(".color-picker").hidden = tool === "correction";
   for (const button of document.querySelectorAll("button[data-tool]")) {
     const active = button.dataset.tool === tool;
     button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
@@ -802,7 +813,7 @@ function selectionInPage() {
 function updateSelectionButton() {
   const selected = Boolean(selectionInPage());
   $("#apply-highlight").hidden = !selected || Boolean(state.highlightCorrection || state.pasteHighlight);
-  $("#apply-highlight").textContent = state.tool === "correction" ? "Marcar corrección" : "Resaltar selección";
+  $("#apply-highlight").textContent = "Resaltar selección";
   $("#apply-pasted-highlight").disabled = !selected;
   $("#apply-highlight-correction").disabled = !selected;
 }
@@ -838,14 +849,6 @@ function highlightSelection() {
     if (pending.kind === "script-link") { restoreLinkedEditor(pending, notes); return; }
     try { if (state.pdf === pending.pdf) { commitPastedNotes(notes, pending.copy); message("Plano pegado en el texto seleccionado."); } }
     catch (error) { message(`No se pudo pegar el plano. ${error.message}`, true); }
-  }
-  else if (state.tool === "correction") {
-    try {
-      if (state.corrections.length >= 1000) throw new Error("El documento ya tiene 1000 correcciones.");
-      const correction = PlanoCorrections.create(notes, state.pdf.numPages);
-      remember(); state.corrections.push(correction); $("#script-corrections").open = true;
-      changed(); message("Corrección marcada en el texto.");
-    } catch (error) { message(`No se pudo marcar la corrección. ${error.message}`, true); }
   }
   else if (state.highlightCorrection) replaceHighlight(notes);
   else requestNamedAnnotations(notes);
@@ -911,7 +914,7 @@ function refreshCorrections() {
   for (const item of state.corrections) {
     const card = document.createElement("div"); card.className = "script-correction-card"; card.dataset.correctionId = item.id;
     const jump = document.createElement("button"); jump.type = "button"; jump.className = "script-correction-jump";
-    const text = document.createElement("span"); text.textContent = PlanoCorrections.automatic(item) ? `${item.source === "syntax" ? "Revisar redacción" : "Posible error"}: ${item.word}` : item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
+    const text = document.createElement("span"); text.textContent = PlanoCorrections.automatic(item) ? `${item.category === "punctuation" ? "Revisar puntuación" : item.source === "syntax" ? "Revisar redacción" : "Posible error"}: ${item.word}` : item.parts.map(part => part.text).join(" ").replace(/\s+/g," ");
     jump.title = text.textContent; jump.setAttribute("aria-label", `Localizar corrección: ${text.textContent.slice(0,160)}`);
     const pages = [...new Set(item.parts.map(part => part.page))].sort((a,b)=>a-b), meta = document.createElement("small");
     meta.textContent = pages.length>1 ? `Páginas ${pages[0]}–${pages.at(-1)}` : `Página ${pages[0]}`;
@@ -922,7 +925,6 @@ function refreshCorrections() {
   list.replaceChildren(fragment);
   list._correctionSignature = signature;
 }
-$("#finish-corrections").addEventListener("click", () => setTool("select"));
 $("#delete-correction").addEventListener("click", () => removeCorrection(state.activeCorrection));
 $("#correction-action").addEventListener("toggle", () => { if (!$("#correction-action").matches(":popover-open")) state.activeCorrection = null; });
 document.addEventListener("pointerdown", event => { if (state.activeCorrection && !$("#correction-action").contains(event.target)) hideCorrectionAction(); });
@@ -1121,11 +1123,11 @@ function drawAnnotations(onlyContext = null) {
     for (const annotation of annotations.filter(item => item.page === context.segment.page)) {
       const group = svgElement("g", { "data-annotation-id": annotation.id || "pending", ...(annotation.id ? {} : { class: "pending-annotation" }) });
       if (annotation.correction) {
-        group.classList.add("script-correction-mark");
+        group.classList.add("script-correction-mark");group.dataset.reviewKind=annotation.reviewKind;
         const size = state.pages[annotation.page - 1], shapes = PlanoCorrections.zigzags(annotation.rects, size);
         for (const shape of shapes) {
           const points = shape.map(point => `${point.x * 1000},${point.y * 1000}`).join(" ");
-          group.append(svgElement("polyline", { class: "script-correction-underline", points, fill: "none", stroke: PlanoCorrections.color, "stroke-width": .9 * context.viewport.scale, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round", "stroke-linecap": "round" }));
+          group.append(svgElement("polyline", { class: "script-correction-underline", points, fill: "none", stroke: annotation.color || PlanoCorrections.color, "stroke-width": .9 * context.viewport.scale, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round", "stroke-linecap": "round" }));
           const hit = svgElement("polyline", { class: "correction-hit-target", points, tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Corrección: ${annotation.text.slice(0, 160)}` });
           hit.addEventListener("pointerdown", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); } });
           hit.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); showCorrectionAction(annotation.correctionId, { x: event.clientX, y: event.clientY }); });
@@ -2067,7 +2069,7 @@ function undo(redo = false) {
 }
 function closeDocument() {
   annotationShapes.clear();
-  PlanoWriter.close(); state.screenplay = null; state.screenplayCoverage = null; state.pdfBasis=null; state.writerPdfRevision = null;clearTimeout(writerRefreshTimer);
+  PlanoWriter.close(); state.pageSurface = null; state.screenplay = null; state.screenplayCoverage = null; state.pdfBasis=null; state.writerPdfRevision = null;clearTimeout(writerRefreshTimer);
   if (state.exporting) return;
   PlanoTechnicalWindow.invalidate();
   crewEditor.close();
@@ -2267,7 +2269,7 @@ document.addEventListener("keydown", event => {
   }
   if (!state.pdf || state.screen !== "editor") return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); undo(event.shiftKey); }
-  else if (state.stage === "coverage" && !event.ctrlKey && !event.metaKey && !event.altKey) { const tools = { v: "select", h: "highlight", l: "line", r: "correction" }; if (tools[event.key.toLowerCase()]) setTool(tools[event.key.toLowerCase()]); }
+  else if (state.stage === "coverage" && !event.ctrlKey && !event.metaKey && !event.altKey) { const tools = { v: "select", h: "highlight", l: "line" }; if (tools[event.key.toLowerCase()]) setTool(tools[event.key.toLowerCase()]); }
 });
 let resizeTimer; let previousWidth = 0;
 new ResizeObserver(entries => {
@@ -2410,7 +2412,7 @@ async function refreshWriterCoverage(){
       if(PlanoAccounts.getUser()?.id!==owner||state.fingerprint!==key||state.screenplay?.revision!==script.revision){retry=state.fingerprint===key&&state.screenplay?.id===script.id;await candidate.destroy();return false;}
       const notes=validateNotes(PlanoScreenplayLinks.reflow(state.annotations,script),pdf.numPages),corrections=PlanoCorrections.validate(flowCorrections(state.corrections,script),pdf.numPages);
       const previous=state.pdf;cancelRendering();cancelSpelling();if(state.url)URL.revokeObjectURL(state.url);
-      state.pdf=pdf;committed=true;state.file=new File([generated.bytes],pdfName(state.file.name),{type:'application/pdf'});state.url=URL.createObjectURL(state.file);state.pages=pages;state.scenes=sceneTools.detectScenes(pages);state.annotations=notes;cacheAnnotationShapes();state.corrections=corrections;state.pdfBasis=script;state.writerPdfRevision=script.revision;state.screenplayCoverage=null;
+      state.pdf=pdf;state.pageSurface=generated.surface;committed=true;state.file=new File([generated.bytes],pdfName(state.file.name),{type:'application/pdf'});state.url=URL.createObjectURL(state.file);state.pages=pages;state.scenes=sceneTools.detectScenes(pages);state.annotations=notes;cacheAnnotationShapes();state.corrections=corrections;state.pdfBasis=script;state.writerPdfRevision=script.revision;state.screenplayCoverage=null;
       for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=PlanoScreenplayLinks.reflow(snapshot.annotations,script);snapshot.corrections=flowCorrections(snapshot.corrections||[],script);}
       if(!['all','editing','print',...state.scenes.map(scene=>scene.id)].includes(state.scene))state.scene='all';
       updateSceneOptions();refreshSegments();refreshAnnotations();refreshSpelling();PlanoTechnicalWindow.publish();saveNotes();previous?.destroy().catch(()=>{});if(state.proofreading.enabled)startSpelling();

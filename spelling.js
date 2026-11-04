@@ -1,7 +1,7 @@
 /* Revisión local compartida por el PDF y los campos de escritura, sin servicios externos. */
 (function(root){
  'use strict';
- const version='es-4.0.0-review-4';
+ const version='es-4.0.0-review-6';
  const review=typeof module==='object'&&module.exports?require('./language-review.js'):root.PlanoLanguageReview;
  let contextSource=()=>({names:[],ignored:[]});
  const documentContext=()=>contextSource();
@@ -41,27 +41,34 @@
   });
  }
  async function checkText(text,{load,signal,context:currentContext}){
-  const grammar=review.syntax(text),words=[...new Set(review.candidates(text).map(item=>item.lookup))];
+  const grammar=[...review.syntax(text),...review.punctuation(text)],words=[...new Set(review.candidates(text).map(item=>item.lookup))];
   const result=await checkWords(words,{load,signal,suggestions:true});
   return filterNames([...grammar,...review.spelling(text,result)],currentContext||documentContext()).sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind));
  }
  async function checkBlocks(texts,{load,signal,suggestions=false}){
   const words=[...new Set(texts.flatMap(text=>review.candidates(text).map(item=>item.lookup)))].slice(0,20000);
   const result=await checkWords(words,{load,signal,suggestions});
-  return texts.map(text=>[...review.syntax(text),...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind)));
+  return texts.map(text=>[...review.syntax(text),...review.punctuation(text),...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind)));
  }
  async function blocksFrom(pages,scenes,signal){
-  const blocks=[];
+  const blocks=[];let speaker='',continuedParenthetical=false;
   for(const [index,page]of pages.entries()){
    if(signal.aborted)throw aborted();let current=null,previous=null;
    for(const [lineIndex,line]of page.lines.entries()){
-    const heading=root.PlanoScenes.isSceneHeading(line.text),cue=!heading&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33;
-    if((scenes.length&&!root.PlanoScenes.sceneAt(scenes,index+1,line.y))||cue){current=null;previous=null;continue;}
+    const heading=root.PlanoScenes.isSceneHeading(line.text),cue=!heading&&!/^\s*\(/.test(line.text)&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33;
+    if(scenes.length&&!root.PlanoScenes.sceneAt(scenes,index+1,line.y)){current=null;previous=null;speaker='';continuedParenthetical=false;continue;}
+    if(cue){current=null;previous=null;speaker=line.text;continuedParenthetical=false;continue;}
+    if(/^\s*\(M[AÁ]S\)\s*$/i.test(line.text)){current=null;previous=null;continue;}
+    if(heading){speaker='';continuedParenthetical=false;}
+    if(line.x<.25)continuedParenthetical=false;
+    const parenthetical=/^\s*\(/.test(line.text)||continuedParenthetical,kind=parenthetical?'parenthetical':'text';
+    if(!parenthetical&&line.x<.25)speaker='';
+    if(current&&(current.kind!==kind||parenthetical&&!continuedParenthetical||current.speaker!==speaker))current=null;
     if(heading||previous&&root.PlanoScenes.isSceneHeading(previous.text)){current=null;previous=null;}
     if(previous&&line.y-previous.y>Math.max(line.height,previous.height)*2.3)current=null;
-    if(!current){current={page:index+1,index:lineIndex,text:'',lines:[]};blocks.push(current);}
+    if(!current){current={page:index+1,index:lineIndex,text:'',lines:[],kind,speaker};blocks.push(current);}
     if(current.text)current.text+='\n';
-    current.lines.push({line,start:current.text.length});current.text+=line.text;previous=line;
+    current.lines.push({line,start:current.text.length});current.text+=line.text;previous=line;continuedParenthetical=parenthetical&&!/\)\s*$/.test(line.text);
    }
    if(index%4===3)await new Promise(resolve=>setTimeout(resolve,0));
   }return blocks;
@@ -86,12 +93,15 @@
   const blocks=await blocksFrom(pages,scenes,signal),words=[...new Set(blocks.flatMap(block=>review.candidates(block.text).map(item=>item.lookup)))].slice(0,20000);
   const names=review.nameWords([...documentContext().names,...pages.flatMap(page=>page.lines.filter(line=>!root.PlanoScenes.isSceneHeading(line.text)&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33).map(line=>line.text))]);
   const result=await checkWords(words,{load,signal}),skip=new Set(ignored),found=[];
+  const lastOnPage=new Map();for(const block of blocks)lastOnPage.set(block.page,block);
   const canvas=document.createElement('canvas'),context=canvas.getContext('2d');context.font='16px "Courier New",monospace';
   try{
-   for(const block of blocks)for(const issue of [...review.syntax(block.text),...review.spelling(block.text,result)]){
+   for(const block of blocks)for(const issue of [...review.syntax(block.text),...review.contextual(block.text,block),...review.punctuation(block.text),...review.spelling(block.text,result)]){
+    // El texto extraído se corta por página. La revisión del editor conserva el párrafo completo.
+    if(issue.kind==='punctuation'&&((/^missing-open-/.test(issue.rule)&&(/\(CONT[’']?D\)/i.test(block.speaker)||block.page>1&&block.index<=1))||(/^(?:missing-close-|unclosed-sign)/.test(issue.rule)&&block.page<pages.length&&lastOnPage.get(block.page)===block)))continue;
     if(skip.has(issue.key)||issue.kind==='spelling'&&names.has(issue.text.toLocaleLowerCase('es').normalize('NFC')))continue;
     const parts=geometry(block,issue,context);if(!parts.length)continue;
-    found.push({id:`${issue.kind}-${block.page}-${block.index}-${issue.start}-${review.hash(issue.key)}`,source:issue.kind,word:issue.text.slice(0,60),ignoreKey:issue.key,message:issue.message,parts});
+    found.push({id:`${issue.kind}-${block.page}-${block.index}-${issue.start}-${review.hash(issue.key)}`,source:issue.kind==='punctuation'?'syntax':issue.kind,...(issue.kind==='punctuation'?{category:'punctuation'}:{}),word:issue.text.slice(0,60),ignoreKey:issue.key,message:issue.message,parts});
    }
   }finally{canvas.width=canvas.height=0;}
   return found;

@@ -104,7 +104,7 @@
     document.dispatchEvent(new CustomEvent("plano-appearance-change", { detail: patch }));
   }
   globalThis.PlanoAppearance = {
-    get: () => ({ ...settings }), valid, defaults: Object.freeze({ ...defaults }),
+    get: () => ({ ...settings }), valid, choose, palettes: Object.freeze(palettes), defaults: Object.freeze({ ...defaults }),
     set: value => { settings = { ...defaults, ...valid(value) }; apply(); },
     manageAccount: value => { accountManaged = Boolean(value); }
   };

@@ -13,6 +13,7 @@
  function status(value){
   if(!current)return;
   current.status=value;
+  document.dispatchEvent(new CustomEvent('plano-appearance-sync',{detail:value}));
   const text=document.querySelector('#appearance-sync');
   if(!text)return;
   text.hidden=!owner;text.dataset.state=value;

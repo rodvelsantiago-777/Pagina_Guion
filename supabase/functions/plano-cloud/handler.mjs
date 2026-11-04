@@ -1,5 +1,8 @@
 export const FILE_LIMIT=10485760,PAYLOAD_LIMIT=350000;
 const errors={
+ SESSION_REVOKED:[401,'Esta sesión se ha cerrado. Inicia sesión de nuevo.'],ACCOUNT_DELETED:[401,'Esta cuenta ya ha completado su periodo de eliminación.'],
+ RECENT_LOGIN:[401,'Confirma tu contraseña para continuar.'],SESSION_LIMIT:[429,'Hay demasiadas sesiones abiertas. Cierra alguna para continuar.'],
+ ACCOUNT_SETUP:[503,'Esta operación no está disponible temporalmente.'],
  UNAUTHORIZED:[401,'Vuelve a iniciar sesión para acceder a tus proyectos.'],NOT_FOUND:[404,'El proyecto no existe o no pertenece a esta cuenta.'],
  CONFLICT:[409,'Hay una versión más reciente. Exporta tus notas antes de recargar el proyecto de la nube.'],NOT_READY:[409,'El proyecto no está listo para esta operación. Actualiza la página y vuelve a abrirlo.'],
  USER_STORAGE_LIMIT:[413,'Has alcanzado los 10 proyectos de esta cuenta. Elimina uno para subir otro.'],GLOBAL_STORAGE_LIMIT:[413,'El espacio gratuito de la página está lleno. No se ha activado ningún plan de pago.'],
@@ -29,22 +32,29 @@ function validEditable(data){
  if(data.documentFormat!==2||!s||s.version!==1||typeof s.id!=='string'||!/^[-\w]{1,80}$/.test(s.id)||!Number.isSafeInteger(s.revision)||s.revision<0||typeof s.title!=='string'||s.title.length>176||!Array.isArray(s.authors)||s.authors.length>8||!Array.isArray(s.characters)||s.characters.length>500||s.doc?.type!=='doc'||!Array.isArray(s.doc.content)||!s.doc.content.length||s.doc.content.length>8000)fail('INVALID_PAYLOAD');
  let length=0;for(const p of s.doc.content){if(p?.type!=='paragraph'||!['scene','action','character','parenthetical','dialogue','transition','insert','section'].includes(p.attrs?.kind)||typeof p.attrs.id!=='string')fail('INVALID_PAYLOAD');for(const text of p.content||[]){if(text.type!=='text'||typeof text.text!=='string')fail('INVALID_PAYLOAD');length+=text.text.length;}}if(length>220000)fail('TOO_LARGE');
 }
-export function createHandler({verify,rpc,preferences,releases,download,remove,origins}){
+export function createHandler({verify,rpc,preferences,releases,download,remove,origins,account,maintenance}){
  return async request=>{
   const origin=request.headers.get('origin')||'',allowed=origins.includes(origin);
   const headers={'Cache-Control':'no-store','Vary':'Origin'};
-  if(allowed)Object.assign(headers,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'});
+  if(allowed)Object.assign(headers,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-plano-session','Access-Control-Allow-Methods':'POST, OPTIONS'});
   const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...headers,'Content-Type':'application/json'}});
   if(origin&&!allowed)return json({code:'FORBIDDEN',message:'Origen no autorizado.'},403);
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers});
   if(request.method!=='POST')return json({code:'METHOD',message:'Método no permitido.'},405);
   try{
-   let owner;try{owner=await verify(request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]||'');}catch{fail('UNAUTHORIZED');}
    const action=new URL(request.url).searchParams.get('action');
+   if(action==='account_maintenance'||action==='account_config_status'){
+    if(!maintenance||!await maintenance(request))fail('UNAUTHORIZED');return json(action==='account_maintenance'?await account.maintain():await account.check());
+   }
+   const token=request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]||'';
+   let identity;try{identity=await verify(token);}catch{fail('UNAUTHORIZED');}
+   const owner=typeof identity==='string'?identity:identity.owner;
    const call=(operation,id=null,data={})=>rpc(owner,operation,id,data);
    if(action==='create')fail('UPGRADE_REQUIRED');
    const bytes=await readLimited(request,PAYLOAD_LIMIT+4096);
    let body;try{body=JSON.parse(new TextDecoder().decode(bytes)||'{}');}catch{fail('INVALID_INPUT');}
+   if(action?.startsWith('account_')){if(!account)fail('ACCOUNT_SETUP');return json(await account.action(action,identity,request,body,token));}
+   if(account)await account.guard(identity,request);
    if(action==='create_editable'){
     validEditable(body.payload);if(typeof body.name!=='string'||!body.name.trim()||body.name.length>180)fail('INVALID_INPUT');
     if(body.projectName!==undefined&&(typeof body.projectName!=='string'||!body.projectName.trim()||body.projectName.trim().length>120||/[\u0000-\u001f\u007f]/.test(body.projectName)))fail('INVALID_INPUT');
