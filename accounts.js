@@ -6,7 +6,7 @@
   const configured=['apiKey','authDomain','projectId','appId'].every(key=>typeof config[key]==='string'&&config[key].trim()&&!/[<>]/.test(config[key]));
   let client=null,current=null,owner='',view='signup',working=false,initialized=false,unavailable='',hooks={},queue=Promise.resolve(),resetCode='',resendAt=0,resendTimer,connecting=true,workspaceConnected=false;
   let resolveReady; const ready=new Promise(resolve=>resolveReady=resolve);
-  let profileName=null;
+  let profileName=null,profilePhoto='';
   const titles={login:'Bienvenido de nuevo',signup:'Crea tu cuenta',forgot:'Recupera tu acceso',reset:'Nueva contraseña',verify:'Verifica tu correo',profile:'Mi cuenta'};
   function message(text='',error=false){const node=$('#account-message');node.textContent=text;node.hidden=!text;node.classList.toggle('is-error',error);}
   function safeError(error){
@@ -87,7 +87,7 @@
   function acceptUser(next){
     queue=queue.catch(()=>{}).then(async()=>{
       const nextOwner=next?.emailVerified?next.uid:'';
-      if(nextOwner!==owner){profileName=null;await hooks.change?.(nextOwner,owner);owner=nextOwner;}
+      if(nextOwner!==owner){profileName=null;profilePhoto='';await hooks.change?.(nextOwner,owner);owner=nextOwner;}
       current=next;
       connecting=false;
       if(!['forgot','reset'].includes(view))view=current?current.emailVerified?'profile':'verify':view==='signup'?'signup':'login';
@@ -190,7 +190,7 @@
   async function manage(action,data={}){
     if(!current?.emailVerified||!client)throw Error('Inicia sesión de nuevo.');
     const managedUser=current;
-    if(!['password_link','email','profile','session_close','suspend','sessions_close'].includes(action))throw Error('Operación no disponible.');
+    if(!['password_link','email','profile','avatar','session_close','suspend','sessions_close'].includes(action))throw Error('Operación no disponible.');
     if(action==='password_link'){if(hooks.canChange&&!hooks.canChange())throw Error('Termina la edición o exportación en curso antes de continuar.');await hooks.beforeChange?.();if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');try{await client.sendPasswordResetEmail(managedUser.email,actionSettings());return{};}catch(error){throw Error(safeError(error));}}
     if(['email','suspend','sessions_close'].includes(action)){
       if(hooks.canChange&&!hooks.canChange())throw Error('Termina la edición o exportación en curso antes de continuar.');
@@ -203,12 +203,13 @@
       const result=await root.PlanoAccountSession.request('account_'+action,Object.fromEntries(Object.entries(data).filter(([key])=>key!=='currentPassword')));
       if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');
       if(action==='profile'){await managedUser.updateProfile({displayName:data.name}).catch(()=>{});if(current?.uid!==managedUser.uid)throw Error('La cuenta ha cambiado.');profileName=data.name;root.PlanoHeader?.refreshIdentity();document.dispatchEvent(new CustomEvent('plano-account-profile-change'));}
+      if(action==='avatar'){profilePhoto=result.profile.avatar||'';root.PlanoHeader?.refreshIdentity();document.dispatchEvent(new CustomEvent('plano-account-profile-change'));}
       if(['suspend','sessions_close'].includes(action))await signOut(true,action==='suspend'?'Cuenta suspendida. Inicia sesión antes de 30 días para recuperarla.':'Las sesiones se han cerrado. Inicia sesión de nuevo.');
       return result;
     }catch(error){throw error;}
   }
   document.addEventListener('plano-session-revoked',event=>{if(current)signOut(true,event.detail||'Esta sesión se ha cerrado. Inicia sesión de nuevo.').catch(()=>{});});
-  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,manage,signOut,setProfileName:name=>{profileName=name;root.PlanoHeader?.refreshIdentity();},notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:profileName??current.displayName??'',email:current.email}:null,
+  root.PlanoAccounts={init,ready,configured,open,connectWorkspace,manage,signOut,setProfileName:name=>{profileName=name;root.PlanoHeader?.refreshIdentity();},setProfilePhoto:photo=>{profilePhoto=globalThis.PlanoAvatarImage?.valid(photo)?photo:'';root.PlanoHeader?.refreshIdentity();},notesKey:fingerprint=>owner?`plano-notes-user-v1:${encodeURIComponent(owner)}:${fingerprint}`:`plano-notes-v1:${fingerprint}`,getUser:()=>current?.emailVerified?{id:current.uid,name:profileName??current.displayName??'',email:current.email,...(profilePhoto?{photo:profilePhoto}:{})}:null,
     getAccessToken:async()=>{if(!current?.emailVerified||client?.currentUser?.uid!==current.uid)throw new Error('SESSION');return current.getIdToken();}};
   // El acceso se inicia por sí mismo, aunque el editor tarde en cargar o falle.
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>init());else init();

@@ -1,3 +1,4 @@
+import './avatar-image.js';
 /* Gestión de cuenta. La identidad y auth_time proceden del JWT verificado, nunca del cuerpo. */
 const reject=code=>{throw Object.assign(new Error(code),{code});};
 const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
@@ -33,6 +34,7 @@ export function createAccountService({db,lookup,revokeTokens,deleteUser,removeFi
   await db(owner,'guard',data);
   if(name==='account_ping')return{};
   if(name==='account_read')return{...await db(owner,'read',data),email:identity.email,capabilities:capabilities()};
+  if(name==='account_avatar'){if(!globalThis.PlanoAvatarImage.valid(body.avatar))reject('INVALID_INPUT');await db(owner,'avatar',{...data,avatar:body.avatar});return db(owner,'read',data);}
   if(name==='account_profile'){
    if(typeof body.name!=='string'||body.name.trim().length<2||body.name.length>120||typeof body.company!=='string'||body.company.length>120||typeof body.birthDate!=='string'||body.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(body.birthDate))reject('INVALID_INPUT');
    if(body.birthDate&&(!Number.isFinite(Date.parse(body.birthDate+'T00:00:00Z'))||new Date(body.birthDate+'T00:00:00Z').toISOString().slice(0,10)!==body.birthDate))reject('INVALID_INPUT');

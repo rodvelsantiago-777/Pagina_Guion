@@ -1,8 +1,16 @@
 # Cuenta y seguridad de PLANO
 
-Se abre desde **Mi cuenta** en el menú del avatar. Es una sección completa con perfil, inicio de sesión y seguridad, apariencia y privacidad. Volver al estudio conserva el documento abierto. El perfil guarda nombre, fecha de nacimiento opcional y empresa opcional en Supabase; el correo, la contraseña y la identidad siguen en Firebase Authentication.
+Se abre desde **Mi cuenta** en el menú del avatar. Es una sección completa con perfil con apariencia, inicio de sesión y seguridad y privacidad. Volver al estudio conserva el documento abierto. El perfil guarda nombre, foto opcional, fecha de nacimiento opcional y empresa opcional en Supabase; el correo, la contraseña y la identidad siguen en Firebase Authentication.
 
 El correo se modifica con `verifyBeforeUpdateEmail`: se confirma la contraseña actual y Firebase envía un enlace al nuevo correo. El cambio se completa al verificarlo. La apariencia utiliza las preferencias privadas existentes de cada cuenta, con estados de sincronización y reintento. Sus controles pasan al área de cuenta y no cambian el papel del guion.
+
+## Foto de perfil y apariencia
+
+**Perfil** reúne los datos personales y los controles de modo y tema; ya no hay una pestaña separada de Apariencia. Añadir o cambiar la foto abre un encuadre circular: se arrastra la imagen y se ajusta el zoom, también mediante teclado. Cancelar conserva la foto anterior. Eliminar vuelve a mostrar las iniciales.
+
+La entrada admite JPG, PNG o WebP de hasta **5 MB**, 25 megapíxeles y 8192 píxeles por lado. Se comprueba la cabecera antes de decodificarla y se reduce la imagen de trabajo a un máximo de 1600 píxeles por lado. El recorte final se genera en un canvas blanco de **128 × 128 píxeles** y se comprime progresivamente a WebP, con JPEG como alternativa. Solo se envía la miniatura confirmada, de **8 KB binarios como máximo**; el original y su nombre no se suben. El servidor valida formato, dimensiones, longitud, ausencia de animación y metadatos EXIF/XMP antes de guardarla.
+
+La miniatura se guarda como un dato privado del perfil, no en los proyectos ni en el bucket de archivos. La representación base64 ocupa como máximo 11 KB. Al entrar desde otro dispositivo se recupera con la sesión; se muestra en el avatar del menú y en Perfil. No consume el cupo dedicado a los guiones ni se incluye en un archivo `.plano`. Se elimina junto con el perfil al completar el borrado de la cuenta. No utiliza servicios de imágenes externos ni introduce costes o planes nuevos.
 
 ## Cambio de contraseña sin Gmail ni SMTP
 
@@ -38,7 +46,8 @@ Las migraciones de cuenta, guardia de sesiones y programador están instaladas e
 
 ## Validación y publicación
 
-- `tests/account-center.cjs`: SDK Firebase real con respuestas simuladas y PostgreSQL aislado; perfil entre dos dispositivos, preferencias, cambio de correo, enlace oficial para contraseña, cierre global tras restablecer, suspensión/recuperación y móvil.
+- `tests/avatar-crop.cjs`: compresión real WebP/JPEG, resolución y formatos rechazados, zoom/teclado, móvil y cancelación durante la lectura.
+- `tests/account-center.cjs`: foto recortada, límite de entrada y salida, persistencia entre dispositivos, cancelación, eliminación y SDK Firebase real con respuestas simuladas y PostgreSQL aislado; perfil entre dos dispositivos, preferencias, cambio de correo, enlace oficial para contraseña, cierre global tras restablecer, suspensión/recuperación y móvil.
 - `tests/account-center-server.cjs`: propiedad, privilegios, revocación, imposibilidad de omitir/cambiar el secreto para eludirla, época de credenciales Firebase, plazo, borrado recuperable y separación de cuentas.
 - Suite general: `node tools/run-checks.cjs`, con dependencias y navegador definidos como en README. Las pruebas no crean cuentas de producción, no borran usuarios reales y no mandan correos reales.
 

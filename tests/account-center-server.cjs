@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 (async()=>{const db=new PGlite();try{
  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
  const migrations=fs.readdirSync(path.resolve('supabase/migrations')).filter(n=>n.endsWith('.sql')&&!n.includes('account_scheduler')).sort();for(const name of migrations)await db.exec(fs.readFileSync(path.join('supabase/migrations',name),'utf8'));
- const migration=fs.readFileSync(path.join('supabase/migrations',migrations.find(n=>n.endsWith('_account_center.sql'))),'utf8');await db.exec(migration);for(const name of migrations.filter(n=>n.endsWith('_account_session_guard.sql')||n.endsWith('_firebase_password_links.sql')))await db.exec(fs.readFileSync(path.join('supabase/migrations',name),'utf8'));
+ const migration=fs.readFileSync(path.join('supabase/migrations',migrations.find(n=>n.endsWith('_account_center.sql'))),'utf8');await db.exec(migration);for(const name of migrations.filter(n=>n.endsWith('_account_session_guard.sql')||n.endsWith('_firebase_password_links.sql')||n.endsWith('_profile_avatar.sql')))await db.exec(fs.readFileSync(path.join('supabase/migrations',name),'utf8'));
  const call=async(owner,action,data={})=>(await db.query('select public.plano_account($1,$2,$3::jsonb) result',[owner,action,JSON.stringify(data)])).rows[0].result;
  const {createAccountService}=await import('../supabase/functions/plano-cloud/account.mjs'),{createHandler}=await import('../supabase/functions/plano-cloud/handler.mjs');
  let seconds=Math.floor(Date.now()/1000),deleteFail=true;const deleted=[],revoked=[],epochs={ana:0,bob:0};
@@ -18,6 +18,9 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  await request('account_session_open','ana',{},tokens.other);const devices=(await request('account_read')).data;assert.equal(devices.sessions.length,2);assert.equal((await request('account_session_open')).status,200);assert.equal((await request('account_read')).data.sessions.length,2);
  assert.equal((await request('account_profile','ana',{name:'Ana Ruiz',company:'Estudio <uno>',birthDate:'2000-02-29',owner:'bob'})).status,200);const updated=(await request('account_read')).data.profile;assert.equal(updated.company,'Estudio <uno>');assert.equal(updated.birthDate,'2000-02-29');assert.equal((await request('account_read','bob')).data.profile.name,'Bob');
  assert.equal((await request('account_profile','ana',{name:'Ana',company:'',birthDate:'2999-01-01'})).status,400);
+ for(const avatar of [undefined,null,'https://other.test/photo.png','data:image/svg+xml;base64,PHN2Zz4=','data:image/webp;base64,'+'a'.repeat(12000),'data:image/jpeg;base64,'+Buffer.alloc(400).toString('base64')])assert.equal((await request('account_avatar','ana',{avatar,owner:'bob'})).status,400);
+ assert.equal((await request('account_read')).data.profile.avatar,'');assert.equal((await request('account_avatar','ana',{avatar:''})).status,200);
+
  assert.equal((await request('account_session_close','ana',{sessionId:(await request('account_read','bob')).data.sessionId})).status,404);
  const otherId=devices.sessions.find(s=>s.id!==first.sessionId).id;assert.equal((await request('account_session_close','ana',{sessionId:otherId})).status,200);assert.equal((await request('account_ping','ana',{},tokens.other)).status,401);assert.equal((await request('account_session_open','ana',{},'d'.repeat(64))).status,401,'No se puede reabrir una sesión revocada con otro secreto y el mismo token');
  // Iniciar sesión de nuevo confirma las credenciales y obtiene un auth_time nuevo.

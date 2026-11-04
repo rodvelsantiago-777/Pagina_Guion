@@ -19,7 +19,7 @@
   if(active?.uid===uid&&active.authTime===authTime)return active;
   if(pending){await pending;if(active?.uid===uid&&active.authTime===authTime)return active;}
   const secret=active?.uid===uid?active.secret:stored(uid);
-  const work=(async()=>{const result=await raw('account_session_open',{},token,secret);if(root.PlanoAccounts.getUser()?.id!==uid)throw failure('SESSION','La cuenta ha cambiado.');active={uid,authTime,secret,id:result.sessionId};if(typeof result.name==='string')root.PlanoAccounts.setProfileName(result.name);previous=uid;if(result.restored)document.dispatchEvent(new CustomEvent('plano-account-restored'));return active;})();pending=work;
+  const work=(async()=>{const result=await raw('account_session_open',{},token,secret);if(root.PlanoAccounts.getUser()?.id!==uid)throw failure('SESSION','La cuenta ha cambiado.');active={uid,authTime,secret,id:result.sessionId};if(typeof result.name==='string')root.PlanoAccounts.setProfileName(result.name);root.PlanoAccounts.setProfilePhoto(result.avatar||'');previous=uid;if(result.restored)document.dispatchEvent(new CustomEvent('plano-account-restored'));return active;})();pending=work;
   try{return await work;}finally{if(pending===work)pending=null;}
  }
  async function request(action,data={}){const token=await root.PlanoAccounts.getAccessToken(),session=await ensure(token);if(!session)throw failure('SETUP','La cuenta no está conectada.');return raw(action,data,token,session.secret);}

@@ -575,3 +575,5 @@ La cobertura del guion editable utiliza `screenplay-surface.js`: el generador de
 
 
 El centro de cuenta, las sesiones verificadas y la suspensión de 30 días se describen en [CUENTA_Y_SEGURIDAD.md](CUENTA_Y_SEGURIDAD.md). El cambio de contraseña utiliza los enlaces de Firebase, sin Gmail ni SMTP. El servidor consulta las revocaciones de Firebase antes de autorizar operaciones de nube.
+
+Perfil incluye ahora la apariencia y una foto opcional: encuadre local con zoom, entrada JPG/PNG/WebP de hasta 5 MB y una sola miniatura de 128 × 128 de hasta 8 KB. Solo esa miniatura se guarda en la cuenta, fuera de los proyectos. `avatar-image.js` se genera desde la validación compartida del servidor al ejecutar `node tools/build-cloud-function.cjs`; `avatar-crop.js` procesa la imagen sin dependencias ni servicios externos. Las pruebas de cuenta y `tests/avatar-crop.cjs` cubren el flujo y los límites.

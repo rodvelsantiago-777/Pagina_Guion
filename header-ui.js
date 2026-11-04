@@ -10,7 +10,8 @@
  const shorten=value=>{const chars=Array.from(value);return chars.length>32?chars.slice(0,29).join('')+'...':value;};
  function refreshIdentity(){
   const user=root.PlanoAccounts?.getUser(),name=user?.name?.trim()||user?.email?.split('@')[0]||'Mi cuenta',words=name.match(/[\p{L}\p{M}]+/gu)||['P'];
-  $('#header-avatar').textContent=(Array.from(words[0])[0]+(words.length>1?Array.from(words.at(-1))[0]:'')).toLocaleUpperCase('es');
+  const initials=(Array.from(words[0])[0]+(words.length>1?Array.from(words.at(-1))[0]:'')).toLocaleUpperCase('es');
+  if(root.PlanoAvatarImage)root.PlanoAvatarImage.paint($('#header-avatar'),user?.photo||'',initials);else $('#header-avatar').textContent=initials;
   $('#header-account-name').textContent=name;$('#header-account-email').textContent=user?.email||'';
   $('#account-menu-toggle').title=user?`Cuenta de ${name}`:'Cuenta y preferencias';
  }
