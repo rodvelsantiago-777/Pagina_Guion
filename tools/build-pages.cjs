@@ -1,6 +1,6 @@
 /* Publicación estática y notas del rango Git. Sin claves ni servicios de IA. */
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const {releases,versionConfig}=require('../patch-notes.js');
+const {releases,versionConfig,editorialMetadata,noteItem}=require('../patch-notes.js');
 const categories=['new','improved','fixed'];
 function git(root,args){return execFileSync('git',args,{cwd:root,encoding:'utf8',maxBuffer:5*1024*1024,stdio:['ignore','pipe','pipe']}).trim();}
 function readEntries(root,ref){
@@ -14,25 +14,43 @@ function presentEntries(records){
   if(!entry||typeof entry.text!=='string')continue;
   if(typeof entry.group==='string'&&typeof entry.detail==='string'){
    let group=groups.get(entry.group);
-   if(!group){group={text:entry.text,details:[],order:[]};groups.set(entry.group,group);result.push(group);}
-   if(!group.details.includes(entry.detail)){group.details.push(entry.detail);group.order.push(entry.detailOrder||0);}
-  }else result.push(entry.text);
+   if(!group){group={text:entry.text,details:[],detailOrders:[],...editorialMetadata({...entry,id:entry.group})};groups.set(entry.group,group);result.push(group);}
+   if(!group.details.includes(entry.detail)){group.details.push(entry.detail);group.detailOrders.push(entry.detailOrder||0);}
+  }else result.push(editorialMetadata(entry).topic?noteItem(entry):entry.text);
  }
- return result.map(item=>item?.order?{text:item.text,details:item.details.map((text,i)=>({text,order:item.order[i]})).sort((a,b)=>a.order-b.order).map(item=>item.text)}:item);
+ return result.map(item=>item?.detailOrders?{text:item.text,details:item.details.map((text,i)=>({text,order:item.detailOrders[i]})).sort((a,b)=>a.order-b.order).map(item=>item.text),...editorialMetadata(item)}:item);
 }
 function rewordHistory(root,after,history,editorial){
- const current=new Map(editorial.map(item=>[item.id,item])),aliases=new Map();
+ const current=new Map(editorial.map(item=>[item.id,item])),aliases=new Map(),groups=new Map(editorial.filter(item=>item.group).map(item=>[item.group,item]));
  let refs=[];try{refs=git(root,['log',after,'--format=%H','--','release-notes.entries.json']).split('\n').slice(0,200);}catch{}
  for(const ref of new Set([after,...history.map(item=>item.commit).filter(Boolean),...refs]))for(const item of readEntries(root,ref)){
   if(typeof item?.text==='string'&&!aliases.has(item.text.trim().slice(0,500)))aliases.set(item.text.trim().slice(0,500),item.id);
  }
- return history.map(item=>({...item,sections:item.sections.map(section=>({...section,items:presentEntries(section.items.map(note=>typeof note==='string'&&current.get(aliases.get(note))||note))}))}));
+ function rewrite(note){
+  const text=typeof note==='string'?note:note?.text,entry=current.get(note?.id)||groups.get(note?.id)||current.get(aliases.get(text));
+  if(!entry)return note;
+  if(typeof note==='object'&&Array.isArray(note.details))return{...note,text:entry.text,...editorialMetadata({...entry,id:entry.group||entry.id})};
+  return entry;
+ }
+ return history.map(item=>({...item,sections:item.sections.map(section=>({...section,items:presentEntries(section.items.map(rewrite))}))}));
+}
+function orderDetails(history,editorial){
+ const groups=new Map();
+ for(const entry of editorial)if(entry.group&&typeof entry.detail==='string'){
+  if(!groups.has(entry.group))groups.set(entry.group,{text:entry.text,order:new Map()});
+  groups.get(entry.group).order.set(entry.detail,entry.detailOrder||0);
+ }
+ return history.map(release=>({...release,sections:release.sections.map(section=>({...section,items:section.items.map(note=>{
+  if(!note||!Array.isArray(note.details))return note;
+  const group=groups.get(note.id)||[...groups.values()].find(group=>group.text===note.text);if(!group)return note;
+  return{...note,details:[...note.details].sort((a,b)=>(group.order.get(a)??1000)-(group.order.get(b)??1000))};
+ })}))}));
 }
 function exists(root,sha){try{return /^[a-f0-9]{40}$/.test(sha)&&Boolean(git(root,['cat-file','-e',`${sha}^{commit}`])==='');}catch{return false;}}
 function makeRelease({root,before,after,previous,publishedAt=new Date().toISOString()}){
  if(!exists(root,after))throw new Error('La publicación necesita un commit Git válido.');
  const versioning=readVersioning(root,after),editorial=readEntries(root,after);
- const history=rewordHistory(root,after,releases({...previous,versioning}),editorial),same=history.find(item=>item.commit===after);
+ const history=orderDetails(rewordHistory(root,after,releases({...previous,versioning}),editorial),editorial),same=history.find(item=>item.commit===after);
  if(same)return {schema:1,versioning,releases:releases({schema:1,versioning,releases:history})};
  let base=exists(root,before)?before:null;
  const last=history[0]?.commit;
@@ -57,7 +75,7 @@ function makeRelease({root,before,after,previous,publishedAt=new Date().toISOStr
   if(!entries.length)entries=[{category:'improved',text:'Actualización de mantenimiento de la aplicación.'}];
  }
  const current={id:after,commit:after,publishedAt:new Date(publishedAt).toISOString(),sections:categories.map(category=>({category,items:presentEntries(entries.filter(item=>item.category===category))})).filter(section=>section.items.length)};
- const feed={schema:1,versioning,releases:releases({schema:1,versioning,releases:[current,...history]})};
+ const feed={schema:1,versioning,releases:orderDetails(releases({schema:1,versioning,releases:[current,...history]}),editorial)};
  while(Buffer.byteLength(JSON.stringify(feed),'utf8')>140000&&feed.releases.length>1)feed.releases.pop();
  return feed;
 }

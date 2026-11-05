@@ -1,0 +1,30 @@
+{
+  "version": "0.2.8",
+  "source": "https://github.com/fiduswriter/LingoTweaker/tree/819dc354224c9087ff486708adfd413ecb45f466",
+  "sourceArchive": "https://github.com/fiduswriter/LingoTweaker/archive/819dc354224c9087ff486708adfd413ecb45f466.tar.gz",
+  "packages": {
+    "lingotweaker-wasm": {
+      "version": "0.2.8",
+      "integrity": "sha512-ln+DgUUlAxNlWYrWFHyYcppo+Wg44Q/tyfiX8oZpfRonvmxNR2xjfiZxJBqm5hC0jf06HYEpkcGRCG14qrcpJA=="
+    },
+    "lingotweaker-data-es": {
+      "version": "0.2.8",
+      "integrity": "sha512-+UtZ+ufdqHQqlONigcgHhhAXhdNU4VBZNkTaTvQhAPktPYH5EZGaBGl34Qvpaj//0aHdpVGv2pT5/AfXUCedPw=="
+    }
+  },
+  "upstream": "622328535865050c077ccb64cabb5fad77038bc4",
+  "files": {
+    "lt_wasm.js": {
+      "bytes": 17614,
+      "sha256": "f997ea001ea04218380b07e174b347bb09aff335cd299df09e35ba894d8dbbe3"
+    },
+    "engine.wasm.gz": {
+      "bytes": 4463105,
+      "sha256": "3bbd39f6b4941ae9c1b8a3083f3d2545eafeabc908f942f034b1a2086e564f08"
+    },
+    "es.pack.gz": {
+      "bytes": 3773233,
+      "sha256": "a01cb04af857160b94e5d9a23b36f5abec2e4767f161afdc70ae5b458848694e"
+    }
+  }
+}

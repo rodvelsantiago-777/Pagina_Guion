@@ -11,18 +11,24 @@
   async function scan(){
    if(!editor||destroyed||!active()||root.PlanoTestDisableSpelling)return;
    const doc=editor.state.doc,token=epoch,job=new AbortController();controller=job;const blocks=[],missing=[];let speaker='';
-   doc.forEach((node,pos)=>{const kind=node.attrs.kind;if(kind==='character'){speaker=node.textContent;return;}if(!['dialogue','parenthetical'].includes(kind))speaker='';if(!node.textContent.trim())return;const entry={node,pos,kind,speaker};blocks.push(entry);if(!cache.has(node))missing.push(entry);});
-   status('Revisando escritura…');
-   try{
-    if(missing.length){const results=await root.PlanoSpelling.checkBlocks(missing.map(({node})=>node.textContent),{load,signal:job.signal});for(let i=0;i<missing.length;i++)cache.set(missing[i].node,results[i]);}
+   const selected=doc.resolve(editor.state.selection.from).parent;
+   doc.forEach((node,pos)=>{const kind=node.attrs.kind;if(kind==='character'){speaker=node.textContent;return;}if(!['dialogue','parenthetical'].includes(kind))speaker='';if(!node.textContent.trim())return;const entry={node,pos,kind,speaker};blocks.push(entry);if(!cache.has(node)||cache.get(node).speaker!==speaker||cache.get(node).mode!==root.PlanoSpelling.cacheKey){node===selected?missing.unshift(entry):missing.push(entry);}});
+   let lastPublished=0,finished=0;
+   function display(final){
     if(token!==epoch||job.signal.aborted||destroyed||!active()||editor.state.doc!==doc)return;
     const names=new Set(characters().flatMap(name=>name.match(/[\p{L}\p{M}]+/gu)||[]).map(fold)),ignored=new Set(preferences().ignored||[]),issues=[];
-    for(const {node,pos,kind,speaker}of blocks)for(const raw of [...cache.get(node)||[],...root.PlanoLanguageReview.contextual(node.textContent,{kind,speaker})]){
+    for(const {node,pos,speaker}of blocks){const entry=cache.get(node);if(entry?.speaker!==speaker)continue;for(const raw of entry.issues){
      const from=pos+1+raw.start,to=pos+1+raw.end,text=node.textContent.slice(raw.start,raw.end);
      if(ignored.has(raw.key)||raw.kind==='spelling'&&(names.has(fold(text))||doc.rangeHasMark(from,to,editor.state.schema.marks.character)))continue;
      issues.push({...raw,text,from,to});
-    }
-    publish(issues);status(issues.length?`${issues.length} ${issues.length===1?'aviso':'avisos'} de escritura`:'Sin avisos de escritura');
+    }}
+    publish(issues);status(final?[root.PlanoSpelling.notice,issues.length?`${issues.length} ${issues.length===1?'aviso':'avisos'} de escritura`:'Sin avisos de escritura'].filter(Boolean).join(' · '):`Revisando escritura… ${finished}/${missing.length}`);
+   }
+   status('Revisando escritura…');
+   try{
+    if(missing.length){const store=(i,issues)=>cache.set(missing[i].node,{speaker:missing[i].speaker,issues,mode:root.PlanoSpelling.cacheKey});const results=await root.PlanoSpelling.checkBlocks(missing.map(({node,kind,speaker})=>({text:node.textContent,kind,speaker})),{load,signal:job.signal,onProgress(i,issues){store(i,issues);finished++;const now=performance.now();if(now-lastPublished>160){lastPublished=now;display(false);}}});for(let i=0;i<missing.length;i++)store(i,results[i]);}
+    if(token!==epoch||job.signal.aborted||destroyed||!active()||editor.state.doc!==doc)return;
+    display(true);
    }catch(error){if(error.name!=='AbortError'&&token===epoch&&!destroyed){status('Revisión no disponible · vuelve a activar la ortografía');}}
    finally{if(controller===job)controller=null;}
   }
@@ -32,13 +38,13 @@
    cancel();onOpen();const token=epoch,doc=editor.state.doc,title=document.createElement('strong'),description=document.createElement('span'),options=document.createElement('div');popup.dataset.kind=issue.kind;title.textContent=issue.text;description.textContent=issue.message;options.className='writer-review-options';popup.append(title,description,options);popup.hidden=false;
    const close=action('Cerrar',hide);close.className='writer-review-close';popup.append(close);const rect=target.getBoundingClientRect();popup.style.left=Math.max(8,Math.min(innerWidth-popup.offsetWidth-8,rect.left))+'px';popup.style.top=Math.max(8,Math.min(innerHeight-popup.offsetHeight-8,rect.bottom+7))+'px';
    const apply=value=>{if(editor.state.doc!==doc||!active()){hide();return;}const replacement=issue.kind==='punctuation'?value:root.PlanoLanguageReview.preserveCase(value,issue.text);editor.dispatch(editor.state.tr.insertText(replacement,issue.from,issue.to));hide();editor.focus();};
-   if(issue.replacement!==undefined){options.append(action(issue.replacement===''?`Eliminar «${issue.text}»`:`Usar «${issue.replacement}»`,()=>apply(issue.replacement)));return;}
+   if(issue.replacement!==undefined){for(const value of issue.suggestions?.length?issue.suggestions:[issue.replacement])options.append(action(value===''?`Eliminar «${issue.text}»`:`Usar «${value}»`,()=>apply(value)));return;}
    if(issue.kind!=='spelling')return;
    if(acceptName&&/^\p{Lu}/u.test(issue.text)){
     const accept=action('Aceptar como nombre propio',()=>{if(editor.state.doc!==doc||!active())return;if(acceptName(issue.text)){refresh();editor.focus();}else{description.textContent='No se pudo guardar el nombre. Comprueba el guardado del proyecto o el límite de palabras aceptadas.';}});accept.className='writer-review-accept';popup.insertBefore(accept,close);
    }
    const job=new AbortController();controller=job;
-   try{const result=await root.PlanoSpelling.checkText(issue.text,{load,signal:job.signal});if(token!==epoch||destroyed||popup.hidden||editor.state.doc!==doc)return;for(const value of result[0]?.suggestions?.slice(0,5)||[])options.append(action(value,()=>apply(value)));if(!options.children.length)options.textContent='Sin sugerencias disponibles.';}catch(error){if(token===epoch&&error.name!=='AbortError')options.textContent='No se pudieron cargar las sugerencias.';}
+   try{const result=issue.suggestions?.length?[issue]:await root.PlanoSpelling.checkText(issue.text,{load,signal:job.signal});if(token!==epoch||destroyed||popup.hidden||editor.state.doc!==doc)return;for(const value of result.find(item=>item.kind==='spelling')?.suggestions?.slice(0,5)||[])options.append(action(value,()=>apply(value)));if(!options.children.length)options.textContent='Sin sugerencias disponibles.';}catch(error){if(token===epoch&&error.name!=='AbortError')options.textContent='No se pudieron cargar las sugerencias.';}
    finally{if(controller===job)controller=null;}
   }
   function outside(event){if(!popup.contains(event.target)&&!event.target.closest('[data-writer-issue]'))hide();}

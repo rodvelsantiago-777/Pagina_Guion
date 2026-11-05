@@ -21,12 +21,12 @@
   function button(text,action,label){const node=document.createElement('button');node.type='button';node.textContent=text;if(label)node.setAttribute('aria-label',label);node.addEventListener('pointerdown',event=>event.preventDefault());node.addEventListener('click',action);return node;}
   function show(issues,text){
    list.replaceChildren();panel.hidden=false;panel.open=Boolean(issues.length);panel.dataset.errors=String(Boolean(issues.length));panel.dataset.kind=issues.length&&issues.every(issue=>issue.kind===issues[0].kind)?issues[0].kind:'mixed';
-   summary.textContent=issues.length?`Revisar escritura · ${issues.length} ${issues.length===1?'aviso':'avisos'}`:'Sin avisos detectados';
+   summary.textContent=[root.PlanoSpelling.notice,issues.length?`Revisar escritura · ${issues.length} ${issues.length===1?'aviso':'avisos'}`:'Sin avisos detectados'].filter(Boolean).join(' · ');
    for(const issue of issues.slice(0,30)){
     const row=document.createElement('div');row.className='writing-feedback-issue';row.dataset.kind=issue.kind;
     const locate=button(issue.text,()=>{if(input.value!==text)return;input.focus();input.setSelectionRange(issue.start,issue.end);},`Localizar «${issue.text}»`);locate.className='writing-feedback-fragment';
     const message=document.createElement('span');message.textContent=issue.message;row.append(locate,message);
-    const options=issue.replacement!==undefined?[issue.replacement]:(issue.suggestions||[]).slice(0,3);
+    const options=issue.suggestions?.length?issue.suggestions.slice(0,3):issue.replacement!==undefined?[issue.replacement]:[];
     if(options.length){const fixes=document.createElement('div');fixes.className='writing-feedback-fixes';
      for(const value of options)fixes.append(button(value===''?`Eliminar «${issue.text}»`:`Usar «${value}»`,()=>{if(input.value!==text)return;input.setRangeText(value,issue.start,issue.end,'end');input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}));row.append(fixes);
     }list.append(row);

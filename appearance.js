@@ -5,17 +5,17 @@
   const defaults = { mode: "light", preset: "default" };
   const palettes = {
     default: { label: "Predeterminado", accent: "#93674b", surface: "#888888", contrast: "#383a3e" },
-    red: { label: "Rojo", accent: "#b94343", surface: "#9b8585", contrast: "#403134" },
-    brown: { label: "Café", accent: "#876044", surface: "#9c8570", contrast: "#3c322c" },
-    orange: { label: "Naranja", accent: "#be642a", surface: "#ac947f", contrast: "#43372f" },
-    yellow: { label: "Amarillo", accent: "#a17a17", surface: "#a69f80", contrast: "#3e392d" },
-    green: { label: "Verde", accent: "#438260", surface: "#84998a", contrast: "#2e3d34" },
-    sky: { label: "Celeste", accent: "#2686ac", surface: "#819ba6", contrast: "#2c3b43" },
-    blue: { label: "Azul", accent: "#476bab", surface: "#8290a2", contrast: "#29394e" },
-    pink: { label: "Rosa", accent: "#b65d87", surface: "#a48897", contrast: "#44313c" },
-    violet: { label: "Violeta", accent: "#8057ac", surface: "#9485a3", contrast: "#3a3046" },
-    gray: { label: "Grises", accent: "#727272", surface: "#909090", contrast: "#353535" },
-    graphite: { label: "Grises oscuros", accent: "#434343", surface: "#696969", contrast: "#292929" }
+    red: { label: "Rojo", accent: "#b94343", surface: "#9b8585", contrast: "#403134", chroma: .48, lightPanel: .89, darkPanel: .17 },
+    brown: { label: "Café", accent: "#876044", surface: "#9c8570", contrast: "#3c322c", chroma: .36, lightPanel: .86, darkPanel: .15 },
+    orange: { label: "Naranja", accent: "#be642a", surface: "#ac947f", contrast: "#43372f", chroma: .56, lightPanel: .90, darkPanel: .18 },
+    yellow: { label: "Amarillo", accent: "#a17a17", surface: "#a69f80", contrast: "#3e392d", chroma: .66, lightPanel: .90, darkPanel: .17 },
+    green: { label: "Verde", accent: "#438260", surface: "#84998a", contrast: "#2e3d34", chroma: .40, lightPanel: .88, darkPanel: .15 },
+    sky: { label: "Celeste", accent: "#2686ac", surface: "#819ba6", contrast: "#2c3b43", chroma: .60, lightPanel: .89, darkPanel: .165 },
+    blue: { label: "Azul", accent: "#476bab", surface: "#8290a2", contrast: "#29394e", chroma: .56, lightPanel: .89, darkPanel: .15 },
+    pink: { label: "Rosa", accent: "#b65d87", surface: "#a48897", contrast: "#44313c", chroma: .48, lightPanel: .90, darkPanel: .18 },
+    violet: { label: "Violeta", accent: "#8057ac", surface: "#9485a3", contrast: "#3a3046", chroma: .48, lightPanel: .90, darkPanel: .16 },
+    gray: { label: "Grises", accent: "#727272", surface: "#909090", contrast: "#353535", lightPanel: .91, darkPanel: .13 },
+    graphite: { label: "Grises oscuros", accent: "#434343", surface: "#696969", contrast: "#292929", lightPanel: .84, darkPanel: .07 }
   };
   let settings = { ...defaults }, accountManaged = false;
   const valid = value => Object.fromEntries(Object.entries(value || {}).filter(([name, item]) =>
@@ -57,24 +57,34 @@
     return color;
   }
   function apply(persist = false) {
-    const palette = palettes[settings.preset], dark = settings.mode === "dark", s = palette.surface, c = palette.contrast;
-    const deep = settings.preset === "graphite";
-    const paper = tone(s, dark ? (deep ? .085 : .125) : (deep ? .975 : .997), .06), accentSoft = tone(palette.accent, dark ? .20 : .94, .20);
+    const palette = palettes[settings.preset], dark = settings.mode === "dark", s = !dark && settings.preset === "default" ? "#a09080" : palette.surface, c = palette.contrast;
+    const deep = settings.preset === "graphite", colored = Boolean(palette.chroma), themed = settings.preset !== "default";
+    // En los temas de color, el matiz ocupa superficies enteras. El predeterminado
+    // conserva sus neutros; grises y grafito se distinguen por sus niveles de tinta.
+    const shade = (lightness, strength = 1) => hex(rgb(hsl(palette.accent)[0], palette.chroma * strength, lightness));
+    const surface = (lightness, strength, neutralSaturation) => colored ? shade(lightness, strength) : tone(s, lightness, neutralSaturation);
+    const paper = surface(dark ? (deep ? .085 : .125) : (deep ? .975 : .997), .30, .06);
+    const accentSoft = colored ? shade(dark ? .22 : .92, .90) : tone(palette.accent, dark ? .20 : .94, .20);
     const accent = readableAccent(palette.accent, accentSoft, dark);
+    const panelLevel = dark ? palette.darkPanel ?? .105 : palette.lightPanel ?? .938;
+    const sidebar = colored ? shade(panelLevel) : tone(dark ? c : s, panelLevel, dark ? .13 : .09);
+    const sideHover = colored ? shade(dark ? panelLevel + .085 : panelLevel - .055, .95) : tone(dark ? c : s, dark ? panelLevel + .085 : panelLevel - .043, .12);
+    const selected = readableAccent(palette.accent, "#ffffff", false);
     const tokens = {
-      page: tone(s, dark ? (deep ? .05 : .085) : (deep ? .925 : .958), .07), paper,
-      "surface-alt": tone(s, dark ? (deep ? .12 : .155) : (deep ? .95 : .976), .07), "surface-hover": tone(s, dark ? .19 : .948, .07),
+      page: surface(dark ? (deep ? .05 : .085) : (deep ? .925 : .958), .50, .07), paper,
+      "surface-alt": surface(dark ? (deep ? .12 : .155) : (deep ? .95 : .976), .55, .07), "surface-hover": surface(dark ? .19 : .948, .65, .07),
       ink: tone(c, dark ? .925 : .14, .14), muted: tone(c, dark ? .73 : .39, .10), faint: tone(c, dark ? .70 : .42, .08),
-      line: tone(s, dark ? .25 : .855, .07), "line-strong": tone(s, dark ? .34 : .74, .07),
+      line: surface(dark ? .25 : .855, .45, .07), "line-strong": surface(dark ? .34 : .74, .55, .07),
       accent, "accent-hover": tone(accent, dark ? Math.min(.85, hsl(accent)[2] + .07) : Math.max(.12, hsl(accent)[2] - .07), 1),
       "accent-soft": accentSoft,
       "on-accent": ratio(accent, "#ffffff") >= ratio(accent, "#141414") ? "#ffffff" : "#141414",
-      sidebar: tone(c, dark ? .105 : .115, .13), "side-ink": tone(c, .94, .07), "side-muted": tone(c, .67, .08),
-      "side-accent": readableAccent(palette.accent, tone(c, .19, .12), true),
-      "side-line": tone(c, .25, .10), "side-hover": tone(c, .19, .12),
-      workspace: tone(s, dark ? .065 : .905, .06),
-      "table-header": tone(c, dark ? .20 : .18, .12), "table-header-ink": tone(c, .97, .04),
-      "table-stripe": tone(s, dark ? .14 : .985, .04),
+      sidebar, "side-ink": tone(c, dark ? .94 : themed ? .14 : .17, dark ? .07 : .12), "side-muted": readableAccent(tone(c, dark ? (themed ? .74 : .67) : (themed ? .32 : .38), .08), sideHover, dark),
+      "side-accent": readableAccent(palette.accent, sideHover, dark),
+      "side-line": colored ? shade(dark ? .31 : panelLevel - .13, .65) : tone(dark ? c : s, dark ? .25 : .81, .10), "side-hover": sideHover,
+      "side-selected": selected, "on-side-selected": "#ffffff",
+      workspace: surface(dark ? .065 : .905, .55, .06),
+      "table-header": themed ? selected : tone(dark ? c : s, dark ? .20 : .90, .12), "table-header-ink": themed ? "#ffffff" : tone(c, dark ? .97 : .20, dark ? .04 : .12),
+      "table-stripe": surface(dark ? .14 : .985, .35, .04),
       danger: dark ? "#f0a194" : "#a23d30", "danger-soft": dark ? "#382422" : "#fbede9",
       shadow: dark ? "#00000040" : "#181b2312", backdrop: "#0e1015a6"
     };

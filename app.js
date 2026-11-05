@@ -1683,7 +1683,7 @@ async function startSpelling() {
     if (!current()) return;
     const manual = state.corrections.filter(item => !PlanoCorrections.automatic(item));
     const ids = new Set(manual.map(item => item.id)), additions = [];
-    let size = new TextEncoder().encode(JSON.stringify({ annotations: state.annotations, corrections: manual, crew: state.crew, proofreading: state.proofreading })).length;
+    let size = new TextEncoder().encode(JSON.stringify({ annotations: state.annotations, corrections: manual, crew: state.crew, proofreading: state.proofreading, ...(state.screenplay ? {screenplay:state.screenplay} : {}) })).length;
     for (const item of found) {
       if(state.proofreading.ignored.includes(PlanoCorrections.ignoreKey(item)))continue;
       if (ids.has(item.id) || additions.length >= 200 || manual.length + additions.length >= 1000) continue;
@@ -1696,7 +1696,7 @@ async function startSpelling() {
     if (changes) remember();
     state.proofreading.dictionary = PlanoSpelling.version; state.corrections = [...manual,...additions];
     changes ? changed() : saveNotes();
-    refreshSpelling(additions.length ? `${additions.length} posibles errores señalados. Los nombres propios pueden ignorarse.` : "Revisión terminada.");
+    refreshSpelling([PlanoSpelling.notice, additions.length ? `${additions.length} posibles errores señalados. Los nombres propios pueden ignorarse.` : "Revisión terminada."].filter(Boolean).join(" · "));
   } catch (error) {
     if (current() && error.name !== "AbortError") { refreshSpelling("No se pudo completar la revisión. Puedes reintentar."); $("#retry-spelling").hidden = false; }
   } finally { if (spellingJob === job) spellingJob = null; }

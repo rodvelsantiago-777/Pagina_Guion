@@ -3,7 +3,7 @@
   --page:#f5f4f3;--paper:#fefefd;--surface-alt:#f9f9f8;--surface-hover:#f1efed;
   --ink:#242730;--muted:#62656b;--faint:#72757b;--line:#dcdad8;--line-strong:#c0bcb9;
   --accent:#93674b;--accent-hover:#7b533a;--accent-soft:#f3eeea;--on-accent:#fff;
-  --sidebar:#1a1c21;--side-ink:#efeff0;--side-muted:#a4a7ad;--side-line:#393d45;--side-hover:#2b2e35;
+  --sidebar:#f1efed;--side-ink:#262a31;--side-muted:#59626a;--side-accent:#80583f;--side-line:#d3cec9;--side-hover:#e7e4e0;
   --workspace:#e7e5e3;--shadow:#181b2312;--backdrop:#0e1015a6;--danger:#a23d30;--danger-soft:#fbede9;
   --serif:Georgia,"Times New Roman",serif;--sans:"Segoe UI",Arial,sans-serif;
 }

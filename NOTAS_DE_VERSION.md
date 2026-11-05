@@ -10,7 +10,7 @@ El flujo usa la rama `main`, el repositorio existente y GitHub Pages. No añade 
 
 ## Qué sucede con cada Push origin
 
-`tools/build-pages.cjs` identifica el commit de la publicación y el rango de cambios desde la última versión publicada. Si no existe un historial anterior, usa el rango del Push. Agrupa las novedades en **Novedades**, **Mejoras** y **Correcciones** y reúne todos los pushes del mismo día en una única versión, según `America/Bogota`. Conserva hasta 200 jornadas dentro del límite del historial. La medianoche UTC no crea una versión nueva en Colombia. Reintentar el mismo commit conserva su nota y no lo mueve a otro día. El último commit queda registrado como referencia para calcular los cambios siguientes; los textos repetidos de la jornada se muestran una sola vez.
+`tools/build-pages.cjs` identifica el commit de la publicación y el rango de cambios desde la última versión publicada. Si no existe un historial anterior, usa el rango del Push. Reúne todos los pushes del mismo día en una única versión, según `America/Bogota`. La vista agrupa los cambios por áreas del producto y los ordena editorialmente: primero la función principal, después sus mejoras y finalmente los ajustes menores. Las categorías `new`, `improved` y `fixed` se conservan en los datos; no separan en pantalla los cambios de una misma función. Conserva hasta 200 jornadas dentro del límite del historial. La medianoche UTC no crea una versión nueva en Colombia. Reintentar el mismo commit conserva su nota y no lo mueve a otro día. El último commit queda registrado como referencia para calcular los cambios siguientes; los textos repetidos de la jornada se muestran una sola vez.
 
 El sitio recibe un `release-notes.json` generado, con un máximo de 140 KB. Cada recurso JS/CSS del HTML usa el identificador del commit para evitar que una actualización cargue archivos antiguos de la caché. Los errores de publicación no cambian el sitio que ya estaba disponible.
 
@@ -20,11 +20,17 @@ Para escribir notas claras, añade entradas a **release-notes.entries.json** jun
 {
   "id": "identificador-unico-de-la-mejora",
   "category": "fixed",
-  "text": "Ahora puedes leer todo el contenido de sonido en el guion técnico."
+  "text": "Las filas del guion técnico muestran todo el texto de sus celdas.",
+  "topic": "production",
+  "order": 100
 }
 ```
 
 Las categorías admitidas son `new`, `improved` y `fixed`. Usa un ID nuevo para cada mejora; conserva las entradas antiguas. Solo los IDs nuevos se anuncian como novedades. Cambiar la redacción de una entrada actualiza su texto en el historial, sin volver a anunciar aquella función. Si una función recibe otro cambio, añade una entrada nueva; `revision` permite señalar una actualización explícita de un ID existente. No edites el manifiesto generado.
+
+Cada entrada debe indicar un área (`topic`) y su posición dentro de ella (`order`, de 0 a 1000; menor número aparece antes). Las áreas, de mayor a menor relevancia, son `writing` (redactor), `projects` (proyectos, importación y exportación), `account` (cuenta y seguridad), `production` (cobertura y guion técnico), `review` (corrector), `performance` (rendimiento y estabilidad), `interface` (interfaz y navegación) y `releases` (notas de versión). Coloca la presentación de una función antes de sus ajustes, aunque se hayan publicado en pushes diferentes. Las entradas de un mismo grupo de formatos comparten área y posición; `detailOrder` ordena sus formatos.
+
+El generador incorpora esta organización también a las notas históricas identificables por su ID o redacción anterior. Conserva sus fechas, versiones y los formatos que estaban disponibles en cada publicación. Reordenar o reagrupar una entrada no vuelve a anunciarla. `tests/patch-note-order.cjs` verifica la jerarquía entre categorías y pushes, la migración histórica, los duplicados y el aviso en escritorio y móvil.
 
 Escribe una frase breve por cambio, sin detalles internos ni repetir cómo se guardan o reconstruyen los datos. Para agrupar formatos, usa el mismo `group` y `text`, y un `detail` diferente en cada entrada; `detailOrder` fija su orden en la lista.
 
@@ -63,7 +69,7 @@ La tabla `plano_release_receipts` y su RPC tienen RLS y acceso exclusivo del ser
 
 `tests/release-editorial.cjs` verifica la migración de versiones, agrupación de formatos, redacción histórica sin novedades repetidas y saltos definidos por el propietario. `tests/daily-releases.cjs` conserva la agrupación por día e idempotencia al reintentar una publicación.
 
-La versión actual vuelve a mostrarse en el lateral de Inicio, Cuenta, escritura y cobertura, y en la barra del guion técnico. Se incorpora durante la publicación mediante `meta[name=plano-version]` y las etiquetas `data-app-version`; el lector del historial actualiza esas etiquetas con la versión del manifiesto. El valor no depende del hash del commit ni de una etiqueta manual `v0.2`.
+La versión actual se muestra únicamente en el lateral de Inicio. Se incorpora durante la publicación mediante `meta[name=plano-version]` y las etiquetas `data-app-version`; el lector del historial actualiza esas etiquetas con la versión del manifiesto. El valor no depende del hash del commit ni de una etiqueta manual `v0.2`.
 
 - Apertura más ligera de editables sin iniciar el lector PDF; lectura anticipada al entrar en la carpeta y carga inicial de cuenta agrupada en un viaje SQL.
 

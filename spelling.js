@@ -1,7 +1,8 @@
-/* Revisión local compartida por el PDF y los campos de escritura, sin servicios externos. */
+/* Revisión local del guion y sus fichas. El texto nunca sale del navegador. */
 (function(root){
  'use strict';
- const version='es-4.0.0-review-6';
+ const version='es-lingotweaker-0.2.8-1';
+ const scriptUrl=typeof document!=='undefined'?document.currentScript?.src||location.href:'';
  const review=typeof module==='object'&&module.exports?require('./language-review.js'):root.PlanoLanguageReview;
  let contextSource=()=>({names:[],ignored:[]});
  const documentContext=()=>contextSource();
@@ -12,13 +13,53 @@
   return{enabled:value.enabled,dictionary:value.dictionary===version?version:'',ignored:[...new Set(value.ignored.map(word=>word.toLocaleLowerCase('es'))) ]};
  }
  let worker=null,workerUrl='',loading=null,epoch=0,sequence=0,idle=0;
+ let fullWorker=null,fullLoading=null,fullIdle=0,fullReject=null,unavailableUntil=0,mode='loading',ruleCount=0;
+ const fullPending=new Map();
  const pending=new Map(),aborted=()=>new DOMException('Cancelado','AbortError');
  function stop(error=aborted()){
+  stopFull(error);stopBasic(error);unavailableUntil=0;mode='loading';
+ }
+ function stopBasic(error=aborted()){
   epoch++;clearTimeout(idle);worker?.terminate();worker=null;loading=null;
   if(workerUrl)URL.revokeObjectURL(workerUrl);workerUrl='';
   for(const item of pending.values()){item.cleanup();item.reject(error);}pending.clear();
  }
- function relax(){clearTimeout(idle);if(!pending.size)idle=setTimeout(()=>stop(),20000);}
+ function stopFull(error){
+  clearTimeout(fullIdle);fullWorker?.terminate();fullWorker=null;fullLoading=null;fullReject?.(error);fullReject=null;
+  for(const item of fullPending.values()){item.cleanup();item.reject(error);}fullPending.clear();
+ }
+ function fullRelax(){clearTimeout(fullIdle);if(!fullPending.size)fullIdle=setTimeout(()=>stopFull(aborted()),300000);}
+ function prepareFull(){
+  if(unavailableUntil>Date.now())return Promise.reject(Error('Revisión completa temporalmente no disponible.'));
+  if(fullLoading)return fullLoading;
+  if(!/^https?:/.test(scriptUrl)||typeof Worker!=='function'||!root.PlanoLanguageEngine)return Promise.reject(Error('La revisión completa necesita abrir la página mediante HTTP o HTTPS.'));
+  const url=new URL('vendor/spanish-review/worker.js',scriptUrl);url.search=new URL(scriptUrl).search;
+  const task=new Promise((resolve,reject)=>{
+   const timeout=setTimeout(()=>fail(Error('No se pudo iniciar la revisión completa a tiempo.')),45000);fullReject=error=>{clearTimeout(timeout);reject(error);};
+   let active;
+   function fail(error){if(active&&active!==fullWorker)return;clearTimeout(timeout);unavailableUntil=Date.now()+120000;mode='basic';stopFull(error);reject(error);}
+   try{active=fullWorker=new Worker(url,{type:'module',name:'PLANO · Revisión de español'});}catch(error){fail(error);return;}
+   active.onmessage=({data})=>{
+    if(active!==fullWorker)return;
+    if(data.fatal){fail(Error(data.fatal));return;}
+    if(data.ready){clearTimeout(timeout);fullReject=null;mode='complete';ruleCount=data.rules;resolve(active);fullRelax();return;}
+    const item=fullPending.get(data.id);if(!item)return;if(data.issues){item.progress?.(data.index,data.issues);return;}fullPending.delete(data.id);item.cleanup();
+    if(data.error){mode='basic';unavailableUntil=Date.now()+120000;stopFull(Error(data.error));item.reject(Error(data.error));}else{mode='complete';item.resolve(data.results);fullRelax();}
+   };
+   active.onerror=()=>fail(Error('No se pudo ejecutar el motor español.'));
+  });
+  fullLoading=task;task.catch(()=>{if(fullLoading===task)fullLoading=null;});return task;
+ }
+ async function complete(blocks,signal,progress){
+  if(signal.aborted)throw aborted();const active=await prepareFull();if(signal.aborted)throw aborted();clearTimeout(fullIdle);
+  return new Promise((resolve,reject)=>{
+   const id=++sequence,timeout=setTimeout(()=>{mode='basic';unavailableUntil=Date.now()+120000;stopFull(Error('La revisión completa tardó demasiado.'));},Math.min(180000,30000+blocks.length*180));
+   const cancel=()=>{fullPending.delete(id);active.postMessage({cancel:id});cleanup();reject(aborted());fullRelax();};
+   const cleanup=()=>{clearTimeout(timeout);signal.removeEventListener('abort',cancel);};
+   fullPending.set(id,{resolve,reject,cleanup,progress});signal.addEventListener('abort',cancel,{once:true});active.postMessage({id,blocks});
+  });
+ }
+ function relax(){clearTimeout(idle);if(!pending.size)idle=setTimeout(()=>stopBasic(),20000);}
  async function prepare(load){
   if(!loading){
    const generation=epoch;
@@ -26,7 +67,7 @@
     await load();if(generation!==epoch)throw aborted();
     workerUrl=URL.createObjectURL(new Blob([root.PlanoSpanishWorkerSource],{type:'text/javascript'}));worker=new Worker(workerUrl);
     worker.onmessage=event=>{const item=pending.get(event.data.id);if(!item)return;pending.delete(event.data.id);item.cleanup();event.data.error?item.reject(Error(event.data.error)):item.resolve(event.data);relax();};
-    worker.onerror=()=>stop(Error('No se pudo iniciar el diccionario de español.'));relax();return worker;
+    worker.onerror=()=>stopBasic(Error('No se pudo iniciar el diccionario de español.'));relax();return worker;
    })();loading=task;task.catch(()=>{if(loading===task)loading=null;});
   }return loading;
  }
@@ -34,21 +75,24 @@
   if(!words.length)return{wrong:[],known:0,total:0,suggestions:{}};
   if(signal.aborted)throw aborted();const active=await prepare(load);if(signal.aborted)throw aborted();clearTimeout(idle);
   return new Promise((resolve,reject)=>{
-   const id=++sequence,timeout=setTimeout(()=>stop(Error('La revisión tardó demasiado. Inténtalo de nuevo.')),30000);
+   const id=++sequence,timeout=setTimeout(()=>stopBasic(Error('La revisión tardó demasiado. Inténtalo de nuevo.')),30000);
    const cancel=()=>{pending.delete(id);cleanup();reject(aborted());relax();};
    const cleanup=()=>{clearTimeout(timeout);signal.removeEventListener('abort',cancel);};
    pending.set(id,{resolve,reject,cleanup});signal.addEventListener('abort',cancel,{once:true});active.postMessage({id,words,suggest:suggestions});
   });
  }
  async function checkText(text,{load,signal,context:currentContext}){
-  const grammar=[...review.syntax(text),...review.punctuation(text)],words=[...new Set(review.candidates(text).map(item=>item.lookup))];
-  const result=await checkWords(words,{load,signal,suggestions:true});
-  return filterNames([...grammar,...review.spelling(text,result)],currentContext||documentContext()).sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind));
+  const [issues]=await checkBlocks([text],{load,signal,suggestions:true});return filterNames(issues,currentContext||documentContext());
  }
- async function checkBlocks(texts,{load,signal,suggestions=false}){
-  const words=[...new Set(texts.flatMap(text=>review.candidates(text).map(item=>item.lookup)))].slice(0,20000);
+ async function checkBlocks(values,{load,signal=new AbortController().signal,suggestions=false,onProgress}){
+  const blocks=values.map(value=>typeof value==='string'?{text:value}:value);if(!blocks.length)return[];
+  const supplemental=block=>[...review.syntax(block.text),...review.contextual(block.text,block),...review.punctuation(block.text)];
+  try{
+   return await complete(blocks,signal,onProgress);
+  }catch(error){if(error.name==='AbortError'||signal.aborted)throw aborted();mode='basic';}
+  const words=[...new Set(blocks.flatMap(block=>review.candidates(block.text).map(item=>item.lookup)))].slice(0,20000);
   const result=await checkWords(words,{load,signal,suggestions});
-  return texts.map(text=>[...review.syntax(text),...review.punctuation(text),...review.spelling(text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind)));
+  return blocks.map(block=>[...supplemental(block),...review.spelling(block.text,result)].sort((a,b)=>a.start-b.start||a.kind.localeCompare(b.kind)));
  }
  async function blocksFrom(pages,scenes,signal){
   const blocks=[];let speaker='',continuedParenthetical=false;
@@ -61,7 +105,7 @@
     if(/^\s*\(M[AÁ]S\)\s*$/i.test(line.text)){current=null;previous=null;continue;}
     if(heading){speaker='';continuedParenthetical=false;}
     if(line.x<.25)continuedParenthetical=false;
-    const parenthetical=/^\s*\(/.test(line.text)||continuedParenthetical,kind=parenthetical?'parenthetical':'text';
+    const parenthetical=/^\s*\(/.test(line.text)||continuedParenthetical,kind=parenthetical?'parenthetical':heading?'scene':'text';
     if(!parenthetical&&line.x<.25)speaker='';
     if(current&&(current.kind!==kind||parenthetical&&!continuedParenthetical||current.speaker!==speaker))current=null;
     if(heading||previous&&root.PlanoScenes.isSceneHeading(previous.text)){current=null;previous=null;}
@@ -90,13 +134,13 @@
   }return rects.length?[{page:block.page,text:issue.text,rects}]:[];
  }
  async function scan({pages,scenes,ignored,load,signal}){
-  const blocks=await blocksFrom(pages,scenes,signal),words=[...new Set(blocks.flatMap(block=>review.candidates(block.text).map(item=>item.lookup)))].slice(0,20000);
+  const blocks=await blocksFrom(pages,scenes,signal);
   const names=review.nameWords([...documentContext().names,...pages.flatMap(page=>page.lines.filter(line=>!root.PlanoScenes.isSceneHeading(line.text)&&line.text===line.text.toLocaleUpperCase('es')&&line.text.length<=60&&line.x>.33).map(line=>line.text))]);
-  const result=await checkWords(words,{load,signal}),skip=new Set(ignored),found=[];
+  const results=await checkBlocks(blocks.map(({text,kind,speaker})=>({text,kind,speaker})),{load,signal}),skip=new Set(ignored),found=[];
   const lastOnPage=new Map();for(const block of blocks)lastOnPage.set(block.page,block);
   const canvas=document.createElement('canvas'),context=canvas.getContext('2d');context.font='16px "Courier New",monospace';
   try{
-   for(const block of blocks)for(const issue of [...review.syntax(block.text),...review.contextual(block.text,block),...review.punctuation(block.text),...review.spelling(block.text,result)]){
+   for(const [index,block]of blocks.entries())for(const issue of results[index]){
     // El texto extraído se corta por página. La revisión del editor conserva el párrafo completo.
     if(issue.kind==='punctuation'&&((/^missing-open-/.test(issue.rule)&&(/\(CONT[’']?D\)/i.test(block.speaker)||block.page>1&&block.index<=1))||(/^(?:missing-close-|unclosed-sign)/.test(issue.rule)&&block.page<pages.length&&lastOnPage.get(block.page)===block)))continue;
     if(skip.has(issue.key)||issue.kind==='spelling'&&names.has(issue.text.toLocaleLowerCase('es').normalize('NFC')))continue;
@@ -106,5 +150,5 @@
   }finally{canvas.width=canvas.height=0;}
   return found;
  }
- const api={version,validate,scan,checkText,checkBlocks,stop,context:documentContext,configureContext(source){contextSource=source;}};if(typeof module==='object'&&module.exports)module.exports=api;else{root.PlanoSpelling=api;root.addEventListener('beforeunload',()=>stop());}
+ const api={get version(){return mode==='basic'?version+'-basic':version;},validate,scan,checkText,checkBlocks,stop,get mode(){return mode;},get cacheKey(){return mode==='basic'&&Date.now()>=unavailableUntil?'basic-retry':mode;},get rules(){return ruleCount;},get notice(){return mode==='basic'?'Revisión básica · motor completo no disponible':'';},context:documentContext,configureContext(source){contextSource=source;}};if(typeof module==='object'&&module.exports)module.exports=api;else{root.PlanoSpelling=api;root.addEventListener('beforeunload',()=>stop());}
 })(globalThis);

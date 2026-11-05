@@ -2,6 +2,11 @@
 (function(root){
  'use strict';
  const categories={new:'Novedades',improved:'Mejoras',fixed:'Correcciones'};
+ const topics={writing:'Redactor de guion',projects:'Proyectos, importación y exportación',account:'Cuenta y seguridad',production:'Cobertura y guion técnico',review:'Corrector de español',performance:'Rendimiento y estabilidad',interface:'Interfaz y navegación',releases:'Notas de versión'};
+ function editorialMetadata(value){
+  if(!value||!Object.hasOwn(topics,value.topic))return{};
+  return{topic:value.topic,order:Number.isInteger(value.order)&&value.order>=0&&value.order<=1000?value.order:500,...(typeof value.id==='string'&&/^[a-zA-Z0-9._-]{1,100}$/.test(value.id)?{id:value.id}:{})};
+ }
  function receipt(value){
   return value&&typeof value.releaseId==='string'&&/^[a-zA-Z0-9._-]{1,100}$/.test(value.releaseId)&&typeof value.publishedAt==='string'&&Number.isFinite(Date.parse(value.publishedAt))?{releaseId:value.releaseId,publishedAt:value.publishedAt}:null;
  }
@@ -16,9 +21,20 @@
  function versionConfig(value){return{initialVersion:semver(value?.initialVersion)?value.initialVersion:'0.1.0',milestones:(Array.isArray(value?.milestones)?value.milestones:[]).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(item?.day||'')&&semver(item.version)).slice(0,100).map(item=>({day:item.day,version:item.version})).sort((a,b)=>a.day.localeCompare(b.day))};}
  function noteItem(value){
   if(typeof value==='string')return value.trim().slice(0,500)||null;
-  if(!value||typeof value.text!=='string'||!value.text.trim()||!Array.isArray(value.details))return null;
-  const details=[...new Set(value.details.filter(text=>typeof text==='string'&&text.trim()).slice(0,30).map(text=>text.trim().slice(0,160)))];
-  return details.length?{text:value.text.trim().slice(0,200),details}:null;
+  if(!value||typeof value.text!=='string'||!value.text.trim())return null;
+  const meta=editorialMetadata(value),details=[...new Set((Array.isArray(value.details)?value.details:[]).filter(text=>typeof text==='string'&&text.trim()).slice(0,30).map(text=>text.trim().slice(0,160)))];
+  return details.length?{text:value.text.trim().slice(0,200),details,...meta}:meta.topic?{text:value.text.trim().slice(0,500),...meta}:null;
+ }
+ function organize(release){
+  const groups=new Map(),keys=Object.keys(topics),seen=new Set();let position=0;
+  for(const section of release.sections||[])for(const raw of section.items||[]){
+   const note=noteItem(raw);if(!note)continue;
+   const signature=typeof note==='string'?note:note.text+(note.details?.length?'\n'+note.details.join('\n'):'');if(seen.has(signature))continue;seen.add(signature);
+   const topic=typeof note==='object'&&note.topic,key=topic||section.category;
+   if(!groups.has(key))groups.set(key,{id:key,title:topics[topic]||categories[section.category]||'Otros cambios',rank:topic?keys.indexOf(topic):keys.length+Object.keys(categories).indexOf(section.category),items:[]});
+   groups.get(key).items.push({note,order:typeof note==='object'&&Number.isInteger(note.order)?note.order:500,position:position++});
+  }
+  return [...groups.values()].sort((a,b)=>a.rank-b.rank).map(({id,title,items})=>({id,title,items:items.sort((a,b)=>a.order-b.order||a.position-b.position).map(item=>item.note)}));
  }
  function releases(value){
   if(value?.schema!==1||!Array.isArray(value.releases))return [];
@@ -39,7 +55,7 @@
     for(const raw of section.items.slice(0,200)){
      const content=noteItem(raw);if(!content)continue;
      const existing=typeof content==='object'&&target.items.find(note=>typeof note==='object'&&note.text===content.text);
-     if(existing){existing.details=[...new Set([...existing.details,...content.details])].slice(0,30);continue;}
+     if(existing){if(content.details)existing.details=[...new Set([...(existing.details||[]),...content.details])].slice(0,30);continue;}
      if(group.sections.reduce((count,part)=>count+part.items.length,0)<200&&!target.items.some(note=>JSON.stringify(note)===JSON.stringify(content)))target.items.push(content);
     }
    }
@@ -60,7 +76,7 @@
   if(!seen)return feed.slice(0,1);
   return feed.filter(item=>item.id!==seen.releaseId&&Date.parse(item.publishedAt)>Date.parse(seen.publishedAt));
  }
- root.PlanoPatchNotes={releases,unseen,releaseDay,versionConfig};
+ root.PlanoPatchNotes={releases,unseen,releaseDay,versionConfig,organize,editorialMetadata,noteItem};
  if(typeof module==='object'&&module.exports)module.exports=root.PlanoPatchNotes;
  if(typeof document==='undefined')return;
  const $=selector=>document.querySelector(selector),dialog=$('#patch-notes-dialog'),cloud=root.PlanoCloud,key=uid=>'plano-release-seen-v1:'+encodeURIComponent(uid);
@@ -114,9 +130,10 @@
    const meta=document.createElement('div');meta.className='patch-release-meta';
    const version=document.createElement('strong');version.textContent=item.version;
    const date=document.createElement('time');date.dateTime=item.publishedAt;date.textContent=new Date(item.publishedAt).toLocaleDateString('es',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric'});meta.append(version,date);section.append(meta);
-   for(const group of item.sections){
-    const heading=document.createElement('h3');heading.textContent=categories[group.category];
-    const list=document.createElement('ul');for(const note of group.items){const li=document.createElement('li');li.textContent=typeof note==='string'?note:note.text;if(typeof note==='object'){const details=document.createElement('ul');for(const text of note.details){const detail=document.createElement('li');detail.textContent=text;details.append(detail);}li.append(details);}list.append(li);}section.append(heading,list);
+   for(const group of organize(item)){
+    const area=document.createElement('div');area.className='patch-topic';area.dataset.topic=group.id;
+    const heading=document.createElement('h3');heading.textContent=group.title;
+    const list=document.createElement('ul');for(const note of group.items){const li=document.createElement('li');li.textContent=typeof note==='string'?note:note.text;if(typeof note==='object'){if(note.id)li.dataset.noteId=note.id;if(note.details?.length){const details=document.createElement('ul');for(const text of note.details){const detail=document.createElement('li');detail.textContent=text;details.append(detail);}li.append(details);}}list.append(li);}area.append(heading,list);section.append(area);
    }
    content.append(section);
   }

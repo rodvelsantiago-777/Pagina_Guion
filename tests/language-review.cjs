@@ -54,7 +54,7 @@ const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document
   const tableInput=cell.locator('textarea');await tableInput.fill('habían unas habitaciones');
   const tableFeedback=cell.locator('.writing-feedback'),proposal=tableFeedback.getByRole('button',{name:'Usar «había»',exact:true});await proposal.waitFor();await proposal.focus();await page.keyboard.press('Enter');
   assert.equal(await tableInput.inputValue(),'había unas habitaciones');await page.keyboard.press('Control+Enter');assert.equal(await page.evaluate(()=>state.annotations[0].description),'había unas habitaciones');
-  assert.equal(requests.filter(url=>url.includes('spanish-spelling.js')).length,1,'Comparte la carga del diccionario entre PDF y formularios');
+  assert.equal(requests.filter(url=>url.includes('es.pack.gz')).length,1,'Comparte el motor público entre guion y formularios');assert.equal(requests.filter(url=>url.includes('spanish-spelling.js')).length,0,'No descarga el diccionario básico cuando funciona el motor completo');
   // El corrector funciona también dentro de la tabla separada y conserva su edición sincronizada.
   await page.locator('#stage-tabs [data-stage=technical]').click({button:'right'});const opened=page.waitForEvent('popup');await page.locator('#technical-window-menu button').click();const other=await opened;other.on('pageerror',error=>errors.push(error.message));
   const otherCell=other.locator('tr[data-shot-id=L] [data-field=note]');await otherCell.locator('.technical-cell-value').click();await otherCell.locator('textarea').fill('La puerta está está abierta.');
