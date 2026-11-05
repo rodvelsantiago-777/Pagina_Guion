@@ -5,9 +5,9 @@
  const config=root.PlanoCloudConfig||{},listeners=new Set(),drafts=new Map();
  const configured=/^https:\/\/[a-z0-9]{20}\.supabase\.co\/?$/.test(config.url||'')&&/^sb_publishable_[\w-]+$/.test(config.publishableKey||'');
  const endpoint=configured?config.url.replace(/\/$/,'')+'/functions/v1/plano-cloud':'';
- const FILE_LIMIT=10485760,PAYLOAD_LIMIT=350000;
+ const PAYLOAD_LIMIT=350000;
  let owner='',epoch=0,current=null,pending=null,sequence=0,inflight=null,timer,error=null,status='idle';
- const reading=new Map();
+ const reading=new Map(),preparedReads=new Map();
  const copy=value=>structuredClone(value),key=(uid,id)=>uid+':'+id;
  const failure=(code,message)=>Object.assign(new Error(message),{code});
  function notify(next=status){status=next;for(const entry of listeners)entry.listener(info(entry.payload));}
@@ -15,6 +15,7 @@
  // pending ya es una copia privada: cada edición lo reemplaza, nunca lo modifica.
  function remember(){if(current&&pending)drafts.set(key(owner,current.id),{payload:pending,revision:current.revision});}
  function request(action,data={},binary=false){
+  if(!['list','read','preferences_read','release_read','download'].includes(action))preparedReads.clear();
   if(binary||!['list','read','preferences_read','release_read'].includes(action))return send(action,data,binary);const tag=epoch+':'+action+':'+JSON.stringify(data);if(reading.has(tag))return reading.get(tag);const work=send(action,data,binary);reading.set(tag,work);const done=()=>{if(reading.get(tag)===work)reading.delete(tag);};work.then(done,done);return work;
  }
  async function send(action,data={},binary=false){
@@ -45,7 +46,7 @@
   }finally{clearTimeout(timeout);}
  }
  function changeOwner(nextOwner){
-  remember();reading.clear();clearTimeout(timer);epoch++;owner=nextOwner||'';current=null;pending=null;inflight=null;sequence=0;error=null;notify('idle');
+  remember();reading.clear();preparedReads.clear();clearTimeout(timer);epoch++;owner=nextOwner||'';current=null;pending=null;inflight=null;sequence=0;error=null;notify('idle');
  }
  function attach(project){
   clearTimeout(timer);current=copy(project);pending=null;sequence=0;error=null;
@@ -83,22 +84,30 @@
    if(epoch===expectedEpoch){error=reason;remember();notify(reason.code==='CONFLICT'?'conflict':'error');}throw reason;
   }finally{if(epoch===expectedEpoch)inflight=null;}
  }
- async function importFile(file){
-  throw failure('UPGRADE_REQUIRED','Convierte el PDF a un guion editable antes de guardarlo.');
- }
  async function createEditable(payload,name,projectName){await flush();return(await request('create_editable',{name,projectName,payload:{...payload,documentFormat:2}})).project;}
  async function convertEditable(project,payload){
   await flush();const revision=current?.id===project.id?current.revision:project.revision;
   const result=await request('convert_editable',{id:project.id,revision,payload:{...payload,documentFormat:2,fingerprint:project.fingerprint}});
   if(current?.id===project.id){current=copy(result.project);notify('saved');}return result.project;
  }
+ function prefetch(project){
+  if(!configured||!owner||project?.storage_kind!=='editable'||project.state!=='ready')return;
+  const existing=preparedReads.get(project.id);
+  if(existing&&existing.epoch===epoch&&existing.revision===project.revision&&Date.now()-existing.at<10000)return existing.work;
+  const entry={epoch,revision:project.revision,at:Date.now(),work:request('read',{id:project.id})};preparedReads.set(project.id,entry);
+  while(preparedReads.size>2)preparedReads.delete(preparedReads.keys().next().value);
+  entry.work.catch(()=>{if(preparedReads.get(project.id)===entry)preparedReads.delete(project.id);});return entry.work;
+ }
  async function open(id){
-  await flush();const {project}=await request('read',{id});
+  const expectedEpoch=epoch;await flush();if(epoch!==expectedEpoch)throw failure('CANCELLED','La cuenta ha cambiado.');const entry=preparedReads.get(id);preparedReads.delete(id);
+  const {project}=await(entry&&entry.epoch===epoch&&Date.now()-entry.at<10000?entry.work:request('read',{id}));
+  if(epoch!==expectedEpoch)throw failure('CANCELLED','La cuenta ha cambiado.');
   if(project.storage_kind==='editable'){
-   if(project.pdf_cleanup_pending){const clean=await request('cleanup_pdf',{id});Object.assign(project,clean.project);}
+   if(project.pdf_cleanup_pending){const clean=await request('cleanup_pdf',{id});if(epoch!==expectedEpoch)throw failure('CANCELLED','La cuenta ha cambiado.');Object.assign(project,clean.project);}
    return{project,file:null};
   }
   const blob=await request('download',{id},true);
+  if(epoch!==expectedEpoch)throw failure('CANCELLED','La cuenta ha cambiado.');
   if(blob.size!==project.size_bytes)throw failure('DAMAGED','No se descargó el PDF completo. Inténtalo de nuevo.');
   return{project,file:new File([blob],project.name,{type:'application/pdf'})};
  }
@@ -131,5 +140,5 @@
  root.addEventListener('beforeunload',event=>{if(hasPending()){event.preventDefault();event.returnValue='';}});
  root.addEventListener('online',()=>{if(pending&&error?.code!=='CONFLICT')flush().catch(()=>{});});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&pending&&error?.code!=='CONFLICT')flush().catch(()=>{});});
- root.PlanoCloud={configured,FILE_LIMIT,PAYLOAD_LIMIT,request,changeOwner,attach,preview,schedule,flush,createEditable,convertEditable,importFile,open,rename,renameProject,remove,detach,reload,subscribe,info,hasPending,list:()=>request('list')};
+ root.PlanoCloud={configured,PAYLOAD_LIMIT,request,prefetch,changeOwner,attach,preview,schedule,flush,createEditable,convertEditable,open,rename,renameProject,remove,detach,reload,subscribe,info,hasPending,list:()=>request('list')};
 })(globalThis);

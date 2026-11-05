@@ -15,7 +15,7 @@ async function documentSnapshot(page){const snapshot=await page.evaluate(async()
   annotations:JSON.stringify(state.annotations),renderId:state.renderId,viewer:state.viewer.id,scene:state.scene,
   position:document.querySelector('#pdf-stage').scrollTop,
   canvases:[...document.querySelectorAll('.page-slot[data-ready="true"] .pdf-page-content>canvas')].map(c=>c.toDataURL()),
-  pdf:Array.from(new Uint8Array(await(await fetch(state.url)).arrayBuffer())),
+  pdf:Array.from(new Uint8Array(await state.file.arrayBuffer())),
   paper:[...document.querySelectorAll('.page-window,.scene-paper,.script-cover-card,.document-shot-tag,.document-shot-label')].map(el=>{const s=getComputedStyle(el);return {class:el.className,color:s.color,background:s.backgroundColor,filter:s.filter,font:s.font,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height};})
 }));snapshot.canvases=snapshot.canvases.map(value=>createHash('sha256').update(value).digest('hex'));snapshot.pdf=createHash('sha256').update(Buffer.from(snapshot.pdf)).digest('hex');return snapshot;}
 (async()=>{

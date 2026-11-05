@@ -36,7 +36,7 @@ export function createHandler({verify,rpc,preferences,releases,download,remove,o
  return async request=>{
   const origin=request.headers.get('origin')||'',allowed=origins.includes(origin);
   const headers={'Cache-Control':'no-store','Vary':'Origin'};
-  if(allowed)Object.assign(headers,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-plano-session','Access-Control-Allow-Methods':'POST, OPTIONS'});
+  if(allowed)Object.assign(headers,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-plano-session','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Max-Age':'600'});
   const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...headers,'Content-Type':'application/json'}});
   if(origin&&!allowed)return json({code:'FORBIDDEN',message:'Origen no autorizado.'},403);
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers});
@@ -57,6 +57,7 @@ export function createHandler({verify,rpc,preferences,releases,download,remove,o
     if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_INPUT');
     if(!account||!preferences||!releases)fail('ACCOUNT_SETUP');
     const session=await account.action('account_session_open',identity,request,{workspace:true},token);
+    if(session.workspace)return json(session);
     const [library,settings,seen]=await Promise.all([call('list'),preferences(owner,'read'),releases(owner,'read',{})]);
     const {account:profile,...opened}=session;return json({...opened,workspace:{list:library,preferences_read:{preferences:settings},release_read:{receipt:seen},account_read:profile}});
    }

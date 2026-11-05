@@ -26,4 +26,4 @@ const handler=createHandler({
  download:async(owner:string,id:string)=>(await service(object(owner,id).replace('/object/','/object/authenticated/'))).blob(),
  remove:removeFile
 });
-Deno.serve(async request=>{const action=new URL(request.url).searchParams.get('action');if(['workspace_open','account_read','account_suspend'].includes(action||''))await runtime.prepare();return handler(request);});
+Deno.serve(async request=>{const action=new URL(request.url).searchParams.get('action');if(request.method==='POST'&&['workspace_open','account_read','account_suspend'].includes(action||''))await runtime.prepare();return handler(request);});

@@ -7,28 +7,32 @@ function deviceName(request){
  const os=/Windows/.test(ua)?'Windows':/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':/Macintosh/.test(ua)?'macOS':/Linux/.test(ua)?'Linux':'';
  return browser+(os?' · '+os:'');
 }
-export function createAccountService({db,lookup,revokeTokens,deleteUser,removeFile,capabilities,credentialState,check}){
+export function createAccountService({db,lookup,revokeTokens,deleteUser,removeFile,capabilities,credentialState,check,openWorkspace}){
  async function dataFor(identity,request){
   if(!identity||typeof identity!=='object'||typeof identity.owner!=='string'||!Number.isSafeInteger(identity.authTime))reject('UNAUTHORIZED');
   const secret=request.headers.get('x-plano-session')||'';
   if(secret&&!/^[a-f0-9]{64}$/.test(secret))reject('SESSION_REVOKED');
   return{ownerHash:await digest(identity.owner),authTime:identity.authTime,secretHash:secret?await digest(secret):''};
  }
- async function observeCredentials(identity,data){
+ async function observeCredentials(identity,data,persist=true){
   if(!credentialState)return;
   const state=await credentialState(identity.owner);if(!state)return;
   if(!state.exists||state.disabled)reject('SESSION_REVOKED');
   if(!Number.isSafeInteger(state.validSince)||state.validSince<0)reject('UNAVAILABLE');
-  if(state.validSince>0)await db(identity.owner,'credential_epoch',{...data,validSince:state.validSince});
+  if(persist&&state.validSince>0)await db(identity.owner,'credential_epoch',{...data,validSince:state.validSince});
   if(identity.authTime<state.validSince)reject('SESSION_REVOKED');return state;
  }
  async function guard(identity,request){const data=await dataFor(identity,request);await observeCredentials(identity,data);return db(identity.owner,'guard',data);}
  async function action(name,identity,request,body,token){
-  const data=await dataFor(identity,request),owner=identity.owner,credentials=await observeCredentials(identity,data);
+  const data=await dataFor(identity,request),owner=identity.owner,batched=name==='account_session_open'&&body?.workspace===true&&openWorkspace,credentials=await observeCredentials(identity,data,!batched);
   if(!body||typeof body!=='object'||Array.isArray(body))reject('INVALID_INPUT');
   if(name==='account_session_open'){
    if(!data.secretHash)reject('SESSION_REVOKED');
    const user=credentials?.user||await lookup(token);if(user.localId!==owner||user.emailVerified!==true)reject('UNAUTHORIZED');
+   if(batched){
+    const opened=await openWorkspace(owner,{...data,validSince:credentials?.validSince||0,name:user.displayName||'',device:deviceName(request)});
+    opened.workspace.account_read={...opened.workspace.account_read,email:identity.email,capabilities:capabilities()};return opened;
+   }
    const opened=await db(owner,'open',{...data,name:user.displayName||'',device:deviceName(request)});if(body.workspace===true)opened.account={...await db(owner,'read',data),email:identity.email,capabilities:capabilities()};return opened;
   }
   await db(owner,'guard',data);

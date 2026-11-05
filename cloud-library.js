@@ -2,7 +2,7 @@
 (function(root){
  'use strict';
  const $=selector=>document.querySelector(selector),cloud=root.PlanoCloud;
- let hooks={},working=false,loadingVersion=0,projects=[],previewWork=null,renameTarget=null,renaming=false,libraryRequest=null,accountOwner='',selectedProject=null;
+ let hooks={},working=false,loadingVersion=0,projects=[],previewWork=null,renameTarget=null,renaming=false,libraryRequest=null,accountOwner='',selectedProject=null,lastLoaded=0;
  const previews=new Map(),previewTried=new Set();
  let storageLimits=null,storageLoaded=false,storageFailed=false;
  const storageSize=bytes=>bytes===0?'0 KB':bytes<1000?`${bytes} B`:`${(bytes/(bytes<1000000?1000:1000000)).toLocaleString('es',{maximumFractionDigits:2})} ${bytes<1000000?'KB':'MB'}`;
@@ -29,7 +29,7 @@
   const identityChanged=accountOwner!==state.owner;let storageChanged=false;
   if(identityChanged){storageLimits=null;storageLoaded=false;storageFailed=false;}
   accountOwner=state.owner;
-  if(state.status==='saved'&&state.project){const project=projects.find(p=>p.id===state.project.id);if(project&&state.project.revision>=project.revision){storageChanged=project.size_bytes!==state.project.size_bytes||project.storage_kind!==state.project.storage_kind;for(const key of ['size_bytes','storage_kind','revision','updated_at','name','project_name','pdf_cleanup_pending'])if(Object.hasOwn(state.project,key))project[key]=state.project[key];}}
+  if(state.status==='saved'&&state.project){const project=projects.find(p=>p.id===state.project.id);if(!project)lastLoaded=0;if(project&&state.project.revision>=project.revision){storageChanged=project.size_bytes!==state.project.size_bytes||project.storage_kind!==state.project.storage_kind;for(const key of ['size_bytes','storage_kind','revision','updated_at','name','project_name','pdf_cleanup_pending'])if(Object.hasOwn(state.project,key))project[key]=state.project[key];}}
   if(identityChanged||storageChanged)renderStorage();
   $('#open-cloud').hidden=!cloud.configured;
   $('#open-cloud-label').textContent=labels[state.status];$('#open-cloud').dataset.syncState=state.status;
@@ -50,7 +50,7 @@
  function thumbnail(project){return previews.get(previewKey(project))||project.thumbnail;}
  function applyPreview(node,project){
   const image=thumbnail(project);
-  if(root.PlanoScriptPreview.valid(image)){
+  if(root.PlanoScreenplay.validThumbnail(image)){
    const img=document.createElement('img');img.src=image;img.alt='';img.decoding='async';node.replaceChildren(img);
   }else{
    const paper=document.createElement('span');paper.className='script-preview-fallback';paper.setAttribute('aria-hidden','true');
@@ -101,6 +101,7 @@
  function showProject(project=hooks.currentProject?.()){
   if(!project)return showRoot();
   selectedProject=projects.find(item=>item.id===project.id)||project;
+  if(hooks.currentProject?.()?.id!==selectedProject.id)cloud.prefetch?.(selectedProject)?.catch(()=>{});
   hooks.home();renderProject();
  }
  function showRoot(){selectedProject=null;hooks.home();renderProject();}
@@ -109,14 +110,14 @@
   const project=selectedProject;return task(()=>hooks.open(project.id,stage));
  }
  function updatePreview(project,image){
-  if(!root.PlanoScriptPreview.valid(image))return;
+  if(!root.PlanoScreenplay.validThumbnail(image))return;
   previews.set(previewKey(project),image);
   const existing=projects.find(item=>item.id===project.id&&item.fingerprint===project.fingerprint);
   if(existing){existing.thumbnail=image;for(const card of $('#home-projects').querySelectorAll('.script-card'))if(card.dataset.projectId===project.id)applyPreview(card.querySelector('.script-card-preview'),existing);}
  }
  function pumpPreviews(){
-  if(!cloud.configured||working||renaming||previewWork||!atHome()||!root.PlanoAccounts.getUser())return;
-  const project=projects.find(item=>item.state==='ready'&&!root.PlanoScriptPreview.valid(thumbnail(item))&&!previewTried.has(previewKey(item)));
+  if(!cloud.configured||working||renaming||previewWork||selectedProject||!atHome()||!root.PlanoAccounts.getUser())return;
+  const project=projects.find(item=>item.state==='ready'&&item.storage_kind==='editable'&&!root.PlanoScreenplay.validThumbnail(thumbnail(item))&&!previewTried.has(previewKey(item)));
   if(!project||!hooks.preview)return;
   const owner=accountOwner;previewTried.add(previewKey(project));
   const work=(async()=>{
@@ -160,12 +161,13 @@
   if(!cloud.configured){projects=hooks.currentProject?.()?[hooks.currentProject()]:[];renderHome();message();return;}
   if(!expected||root.PlanoAccounts.getUser()?.id!==expected)return;
   if(!fresh&&libraryRequest?.owner===expected)return libraryRequest.promise;
+  if(!fresh&&storageLoaded&&Date.now()-lastLoaded<15000){renderHome();return;}
   const version=++loadingVersion;
   storageFailed=false;$('#home-loading').hidden=projects.length>0||storageLoaded;$('#home-projects').hidden=!$('#home-loading').hidden;renderStorage();message('Cargando tus proyectos…');$('#drop-zone').setAttribute('aria-busy','true');
   const work=(async()=>{
    try{
     const result=await cloud.list();if(version!==loadingVersion||expected!==accountOwner)return;
-    projects=result.projects;storageLimits=result.limits||null;storageLoaded=true;storageFailed=false;if(selectedProject&&!projects.some(project=>project.id===selectedProject.id))selectedProject=null;message();renderHome();
+    lastLoaded=Date.now();projects=result.projects;storageLimits=result.limits||null;storageLoaded=true;storageFailed=false;if(selectedProject&&!projects.some(project=>project.id===selectedProject.id))selectedProject=null;message();renderHome();
    }catch(error){if(version===loadingVersion&&expected===accountOwner){storageFailed=true;renderStorage();message(error.message,true);}}
    finally{if(version===loadingVersion){$('#home-loading').hidden=true;$('#home-projects').hidden=Boolean(selectedProject);$('#drop-zone').setAttribute('aria-busy','false');}}
   })();
@@ -187,7 +189,7 @@
   if(typeof name!=='string'||!name.trim()||name.length>120||/[\u0000-\u001f\u007f]/.test(name))throw Error('El nombre del proyecto no es válido.');
   const expected=accountOwner;renaming=true;hooks.renameLock?.(true);
   try{
-   await previewWork;if(expected!==accountOwner)throw Error('La cuenta ha cambiado.');
+   if(expected!==accountOwner)throw Error('La cuenta ha cambiado.');
    const result=project.id==='local'?await hooks.renameLocal(name.trim(),true):await cloud.renameProject(project,name.trim());
    if(expected!==accountOwner)throw Error('La cuenta ha cambiado.');
    const current=projects.find(item=>item.id===result.id);if(current)Object.assign(current,result);
@@ -196,7 +198,7 @@
   }finally{renaming=false;hooks.renameLock?.(false);queueMicrotask(pumpPreviews);}
  }
  function closeOnIdentity(){
-  loadingVersion++;libraryRequest=null;projects=[];selectedProject=null;previews.clear();previewTried.clear();renameTarget=null;storageLimits=null;storageLoaded=false;storageFailed=false;
+  loadingVersion++;lastLoaded=0;libraryRequest=null;projects=[];selectedProject=null;previews.clear();previewTried.clear();renameTarget=null;storageLimits=null;storageLoaded=false;storageFailed=false;
   renderHome();message();
   for(const id of ['#rename-file-dialog'])if($(id).open)$(id).close();
  }
@@ -208,7 +210,7 @@
    const project=selectedProject;if(!project)return;
    task(async()=>{await hooks.open(project.id,entry.dataset.projectStage);});
   });
-  $('#home-refresh').addEventListener('click',()=>task(refresh));
+  $('#home-refresh').addEventListener('click',()=>task(()=>refresh(true)));
   $('#cloud-retry-save').addEventListener('click',()=>task(()=>cloud.flush()));
   $('#cloud-export-draft').textContent='Exportar';
   $('#cloud-export-draft').addEventListener('click',event=>{if(!hooks.openExport?.(event.currentTarget))message('Abre el guion para exportarlo.');});
@@ -226,7 +228,7 @@
    input.setCustomValidity(!base?'Escribe un nombre.':name.length>(isProject?120:180)||/[\u0000-\u001f\u007f]/.test(name)?'El nombre no es válido.':'');if(!input.reportValidity())return;
    renaming=true;input.disabled=true;$('#save-file-rename').disabled=true;$('#cancel-file-rename').disabled=true;$('#rename-file-error').hidden=true;
    try{
-    await previewWork;if(target.owner!==accountOwner)return;
+    if(target.owner!==accountOwner)return;
     const project=target.project.id==='local'?await hooks.renameLocal(name,isProject):await (isProject?cloud.renameProject:cloud.rename)(target.project,name);
     if(target.owner!==accountOwner)return;
     if(isProject){hooks.projectRenamed?.(project);if(selectedProject?.id===project.id)selectedProject={...selectedProject,...project};}

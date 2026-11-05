@@ -54,7 +54,7 @@
  }
  root.PlanoTechnicalWindow={
   configure(value){hooks=value;},
-  invalidate,publish,
+  invalidate,publish,isOpen:()=>Boolean(usable()),
   lock(value){if(value===lastLock)return;lastLock=value;if(usable()){try{child.PlanoDetachedView?.lock(value);}catch{invalidate();}}},
   open(){
    if(!hooks?.key()||!hooks.canEdit())return false;

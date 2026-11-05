@@ -32,6 +32,7 @@ export function accountRuntime({jose,service,projectId,removeFile}){
   try{return await work;}finally{if(lookups.get(owner)===work)lookups.delete(owner);}
  }
  const account=createAccountService({db,credentialState,
+  openWorkspace:async(owner,data)=>(await service('/rest/v1/rpc/plano_workspace_open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_owner:owner,p_data:data})})).json(),
   check:async()=>{let firebaseReady=false;try{if(adminReady){await firebase('lookup',{localId:['plano-nonexistent-permission-probe']},true);firebaseReady=true;}}catch{}return{firebase:firebaseReady,scheduler:Boolean(maintenanceToken)};},
   lookup:async token=>(await firebase('lookup',{idToken:token})).users?.[0]||{},
   revokeTokens:owner=>firebase('update',{localId:owner,validSince:String(Math.floor(Date.now()/1000))},true),

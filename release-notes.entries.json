@@ -1,5 +1,8 @@
 {
   "entries": [
+    {"id": "obsolete-viewer-cleanup", "category": "improved", "text": "Retirado código del antiguo visor PDF y aligerados los archivos publicados."},
+    {"id": "smoother-editing-and-shot-lists", "category": "improved", "text": "Escritura más ligera con historial largo y listas de planos que actualizan solo las tarjetas modificadas."},
+    {"id": "lighter-project-open", "category": "improved", "text": "Carga de proyectos más directa y apertura de editables sin iniciar el lector PDF."},
     {"id":"dark-chrome-version-and-home","category":"improved","text":"Cabeceras, barras inferiores y reportes en el tono del lateral. Versión visible y logo directo a Inicio."},
     {"id":"faster-account-and-project-loading","category":"improved","text":"Sesión sin saltos al acceso, carga inicial agrupada y apertura de proyectos y cuenta más ágil."},
     {"id": "concise-release-notes", "category": "improved", "text": "Notas de parche más breves, formatos agrupados y versiones numeradas desde 0.1.0."},

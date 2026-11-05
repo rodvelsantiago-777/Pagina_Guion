@@ -45,8 +45,8 @@
    return note;
   });
  }
- function mapEdits(items,before,after,transactions){
-  if(!items.length)return[];
+ // Un único índice por transacción sirve también para todos los estados del historial.
+ function editMapper(before,after,transactions){
   const old=new Map(blocks(before).map(block=>[block.id,block])),next=blocks(after),nextIds=new Map(next.map(block=>[block.id,block]));let beforeText,afterText;
   const position=point=>{const block=old.get(point.id);return block?block.pos+1+clamp(point.offset,0,block.text.length):null;};
   const point=pos=>{let low=0,high=next.length-1;while(low<high){const mid=(low+high)>>1;if(pos<=next[mid].pos+next[mid].text.length+1)high=mid;else low=mid+1;}const block=next[low];return{id:block.id,offset:clamp(pos-block.pos-1,0,block.text.length)};};
@@ -56,8 +56,9 @@
    for(const tr of transactions){const a=tr.mapping.mapResult(from,1),b=tr.mapping.mapResult(to,-1);from=a.pos;to=b.pos;if(a.deletedAcross&&b.deletedAcross||to<from)clean.review=true;}
    if(to<=from){beforeText??=docText(before);clean.orphan={from:{...clean.from},to:{...clean.to},hash:textHash(beforeText.slice(originalFrom,originalTo)),review:wasReview};clean.review=true;}clean.from=point(from);clean.to=point(Math.max(from,to));return clean;
   }
-  return items.map(item=>({...item,...(item.coverageAnchor?{coverageAnchor:mapped(item.coverageAnchor)}:{}),...(item.scriptAnchor?{scriptAnchor:mapped(item.scriptAnchor)}:{})}));
+  return items=>items.map(item=>({...item,...(item.coverageAnchor?{coverageAnchor:mapped(item.coverageAnchor)}:{}),...(item.scriptAnchor?{scriptAnchor:mapped(item.scriptAnchor)}:{})}));
  }
+ function mapEdits(items,before,after,transactions){return items.length?editMapper(before,after,transactions)(items):[];}
  function rebase(items,before,after){
   const old=blocks(before),next=blocks(after),byId=new Map(next.map(block=>[block.id,block]));
   function move(anchor){if(!anchor)return anchor;const clean=validAnchor(anchor);
@@ -89,5 +90,5 @@
    }else for(const [i,part]of parts.entries())result.push({...copy,id:i?`${anchor.key.slice(0,100)}-part-${i}`:anchor.key,page:part.page,rects:part.rects,text:part.text});
   }return result;
  }
- const api={blocks,absolute,pointAt,validAnchor,geometry,attach,mapEdits,rebase,reflow,selectionAnchor,ranges};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplayLinks=api;
+ const api={blocks,absolute,pointAt,validAnchor,geometry,attach,mapEdits,editMapper,rebase,reflow,selectionAnchor,ranges};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplayLinks=api;
 })(globalThis);

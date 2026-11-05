@@ -64,3 +64,9 @@ La tabla `plano_release_receipts` y su RPC tienen RLS y acceso exclusivo del ser
 `tests/release-editorial.cjs` verifica la migración de versiones, agrupación de formatos, redacción histórica sin novedades repetidas y saltos definidos por el propietario. `tests/daily-releases.cjs` conserva la agrupación por día e idempotencia al reintentar una publicación.
 
 La versión actual vuelve a mostrarse en el lateral de Inicio, Cuenta, escritura y cobertura, y en la barra del guion técnico. Se incorpora durante la publicación mediante `meta[name=plano-version]` y las etiquetas `data-app-version`; el lector del historial actualiza esas etiquetas con la versión del manifiesto. El valor no depende del hash del commit ni de una etiqueta manual `v0.2`.
+
+- Apertura más ligera de editables sin iniciar el lector PDF; lectura anticipada al entrar en la carpeta y carga inicial de cuenta agrupada en un viaje SQL.
+
+- Menor trabajo al escribir y al editar planos: historial con índices compartidos, autocompletado ligero y tarjetas que conservan su posición y foco.
+
+- Limpieza del visor PDF anterior, estados y enlaces sin uso; copias antiguas cargadas bajo demanda y fuentes de reconstrucción separadas de la publicación.

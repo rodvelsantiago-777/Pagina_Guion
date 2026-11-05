@@ -230,6 +230,7 @@
   if(data?.format!=='plano.screenplay'||data.version!==1)throw Error('Este archivo no es un guion editable .plano. Las copias con planos se importan desde Importar notas.');
   const script=validate(data.screenplay);if(!script)throw Error('El archivo no contiene un guion.');const active=script.sourceLayout?.revision===script.revision;script.id=id();script.revision=0;if(active)script.sourceLayout.revision=0;else delete script.sourceLayout;return script;
  }
+ function validThumbnail(value){return typeof value==='string'&&value.length<=20000&&/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);}
  function thumbnail(value){
   const canvas=root.document.createElement('canvas');canvas.width=320;canvas.height=414;const context=canvas.getContext('2d'),scale=320/612;context.fillStyle='#fff';context.fillRect(0,0,320,414);context.fillStyle='#111';context.textBaseline='top';context.font=`bold ${12*scale}px "Courier New",monospace`;let top=252*scale;
   for(const line of wrap(value.title||'Sin título',60)){context.fillText(line.text,108*scale+(432-line.text.length*7.2)*scale/2,top);top+=12*scale;}
@@ -237,5 +238,5 @@
   for(const author of value.authors)if(author.name){for(const line of wrap(author.name,60)){context.fillText(line.text,108*scale+(432-line.text.length*7.2)*scale/2,top);top+=12*scale;}top+=6*scale;}
   const contacts=value.authors.flatMap(author=>[author.name,author.email].filter(Boolean));top=Math.max(top+18*scale,720*scale-contacts.length*12*scale);for(const text of contacts){context.fillText(text,72*scale,top);top+=12*scale;}const result=canvas.toDataURL('image/jpeg',.72);canvas.width=canvas.height=0;return result.length<=20000?result:null;
  }
- const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,create,validate,wrap,layout,analyze,runs,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
+ const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,create,validate,wrap,layout,analyze,runs,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
 })(globalThis);

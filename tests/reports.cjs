@@ -63,7 +63,7 @@ const brave = 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.ex
     // Timeout sin esperar veinte segundos ni enviar otra petición real.
     response = 'slow';
     await page.evaluate(() => {
-      const original = window.setTimeout;
+      const original = window.setTimeout; window.reportTestSetTimeout=original;
       window.setTimeout = (fn, ms, ...args) => original(fn, ms === 20000 ? 20 : ms, ...args);
     });
     await page.locator('.report-send').click();
@@ -72,6 +72,7 @@ const brave = 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.ex
     await page.evaluate(() => { document.querySelector('#report-form').requestSubmit(); document.querySelector('#report-form').requestSubmit(); });
     await page.waitForFunction(() => !document.querySelector('#report-dialog').hasAttribute('aria-busy'));
     assert.equal(requests.length, before + 1, 'Evita doble envío');
+    await page.evaluate(()=>{window.setTimeout=window.reportTestSetTimeout;delete window.reportTestSetTimeout;});
     response = 'success'; await page.locator('.report-send').click();
     await page.waitForFunction(() => document.querySelector('#report-status').textContent.includes('Reporte recibido'));
     assert(await page.locator('.report-send').isDisabled());

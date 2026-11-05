@@ -51,8 +51,10 @@
   if(document.activeElement===input)schedule();
  }
  function enable(node){
-  if(node.nodeType!==1)return;
-  const controls=[...(node.matches('textarea,input')?[node]:[]),...node.querySelectorAll('textarea,input')];
+  if(node.nodeType!==1||node.namespaceURI!=='http://www.w3.org/1999/xhtml')return;
+  if(node.closest('.writer-editor,.screenplay-text-surface,.page-shot-labels,.writing-feedback'))return;
+  const direct=node.matches('textarea,input');if(!direct&&!node.childElementCount)return;
+  const controls=[...(direct?[node]:[]),...node.querySelectorAll('textarea,input')];
   for(const input of controls){
    if(input.getAttribute('spellcheck')==='false'||input.tagName==='INPUT'&&input.type!=='text')continue;
    input.spellcheck=true;input.lang='es';
@@ -61,8 +63,10 @@
  }
  enable(document.documentElement);
  new MutationObserver(records=>{
-  for(const record of records)for(const node of record.addedNodes)enable(node);
-  for(const state of active)if(!state.input.isConnected){state.clear();active.delete(state);}
+  const added=new Set();let removed=false;
+  for(const record of records){removed||=record.removedNodes.length>0;for(const node of record.addedNodes)if(node.nodeType===1)added.add(node);}
+  for(const node of added){let parent=node.parentElement;while(parent&&!added.has(parent))parent=parent.parentElement;if(!parent)enable(node);}
+  if(removed)for(const state of active)if(!state.input.isConnected){state.clear();active.delete(state);}
  }).observe(document.body,{childList:true,subtree:true});
  document.addEventListener('toggle',event=>{if(event.newState==='open'&&event.target.matches('dialog'))for(const input of event.target.querySelectorAll('textarea'))controls.get(input)?.schedule();},true);
  document.addEventListener('close',event=>{for(const input of event.target.querySelectorAll?.('textarea')||[])controls.get(input)?.clear();},true);
