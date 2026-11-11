@@ -87,7 +87,9 @@
    const preview=document.createElement('span');preview.className='script-card-preview';applyPreview(preview,project);
    const name=document.createElement('strong');name.className='script-card-name';name.textContent=title;
    const meta=document.createElement('span');meta.className='script-card-meta';meta.textContent=projectSummary(project);
-   const folder=document.createElement('span');folder.className='project-folder-symbol';folder.append(icon('folder'));
+   const folder=document.createElement('span');folder.className='project-folder-symbol';folder.setAttribute('aria-hidden','true');
+   const symbol=project.project_emoji===undefined&&project.id===openProjectInfo?.id?openProjectInfo.project_emoji:project.project_emoji;
+   root.PlanoProjectInfo.paintIcon(folder,symbol);
    const info=document.createElement('span');info.className='script-card-info';
    const copy=document.createElement('span');copy.className='script-card-copy';copy.append(name,meta);
    info.append(folder,copy,icon('arrow'));
@@ -306,7 +308,7 @@
  function projectUpdated(project){
   const record=projects.find(item=>item.id===project.id);
   if(record&&record.revision>project.revision)return;
-  if(record)for(const key of ['name','project_name','size_bytes','revision','updated_at','storage_kind','thumbnail'])if(Object.hasOwn(project,key))record[key]=project[key];
+  if(record)for(const key of ['name','project_name','project_emoji','size_bytes','revision','updated_at','storage_kind','thumbnail'])if(Object.hasOwn(project,key))record[key]=project[key];
   if(selectedProject?.id===project.id)selectedProject=record||{...selectedProject,...project};
   if(atHome())renderHome();
  }

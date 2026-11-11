@@ -152,6 +152,7 @@ body:not(.is-editing) .page-heading { display: block; margin: 0 0 26px; }
 .script-card-open:hover .script-card-info { background: var(--surface-alt); }
 .project-folder-symbol { display: grid; place-items: center; width: 31px; height: 31px; color: var(--accent); background: var(--accent-soft); border-radius: 5px; }
 .project-folder-symbol svg, .script-card-info > svg { width: 16px; height: 16px; }
+.project-folder-symbol .project-emoji { font-size: 19px; }
 .script-card-info > svg { color: var(--muted); }
 .script-card-copy { display: grid; min-width: 0; gap: 3px; }
 .script-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 650 15px/1.4 var(--sans); }

@@ -408,7 +408,7 @@ function createDocumentPreview(pdf) {
 }
 function currentLibraryProject() {
   if (!state.file) return null;
-  return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
+  return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), project_emoji: state.projectInfo?.emoji??null, name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
 }
 function renameDocumentFile(name) {
   state.file = new File([state.file], pdfName(name), { type: "application/pdf" });
@@ -2295,7 +2295,7 @@ PlanoHeader.init({
 
 // El redactor comparte la identidad del proyecto y su guardado privado; el PDF es una vista regenerable.
 let creatingScript = false;
-const projectInfoEditor=PlanoProjectInfo.editor({owner:()=>PlanoAccounts.getUser(),
+const projectInfoEditor=PlanoProjectInfo.editor({owner:()=>PlanoAccounts.getUser(),loadEmojis:()=>loadScript('vendor/project-emoji-data.js'),
   create:async({name,info,authors,file})=>{
     let loaded;
     if(file)loaded=await upload(file,{projectName:name,projectInfo:info,projectAuthors:authors,stage:'writing'});
@@ -2395,7 +2395,7 @@ async function saveProjectInfo(context){
       }
       if(owner!==PlanoAccounts.getUser()?.id)return false;
       if(active)state.cloudProject={...project,...saved,payload};
-      project={...project,...saved,project_name:name,payload};
+      project={...project,...saved,project_name:name,project_emoji:info?.emoji??null,payload};
     }else{
       delete payload.thumbnail;
       localStorage.setItem(state.key,JSON.stringify(payload));

@@ -3,6 +3,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const p=(kind,text,id=crypto.randomUUID())=>({type:'paragraph',attrs:{kind,id},...(text?{content:[{type:'text',text}]}:{})});
 const info={version:1,genre:'Terror',format:'short',estimatedMinutes:10,target:'Adolescentes',country:'Colombia',language:'Español (latino)',completed:false},script=S.create('¿Quién es?',{name:'Santiago',email:'autor@example.invalid'});
 assert.deepEqual(I.validate(info),info);assert.equal(I.validate(),null);for(const bad of [{...info,format:'serie'},{...info,estimatedMinutes:0},{...info,completed:'true'},{...info,genre:'x'.repeat(121)},{...info,country:'\nColombia'}])assert.throws(()=>I.validate(bad));
+const catalog=require('../vendor/project-emoji-data.js')&&Object.values(globalThis.PlanoProjectEmojiData).flat();
+assert(catalog.length>3000);
+for(const [icon] of catalog)assert.equal(I.emoji(icon),icon);
+for(const value of ['🎬🎥','A','<img>','🇨','4',{},''])assert.equal(I.emoji(value),'');
 assert.equal(I.contentPages(script),0);script.doc.content=[p('scene','INT. CASA - NOCHE'),p('action','Una nueva historia.')];assert.equal(I.contentPages(script),1);assert.equal(I.duration(info,script).minutes,10);assert.equal(I.duration({...info,completed:true},script).minutes,1);
 script.authors=Array.from({length:8},(_,i)=>({id:'author-'+i,name:'Autora '+i,email:'autor'+i+'@example.invalid',phone:'',contact:'Contacto '.repeat(20)}));assert.equal(I.contentPages(script),1,'Ni los autores ni la portada suman tiempo');
 script.doc={type:'doc',content:[p('action',Array.from({length:108},()=> 'Una línea.').join('\n'))]};assert.equal(I.contentPages(script),2);script.doc={type:'doc',content:[...script.doc.content,p('action','\n'.repeat(110))]};assert.equal(I.contentPages(script),2,'Las páginas vacías al final no alargan la película');
@@ -20,8 +24,14 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
 (async()=>{const browser=await require('./editor-auth-fixture.cjs').launch(chromium,{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true});try{
  const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});await page.goto(pathToFileURL(path.join(root,'index.html')).href);await page.locator('#upload-button').click();assert.equal(await page.locator('#new-script-write,#new-script-import').count(),0);
  await page.locator('#project-info-name').fill('¿Quién es?');for(const [key,value]of Object.entries({genre:'Terror',duration:'10',target:'Adolescentes',country:'Colombia',language:'Español (latino)'}))await page.locator('#project-info-'+key).fill(value);
+ assert.equal(await page.locator('#project-icon-preview use').getAttribute('href'),'#i-folder');
+ await page.locator('#project-icon-button').click();await page.locator('#project-emoji-search').fill('pelicula');
+ await page.locator('#project-emoji-grid [data-emoji="🎬"]').waitFor();
+ await page.screenshot({path:path.join(out,'selector-emoji-proyecto.png')});
+ await page.getByRole('button',{name:'claqueta',exact:true}).click();
+ assert.equal(await page.locator('#project-icon-preview').textContent(),'🎬');
  assert.equal(await page.locator('[data-author-name]').inputValue(),'Prueba');assert.equal(await page.locator('[data-author-email]').inputValue(),'editor@example.invalid');assert.equal(await page.locator('[data-author-email]').getAttribute('type'),'text');await page.locator('#project-add-author').click();await page.locator('[data-author-name]').last().fill('Lucía Pérez');await page.locator('[data-author-email]').last().fill('lucia@example.invalid');assert.deepEqual(await page.locator('#project-info-format option').allTextContents(),['Cortometraje','Largometraje']);
- await page.screenshot({path:path.join(out,'nueva-ficha-proyecto.png')});await page.locator('#create-project').click();await page.waitForFunction(()=>state.projectInfo&&PlanoWriter.view()&&!creatingScript&&!state.busy);assert.equal(await page.locator('#writer-project-title').inputValue(),'¿Quién es?');assert.equal(await page.locator('.writer-author').count(),2);assert.deepEqual(await page.evaluate(()=>state.projectInfo),info);
+ await page.screenshot({path:path.join(out,'nueva-ficha-proyecto.png')});await page.locator('#create-project').click();await page.waitForFunction(()=>state.projectInfo&&PlanoWriter.view()&&!creatingScript&&!state.busy);assert.equal(await page.locator('#writer-project-title').inputValue(),'¿Quién es?');assert.equal(await page.locator('.writer-author').count(),2);assert.deepEqual(await page.evaluate(()=>state.projectInfo),{...info,emoji:'🎬'});
  await page.locator('#finalize-screenplay').click();assert(await page.locator('#confirm-screenplay-finalization').isDisabled());await page.locator('#cancel-screenplay-finalization').click();
  await require('./header-menu.cjs').open(page);await page.locator('#edit-project-info').click();assert.equal(await page.locator('#project-info-completed').count(),0);await page.locator('#project-info-target').fill('Adolescentes y adultos');await page.locator('[data-author-name]').first().fill('Prueba Pérez');await page.locator('#create-project').click();await page.waitForFunction(()=>!document.querySelector('#new-script-dialog').open);assert.equal(await page.evaluate(()=>state.projectInfo.target),'Adolescentes y adultos');assert.equal(await page.evaluate(()=>state.screenplay.authors[0].name),'Prueba Pérez');assert.equal(await page.locator('.writer-author input').first().inputValue(),'Prueba Pérez');
  await page.locator('#writer-body-tab').click();await page.evaluate(()=>{const v=PlanoWriter.view(),doc=PlanoProseMirror.EditorState? v.state.schema.nodeFromJSON({type:'doc',content:[{type:'paragraph',attrs:{kind:'scene',id:'scene'},content:[{type:'text',text:'INT. CASA - NOCHE'}]},{type:'paragraph',attrs:{kind:'action',id:'action'},content:[{type:'text',text:Array.from({length:70},()=> 'La puerta permanece abierta.').join('\n')}]}]}):null;v.dispatch(v.state.tr.replaceWith(0,v.state.doc.content.size,doc.content));});
@@ -54,6 +64,7 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
  assert(!(await V.read(first)).doc.content.some(node=>S.plain(node).includes('La cámara')));
 
  await page.locator('#editor-home').click();
+ assert.equal(await page.locator('.project-folder-symbol').textContent(),'🎬');
  await page.locator('.script-card-open').click();
  const facts=page.locator('#project-facts');
  assert(await page.locator('#finalize-screenplay').isHidden());
@@ -91,23 +102,30 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
  await page.getByRole('button',{name:'Cerrar historial'}).click();
  await page.locator('[data-project-stage=writing]').click();
 
- const download=page.waitForEvent('download');await page.evaluate(()=>exportProjectArchive());const file=await download,target=path.join(out,'ficha-completa.plano');await file.saveAs(target);const saved=A.parse(fs.readFileSync(target,'utf8'));assert(saved.payload.projectInfo.completed);assert.equal(saved.payload.projectInfo.estimatedMinutes,12);assert.equal(saved.payload.screenplay.authors[1].name,'Lucía Pérez');
+ const download=page.waitForEvent('download');await page.evaluate(()=>exportProjectArchive());const file=await download,target=path.join(out,'ficha-completa.plano');await file.saveAs(target);const saved=A.parse(fs.readFileSync(target,'utf8'));assert(saved.payload.projectInfo.completed);assert.equal(saved.payload.projectInfo.estimatedMinutes,12);assert.equal(saved.payload.projectInfo.emoji,'🎬');assert.equal(saved.payload.screenplay.authors[1].name,'Lucía Pérez');
  assert.deepEqual(saved.payload.screenplayVersions.map(entry=>entry.number),[1,2]);
  assert.deepEqual(saved.payload.screenplayVersions[0],first);
  await page.reload();await page.locator('#file-input').setInputFiles(target);await page.waitForFunction(()=>state.projectInfo?.completed&&!state.busy);assert.equal(await page.evaluate(()=>PlanoProjectInfo.duration(state.projectInfo,state.screenplay).minutes),longer.minutes);
  assert.deepEqual(await page.evaluate(()=>state.screenplayVersions.map(entry=>entry.number)),[1,2]);
+ assert.equal(await page.evaluate(()=>state.projectInfo.emoji),'🎬');
  await page.locator('#writer-project-title').fill('Una nueva revisión');
  await page.locator('#writer-project-title').press('Enter');
  await page.waitForFunction(()=>state.screenplay?.title==='Una nueva revisión'&&!state.busy);
  assert.equal(await page.locator('#writer-screenplay-edition').textContent(),'v3');
  assert.equal(await page.locator('#file-name').textContent(),'Una nueva revisión');
  assert.deepEqual(await page.evaluate(()=>state.screenplayVersions),saved.payload.screenplayVersions);
+ await require('./header-menu.cjs').open(page);await page.locator('#edit-project-info').click();
+ await page.locator('#project-icon-button').click();await page.locator('#project-emoji-search').fill('🎥');assert.equal(await page.locator('#project-icon-preview').textContent(),'🎥');
+ await page.locator('#project-icon-button').click();await page.locator('#project-emoji-reset').click();assert.equal(await page.locator('#project-icon-preview use').getAttribute('href'),'#i-folder');
+ await page.locator('#create-project').click();await page.locator('#new-script-dialog').waitFor({state:'hidden'});
+ assert.equal(await page.evaluate(()=>state.projectInfo.emoji),undefined);
  const oldProject=A.stringify({name:'Sin título',documentName:'Amalia.plano',payload:{version:1,screenplay:S.create('Mi querida Amalia'),annotations:[],corrections:[],proofreading:{enabled:false,dictionary:'',ignored:[]}}});
  await page.locator('#file-input').setInputFiles({name:'Amalia.plano',mimeType:'application/json',buffer:Buffer.from(oldProject)});
  await page.waitForFunction(()=>state.screenplay?.title==='Mi querida Amalia'&&!state.busy);
  assert.equal(await page.locator('#file-name').textContent(),'Mi querida Amalia');
  // Ficha en móvil, cierre sin guardar y archivo de guion opcional sin otro selector.
  await page.locator('#editor-home').click();await page.setViewportSize({width:390,height:844});await page.locator('#upload-button').click();await page.locator('#project-info-name').fill('Importado');assert(await page.locator('#new-script-dialog').evaluate(e=>e.scrollWidth<=e.clientWidth));await page.screenshot({path:path.join(out,'ficha-proyecto-movil.png')});
+ await page.locator('#project-icon-button').click();await page.locator('#project-emoji-grid button').first().waitFor();assert(await page.locator('#new-script-dialog').evaluate(e=>e.scrollWidth<=e.clientWidth));await page.keyboard.press('Escape');assert(await page.locator('#project-emoji-picker').isHidden());assert(await page.locator('#new-script-dialog').isVisible());
  await page.locator('#project-info-file').setInputFiles({name:'Original.txt',mimeType:'text/plain',buffer:Buffer.from('INT. ESTUDIO - DÍA\n\nUna historia nueva.')});await page.locator('#create-project').click();await page.waitForFunction(()=>state.localProjectName==='Importado'&&!state.busy&&!!state.screenplay);assert.equal(await page.evaluate(()=>state.screenplay.authors[0].name),'Prueba');assert.equal(await page.evaluate(()=>state.projectInfo.completed),false);
  assert.deepEqual(errors,[]);console.log('OK: ficha y autores desde +, formatos limitados, validación, portada, edición, duración inicial/final automática sin portada ni páginas vacías, cambios posteriores, .plano, solo-guion separado, adjuntar TXT, móvil y datos conservados.');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

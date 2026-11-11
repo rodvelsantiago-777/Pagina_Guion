@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="corrections.css?v=20261103-coverage-tools-1">
   <link rel="stylesheet" href="accounts.css?v=20261103-load-1">
   <link rel="stylesheet" href="cloud.css?v=20261102-menu-cleanup-1">
-  <link rel="stylesheet" href="library.css?v=20261111-writer-theme-1">
+  <link rel="stylesheet" href="library.css?v=20261111-project-icons-1">
   <link rel="stylesheet" href="patch-notes.css?v=20261105-editorial-order-1">
   <link rel="preload" href="vendor/firebase-app-compat.js?v=20261103-load-1" as="script">
   <link rel="preload" href="vendor/firebase-auth-compat.js?v=20261103-load-1" as="script">
@@ -35,7 +35,7 @@
   <script src="account-center.js?v=20261105-home-version-1" defer></script>
   <link rel="stylesheet" href="account-center.css?v=20261103-load-1">
   <script src="appearance-account.js?v=20261103-account-center-1" defer></script>
-  <script src="cloud-library.js?v=20261110-studio-dashboard-1" defer></script>
+  <script src="cloud-library.js?v=20261111-project-icons-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="export-ui.js?v=20261102-docx-1" defer></script>
   <link rel="stylesheet" href="export-ui.css?v=20261102-docx-1">
@@ -71,15 +71,15 @@
   <script src="screenplay-links.js?v=20261110-screenplay-versions-1" defer></script>
   <script src="screenplay-versions.js?v=20261110-screenplay-versions-1" defer></script>
   <link rel="stylesheet" href="version-history.css?v=20261110-screenplay-versions-1">
-  <script src="project-info.js?v=20261111-writer-theme-1" defer></script>
-  <link rel="stylesheet" href="project-info.css?v=20261111-writer-theme-1">
+  <script src="project-info.js?v=20261111-project-icons-1" defer></script>
+  <link rel="stylesheet" href="project-info.css?v=20261111-project-icons-1">
   <script src="project-archive.js?v=20261110-screenplay-versions-1" defer></script>
   <script src="editable-import.js?v=20261102-project-archive-1" defer></script>
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
   <script src="writer-editor.js?v=20261110-linked-title-1" defer></script>
   <script src="header-ui.js?v=20261110-linked-title-1" defer></script>
   <link rel="stylesheet" href="studio-shell.css?v=20261110-studio-dashboard-1">
-  <script src="app.js?v=20261111-writer-theme-1" defer></script>
+  <script src="app.js?v=20261111-project-icons-1" defer></script>
   <script src="patch-notes.js?v=20261110-project-folders-1" defer></script>
 </head>
 <body class="auth-locked auth-restoring">
@@ -87,6 +87,7 @@
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="i-correction" viewBox="0 0 24 24"><path d="M4 18l2 2 2-2 2 2 2-2 2 2 2-2 2 2 2-2M6 13l5-10 5 10M8 9h6"/></symbol>
     <symbol id="i-script" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-script-check" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6m-12 6 2.5 2.5L16 12"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z"/><path d="M3 9h18"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16m-10 0V4h4v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/></symbol>
@@ -151,7 +152,7 @@
           <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="home-wordmark" aria-hidden="true">PLANO</span>
         </button>
-        <div class="editor-file header-project" hidden><button id="file-name" class="header-project-name" type="button" title="Cambiar nombre del proyecto" aria-label="Cambiar nombre del proyecto"></button><form id="project-title-form" hidden autocomplete="off"><label class="sr-only" for="project-title-input">Nombre del proyecto</label><input id="project-title-input" type="text" maxlength="120" autocomplete="off" spellcheck="true" aria-describedby="project-title-error"><span id="project-title-error" class="sr-only" role="alert"></span></form><button id="finalize-screenplay" class="screenplay-finalize" type="button" aria-label="Finalizar guion" aria-haspopup="dialog" aria-controls="finalize-screenplay-dialog" title="Finalizar guion" hidden><svg aria-hidden="true"><use href="#i-check"/></svg><span>Finalizar guion</span></button></div>
+        <div class="editor-file header-project" hidden><button id="file-name" class="header-project-name" type="button" title="Cambiar nombre del proyecto" aria-label="Cambiar nombre del proyecto"></button><form id="project-title-form" hidden autocomplete="off"><label class="sr-only" for="project-title-input">Nombre del proyecto</label><input id="project-title-input" type="text" maxlength="120" autocomplete="off" spellcheck="true" aria-describedby="project-title-error"><span id="project-title-error" class="sr-only" role="alert"></span></form><button id="finalize-screenplay" class="screenplay-finalize" type="button" aria-label="Finalizar guion" aria-haspopup="dialog" aria-controls="finalize-screenplay-dialog" title="Finalizar guion" hidden><svg aria-hidden="true"><use href="#i-script-check"/></svg><span>Finalizar guion</span></button></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" aria-selected="false" aria-controls="writing-view" title="Escribir el guion"><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
         <div class="editor-actions account-actions">
