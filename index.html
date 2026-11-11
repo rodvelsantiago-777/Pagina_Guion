@@ -21,21 +21,21 @@
   <link rel="stylesheet" href="corrections.css?v=20261103-coverage-tools-1">
   <link rel="stylesheet" href="accounts.css?v=20261103-load-1">
   <link rel="stylesheet" href="cloud.css?v=20261102-menu-cleanup-1">
-  <link rel="stylesheet" href="library.css?v=20261103-load-1">
+  <link rel="stylesheet" href="library.css?v=20261110-studio-dashboard-1">
   <link rel="stylesheet" href="patch-notes.css?v=20261105-editorial-order-1">
   <link rel="preload" href="vendor/firebase-app-compat.js?v=20261103-load-1" as="script">
   <link rel="preload" href="vendor/firebase-auth-compat.js?v=20261103-load-1" as="script">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
   <script src="accounts.js?v=20261103-load-1" defer></script>
   <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
-  <script src="cloud.js?v=20261105-cleanup-1" defer></script>
+  <script src="cloud.js?v=20261110-linked-title-1" defer></script>
   <script src="account-session.js?v=20261103-load-1" defer></script>
   <script src="avatar-image.js?v=20261103-avatar-1" defer></script>
   <script src="avatar-crop.js?v=20261103-avatar-1" defer></script>
   <script src="account-center.js?v=20261105-home-version-1" defer></script>
   <link rel="stylesheet" href="account-center.css?v=20261103-load-1">
   <script src="appearance-account.js?v=20261103-account-center-1" defer></script>
-  <script src="cloud-library.js?v=20261105-cleanup-1" defer></script>
+  <script src="cloud-library.js?v=20261110-studio-dashboard-1" defer></script>
   <script src="compact-popovers.js" defer></script>
   <script src="export-ui.js?v=20261102-docx-1" defer></script>
   <link rel="stylesheet" href="export-ui.css?v=20261102-docx-1">
@@ -63,20 +63,24 @@
   <script src="pdf-export.js?v=20261103-punctuation-1" defer></script>
   <script src="excel-export.js?v=20261023-crew-2" defer></script>
 
-  <link rel="stylesheet" href="writer.css?v=20261105-cleanup-1">
+  <link rel="stylesheet" href="writer.css?v=20261110-screenplay-versions-1">
   <link rel="stylesheet" href="editor-status.css?v=20261102-status-1">
-  <link rel="stylesheet" href="header-ui.css?v=20261102-cloud-next-title-1">
+  <link rel="stylesheet" href="header-ui.css?v=20261110-home-logo-1">
   <script src="screenplay-surface.js?v=20261103-load-1" defer></script>
-  <script src="screenplay.js?v=20261105-cleanup-1" defer></script>
-  <script src="screenplay-links.js?v=20261105-interactions-1" defer></script>
-  <script src="project-archive.js?v=20261102-archive-1" defer></script>
+  <script src="screenplay.js?v=20261110-linked-title-1" defer></script>
+  <script src="screenplay-links.js?v=20261110-screenplay-versions-1" defer></script>
+  <script src="screenplay-versions.js?v=20261110-screenplay-versions-1" defer></script>
+  <link rel="stylesheet" href="version-history.css?v=20261110-screenplay-versions-1">
+  <script src="project-info.js?v=20261110-studio-dashboard-1" defer></script>
+  <link rel="stylesheet" href="project-info.css?v=20261110-studio-dashboard-1">
+  <script src="project-archive.js?v=20261110-screenplay-versions-1" defer></script>
   <script src="editable-import.js?v=20261102-project-archive-1" defer></script>
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
-  <script src="writer-editor.js?v=20261105-cleanup-1" defer></script>
-  <script src="header-ui.js?v=20261103-avatar-1" defer></script>
-  <link rel="stylesheet" href="studio-shell.css?v=20261105-distinct-palettes-1">
-  <script src="app.js?v=20261105-home-version-1" defer></script>
-  <script src="patch-notes.js?v=20261105-editorial-order-1" defer></script>
+  <script src="writer-editor.js?v=20261110-linked-title-1" defer></script>
+  <script src="header-ui.js?v=20261110-linked-title-1" defer></script>
+  <link rel="stylesheet" href="studio-shell.css?v=20261110-studio-dashboard-1">
+  <script src="app.js?v=20261110-studio-dashboard-1" defer></script>
+  <script src="patch-notes.js?v=20261110-project-folders-1" defer></script>
 </head>
 <body class="auth-locked auth-restoring">
   <div id="startup-loading" class="startup-loading" role="status"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><p>Preparando tu estudio…</p></div>
@@ -85,6 +89,8 @@
     <symbol id="i-script" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z"/><path d="M3 9h18"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16m-10 0V4h4v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7L20 9m0-5v5h-5"/></symbol>
     <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></symbol>
     <symbol id="i-clapper" viewBox="0 0 24 24"><path d="m3 8 17-5 2 6-17 5zM8 7l4 4M14 5l4 4M5 14v6a1 1 0 0 0 1 1h15V9M9 17h8"/></symbol>
     <symbol id="i-coverage" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v10M12 7v7M16 7v10"/></symbol>
@@ -139,45 +145,64 @@
       </div><noscript><p>Activa JavaScript para crear tu cuenta o iniciar sesión.</p></noscript></div></div>
   </section>
   <div class="app-shell" inert aria-hidden="true">
-    <aside class="sidebar" aria-label="Espacio de trabajo">
-      <a class="brand" href="./" aria-label="PLANO, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span></a>
-      <div class="studio-label">DE LA IDEA AL RODAJE</div>
-      <div class="project-label">ESPACIO DE TRABAJO</div>
-
-      <nav class="navigation" aria-label="Herramientas de producción">
-        <button class="nav-item active" id="nav-import" type="button" aria-current="page"><svg><use href="#i-grid"/></svg><span>Mis proyectos</span></button>
-        <button class="nav-item" id="nav-editor" type="button" disabled><svg><use href="#i-coverage"/></svg><span>Guion técnico / cobertura</span></button>
-        <button class="nav-item" id="sidebar-patch-notes" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden><svg><use href="#i-script"/></svg><span>Notas de parche</span></button>
-        <div class="nav-section">ESCRITURA</div>
-        <button class="nav-item" id="nav-characters" type="button"><svg><use href="#i-people"/></svg><span>Personajes</span></button>
-        <button class="nav-item" id="nav-writing" type="button"><svg><use href="#i-script"/></svg><span>Redactor de guion</span></button>
-      </nav>
-
-      <div class="sidebar-footer studio-version-footer"><span>Versión de PLANO</span><span class="version" data-app-version>v0.2.1</span></div>
-    </aside>
-
     <div class="main-shell">
       <header class="topbar">
-        <button id="editor-home" class="editor-home editor-only" type="button" aria-label="Ir a Inicio" title="Ir a Inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span></button>
-        <div class="breadcrumb"><strong id="breadcrumb-current">Mis proyectos</strong></div>
+        <button id="editor-home" class="editor-home" type="button" aria-label="PLANO, ir a Inicio" title="Ir a Inicio">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="home-wordmark" aria-hidden="true">PLANO</span>
+        </button>
         <div class="editor-file header-project" hidden><button id="file-name" class="header-project-name" type="button" title="Cambiar nombre del proyecto" aria-label="Cambiar nombre del proyecto"></button><form id="project-title-form" hidden autocomplete="off"><label class="sr-only" for="project-title-input">Nombre del proyecto</label><input id="project-title-input" type="text" maxlength="120" autocomplete="off" spellcheck="true" aria-describedby="project-title-error"><span id="project-title-error" class="sr-only" role="alert"></span></form><button id="open-cloud" class="cloud-launch header-cloud" type="button" aria-label="Guardar proyecto" title="Guardar proyecto" hidden><svg viewBox="0 0 28 26" aria-hidden="true"><path d="M6 19a4.5 4.5 0 0 1-1-8.9 7.4 7.4 0 0 1 14-2A5.5 5.5 0 0 1 20 19H6Z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle class="cloud-mark-backdrop" cx="21" cy="19" r="5.5"/><path class="cloud-mark-check" d="m18 19 2 2 4-4"/><circle class="cloud-mark-saving" cx="21" cy="19" r="3.3"/><path class="cloud-mark-error" d="m19 17 4 4m0-4-4 4"/></svg><span id="open-cloud-label" class="sr-only">Guardar proyecto</span></button></div>
         <nav id="stage-tabs" class="stage-picker editor-only" role="tablist" aria-label="Etapa de trabajo"><button type="button" role="tab" data-stage="writing" aria-selected="false" aria-controls="writing-view" title="Escribir el guion"><span class="stage-name-full">Escribir guion</span><span class="stage-name-short">Escribir</span></button><button type="button" role="tab" data-stage="coverage" aria-selected="true" aria-controls="document-view"><span class="stage-name-full">Líneas de cubrimiento</span><span class="stage-name-short">Cobertura</span></button><button type="button" role="tab" data-stage="technical" aria-selected="false" aria-controls="technical-view" tabindex="-1">Guion técnico</button></nav>
         <div class="local-badge"><svg><use href="#i-lock"/></svg>Espacio local</div>
         <div class="editor-actions account-actions">
           
-          <details id="project-menu" class="project-menu"><summary id="account-menu-toggle" class="header-avatar" aria-label="Cuenta y menú del proyecto" aria-haspopup="menu" title="Cuenta y preferencias"><span id="header-avatar" aria-hidden="true">P</span></summary><div class="project-menu-content account-menu"><div class="account-menu-identity"><strong id="header-account-name">Mi cuenta</strong><span id="header-account-email"></span></div><button id="open-account" type="button" aria-haspopup="dialog" aria-controls="account-dialog" title="Mi cuenta"><span>Mi cuenta</span></button><button id="toggle-theme" type="button" aria-label="Activar modo oscuro" aria-pressed="false"><span id="header-theme-label">Modo oscuro</span><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" type="button" aria-label="Elegir tema" title="Elegir tema"><span>Color del tema</span><svg><use href="#i-sliders"/></svg></button><div class="project-menu-section editor-only"><span class="menu-caption">PROYECTO</span><button id="open-export" type="button" aria-haspopup="dialog" aria-controls="export-dialog" aria-expanded="false">Exportar</button><button id="menu-home" type="button">Volver al proyecto</button><button id="edit-crew" type="button">Equipo de producción</button><button id="save-backup" type="button" hidden>Exportar copia del proyecto (.json)</button><button id="restore-backup" type="button" hidden>Restaurar copia del proyecto</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></div></details>
+          <details id="project-menu" class="project-menu"><summary id="account-menu-toggle" class="header-avatar" aria-label="Cuenta y menú del proyecto" aria-haspopup="menu" title="Cuenta y preferencias"><span id="header-avatar" aria-hidden="true">P</span></summary><div class="project-menu-content account-menu"><div class="account-menu-identity"><strong id="header-account-name">Mi cuenta</strong><span id="header-account-email"></span></div><button id="open-account" type="button" aria-haspopup="dialog" aria-controls="account-dialog" title="Mi cuenta"><span>Mi cuenta</span></button><button id="toggle-theme" type="button" aria-label="Activar modo oscuro" aria-pressed="false"><span id="header-theme-label">Modo oscuro</span><svg class="theme-moon"><use href="#i-moon"/></svg><svg class="theme-sun"><use href="#i-sun"/></svg></button><button id="open-appearance" type="button" aria-label="Elegir tema" title="Elegir tema"><span>Color del tema</span><svg><use href="#i-sliders"/></svg></button><div class="project-menu-section editor-only"><span class="menu-caption">PROYECTO</span><button id="open-export" type="button" aria-haspopup="dialog" aria-controls="export-dialog" aria-expanded="false">Exportar</button><button id="menu-home" type="button">Volver al proyecto</button><button id="edit-project-info" type="button">Ficha del proyecto</button><button id="open-version-history" type="button" aria-haspopup="dialog">Historial de versiones</button><button id="edit-crew" type="button">Equipo de producción</button><button id="save-backup" type="button" hidden>Exportar copia del proyecto (.json)</button><button id="restore-backup" type="button" hidden>Restaurar copia del proyecto</button><hr><button id="remove-button" type="button">Cerrar guion</button></div></div></details>
         </div>
       </header>
       <div id="cloud-sync-alert" class="cloud-alert" role="status" hidden><p id="cloud-sync-error"></p><div><button id="cloud-retry-save" type="button">Reintentar guardado</button><button id="cloud-reload" type="button" hidden>Recargar versión de la nube</button><button id="cloud-export-draft" type="button">Descargar copia de mis notas</button></div></div>
       <main id="main-content">
-        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow" id="page-eyebrow">TU ESPACIO DE TRABAJO</p><h1 id="page-title">Mis proyectos</h1><p class="page-description" id="page-description">Retoma una historia o empieza a preparar la siguiente.</p></div></section>
+        <section class="page-heading" aria-labelledby="page-title">
+          <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Volver a la biblioteca" hidden>
+            <button id="project-root" type="button"><svg aria-hidden="true"><use href="#i-arrow"/></svg>Mis proyectos</button>
+          </nav>
+          <div class="workspace-banner" id="workspace-banner">
+            <div class="workspace-banner-visual" aria-hidden="true">
+              <span id="library-banner-icon" class="workspace-banner-icon"><svg><use href="#i-folder"/></svg></span>
+              <span id="project-banner-preview" class="workspace-banner-preview" hidden></span>
+            </div>
+            <div class="workspace-banner-content">
+              <div class="workspace-banner-heading">
+                <div class="workspace-banner-title">
+                  <div class="project-title-row">
+                    <h1 id="page-title">Mis proyectos</h1>
+                    <button id="project-rename" class="project-rename" type="button" aria-label="Cambiar nombre del proyecto" title="Cambiar nombre del proyecto" hidden><svg aria-hidden="true"><use href="#i-edit"/></svg></button>
+                  </div>
+                  <p class="page-description" id="home-library-count" hidden></p>
+                </div>
+                <div id="home-project-actions" class="workspace-banner-actions">
+                  <button id="upload-button" class="workspace-button workspace-button-primary" type="button" aria-label="Añadir un nuevo proyecto"><span class="new-script-plus" aria-hidden="true">+</span>Nuevo proyecto</button>
+                  <button id="home-import-script" class="workspace-button" type="button"><svg aria-hidden="true"><use href="#i-upload"/></svg>Importar</button>
+                </div>
+              </div>
+              <section id="project-facts" class="project-facts" aria-label="Ficha del proyecto" hidden></section>
+            </div>
+          </div>
+        </section>
 
         <section class="script-workspace" aria-labelledby="workspace-title">
           <div class="workspace-toolbar"><div class="workspace-tab"><svg><use href="#i-script"/></svg><h2 id="workspace-title">Importar guion</h2></div><span class="workspace-status" id="workspace-status"><span></span>Sin documento</span></div>
 
           <div id="upload-view" class="upload-view">
+            <p id="home-library-message" class="home-library-message" role="status" hidden></p>
             <div class="home-library" id="drop-zone" aria-labelledby="home-library-title">
-              <div class="home-library-heading"><div><h2 id="home-library-title">Biblioteca</h2><span id="home-library-count">Todos tus guiones, en un solo lugar.</span></div><div class="home-library-tools"><button id="open-patch-notes" class="patch-notes-launch" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button><button id="return-editor" class="library-return" type="button" hidden>Volver al guion abierto <span aria-hidden="true">↗</span></button><button id="home-refresh" class="header-icon" type="button" aria-label="Actualizar biblioteca" title="Actualizar biblioteca">↻</button></div></div>
+              <div class="home-library-heading">
+                <h2 id="home-library-title">Biblioteca</h2>
+                <div class="home-library-tools">
+                  <button id="return-editor" class="workspace-button" type="button" hidden>Volver al guion <svg aria-hidden="true"><use href="#i-arrow"/></svg></button>
+                  <button id="open-patch-notes" class="workspace-button" type="button" aria-haspopup="dialog" aria-controls="patch-notes-dialog" hidden>Notas de parche</button>
+                  <button id="home-refresh" class="workspace-button workspace-icon-button" type="button" aria-label="Actualizar biblioteca" title="Actualizar biblioteca"><svg aria-hidden="true"><use href="#i-refresh"/></svg></button>
+                </div>
+              </div>
               <div id="account-storage" class="account-storage" role="group" aria-labelledby="account-storage-title" hidden>
                 <div class="storage-copy"><span id="account-storage-title">Almacenamiento de guiones</span><span id="storage-summary" role="status" aria-live="polite">Calculando almacenamiento…</span></div>
                 <progress id="storage-meter" max="1" value="0" aria-label="Almacenamiento utilizado para guiones" hidden></progress>
@@ -185,17 +210,43 @@
                 <p id="storage-legacy" hidden></p>
               </div>
               <div id="home-loading" class="home-loading" role="status" hidden><span class="loading-project"></span><span class="loading-project"></span><span class="loading-project"></span><span class="sr-only">Cargando tus proyectos…</span></div>
-              <p id="home-library-message" class="home-library-message" role="status" hidden></p>
-              <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Ubicación del proyecto" hidden><button id="project-root" type="button">Mis proyectos</button><span aria-hidden="true">/</span><span id="project-breadcrumb-name" aria-current="page"></span><button id="project-rename" class="project-rename" type="button" aria-label="Cambiar nombre del proyecto"><svg aria-hidden="true"><use href="#i-edit"/></svg></button></nav>
-              <div id="home-projects" class="home-projects"><button id="upload-button" class="new-script-card" type="button" aria-label="Añadir un nuevo proyecto"><span class="new-script-plus" aria-hidden="true">+</span><strong>Nuevo proyecto</strong><span>Escribir o importar un guion</span></button></div>
-              <section id="project-overview" class="project-overview" aria-label="Apartados del proyecto" hidden>
-                <button class="project-entry" data-project-stage="writing" type="button"><span class="project-entry-number">01 / ESCRITURA</span><svg class="project-entry-icon" aria-hidden="true"><use href="#i-script"/></svg><strong>Guion</strong><span>Escribe y revisa el guion editable de tu proyecto.</span><small id="project-script-name"></small><b class="project-entry-arrow" aria-hidden="true">↗</b></button>
-                <button class="project-entry" data-project-stage="coverage" type="button"><span class="project-entry-number">02 / PLANIFICACIÓN</span><svg class="project-entry-icon" aria-hidden="true"><use href="#i-coverage"/></svg><strong>Líneas de cobertura</strong><span>Marca el texto, traza líneas y prepara cada plano.</span><small>Tu guion con sus planos</small><b class="project-entry-arrow" aria-hidden="true">↗</b></button>
-                <button class="project-entry" data-project-stage="technical" type="button"><span class="project-entry-number">03 / RODAJE</span><svg class="project-entry-icon" aria-hidden="true"><use href="#i-grid"/></svg><strong>Guion técnico</strong><span>Define los detalles de cada plano en una tabla editable.</span><small>Información compartida con cobertura</small><b class="project-entry-arrow" aria-hidden="true">↗</b></button>
-              </section>
+              <div id="home-projects" class="home-projects"></div>
               <div class="library-footnote"><p class="file-hint">Guion Fountain, WDZ, FDX, Celtx, DOCX, RTF, HTML, JSON, CSV, TXT o PDF · Proyecto completo .plano</p><span>También puedes arrastrar tu archivo aquí.</span></div>
+              <p class="privacy-note"><svg><use href="#i-lock"/></svg>Tu historia se queda contigo. El archivo se abre en tu navegador y no se envía a ningún servidor.</p>
             </div>
-            <p class="privacy-note"><svg><use href="#i-lock"/></svg>Tu historia se queda contigo. El archivo se abre en tu navegador y no se envía a ningún servidor.</p>
+            <section id="project-overview" class="project-overview" aria-label="Herramientas del proyecto" hidden>
+              <section class="project-stage-group project-stage-writing" aria-labelledby="project-writing-title">
+                <header class="project-stage-heading">
+                  <span class="project-stage-badge"><svg aria-hidden="true"><use href="#i-edit"/></svg></span>
+                  <h2 id="project-writing-title">Escritura</h2>
+                </header>
+                <div class="project-stage-list">
+                  <button class="project-entry" data-project-stage="writing" type="button">
+                    <span class="project-entry-icon"><svg aria-hidden="true"><use href="#i-script"/></svg></span>
+                    <span class="project-entry-copy"><strong>Guion</strong><span>Abre el redactor para escribir o revisar el guion.</span></span>
+                    <svg class="project-entry-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+                  </button>
+                </div>
+              </section>
+              <section class="project-stage-group project-stage-breakdowns" aria-labelledby="project-breakdowns-title">
+                <header class="project-stage-heading">
+                  <span class="project-stage-badge"><svg aria-hidden="true"><use href="#i-grid"/></svg></span>
+                  <h2 id="project-breakdowns-title">Desgloses</h2>
+                </header>
+                <div class="project-stage-list">
+                  <button class="project-entry" data-project-stage="coverage" type="button">
+                    <span class="project-entry-icon"><svg aria-hidden="true"><use href="#i-coverage"/></svg></span>
+                    <span class="project-entry-copy"><strong>Líneas de cobertura</strong><span>Marca el guion y planifica los planos.</span></span>
+                    <svg class="project-entry-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+                  </button>
+                  <button class="project-entry" data-project-stage="technical" type="button">
+                    <span class="project-entry-icon"><svg aria-hidden="true"><use href="#i-grid"/></svg></span>
+                    <span class="project-entry-copy"><strong>Guion técnico</strong><span>Organiza los planos y sus indicaciones para el rodaje.</span></span>
+                    <svg class="project-entry-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+                  </button>
+                </div>
+              </section>
+            </section>
           </div>
 
           <div id="document-view" class="document-view" hidden>
@@ -245,7 +296,7 @@
           <article class="feature-card"><div class="feature-top"><svg><use href="#i-clapper"/></svg><span>DISPONIBLE</span></div><h3>Recorre cada escena</h3><p>Detecta los encabezados del guion y concéntrate en una escena a la vez.</p><span class="feature-number">02 / ESCENAS</span></article>
           <article class="feature-card"><div class="feature-top"><svg><use href="#i-coverage"/></svg><span>DISPONIBLE</span></div><h3>Imagina el siguiente plano</h3><p>Resalta fragmentos, traza líneas rectas y añade tus notas de cobertura.</p><span class="feature-number">03 / PLANIFICACIÓN</span></article>
         </div></section>
-        <footer class="page-footer"><span>PLANO <span class="footer-divider">/</span> Un espacio para crear.</span><span>HECHO PARA CONTAR HISTORIAS</span></footer>
+        <footer class="page-footer"><small>Versión de PLANO <span data-app-version>v0.2.1</span></small></footer>
       </main>
     </div>
   </div>

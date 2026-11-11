@@ -89,8 +89,8 @@
  }
  const read=uid=>{try{return JSON.parse(localStorage.getItem(key(uid)));}catch{return null;}};
  function remember(){if(!current)return;try{localStorage.setItem(key(owner),JSON.stringify({receipt:current.seen,pending:current.pending}));}catch{}}
- const launchers=['#open-patch-notes','#sidebar-patch-notes'];
- function buttons(){for(const id of launchers)if($(id))$(id).hidden=!owner;}
+ const launcher=$('#open-patch-notes'),library=$('#drop-zone');
+ function buttons(){launcher.hidden=!owner;}
  async function loadFeed(force=false){
   if(force&&feedStatus!=='loading')feedPromise=null;
   if(!feedPromise)feedPromise=(async()=>{
@@ -143,7 +143,7 @@
   if(manual){openHistory();return;}
   if(!owner||!current||!feed.length||root.PlanoAccounts.getUser()?.id!==owner||document.body.classList.contains('auth-locked'))return;
   if(dialog.open||document.querySelector('dialog[open],[popover]:popover-open:not(#report-launch)')||$('.app-shell').inert)return;
-  if(!manual&&(!current.ready||document.body.classList.contains('is-editing')))return;
+  if(!current.ready||library.hidden||document.body.classList.contains('is-editing'))return;
   if(!unseen(feed,current.seen).length)return;
   automatic=true;render(feed);displayed={owner,release:feed[0]};
   $('#patch-notes-title').textContent='Lo nuevo en PLANO';$('#patch-notes-eyebrow').textContent='EL ESTUDIO, AL DÍA';$('#patch-notes-state').hidden=true;
@@ -177,7 +177,7 @@
   catch{/* Sin conexión se conserva la lectura conocida de esta cuenta. */}
   if(epoch!==expected)return;session.ready=true;remember();flush();show();
  }
- for(const id of launchers)$(id)?.addEventListener('click',()=>show(true));
+ launcher.addEventListener('click',()=>show(true));
  $('#retry-patch-notes').addEventListener('click',()=>openHistory(true));
  for(const id of ['#close-patch-notes','#accept-patch-notes'])$(id).addEventListener('click',()=>{markSeen();dialog.close();});
  dialog.addEventListener('cancel',markSeen);
@@ -185,7 +185,9 @@
  document.addEventListener('close',event=>{if(event.target!==dialog)requestAnimationFrame(()=>show());},true);
  document.addEventListener('toggle',event=>{if(event.newState==='closed'&&event.target.hasAttribute?.('popover'))requestAnimationFrame(()=>show());},true);
  document.addEventListener('plano-account-change',changeAccount);
- new MutationObserver(()=>{if(current?.ready)requestAnimationFrame(()=>show());}).observe(document.body,{attributes:true,attributeFilter:['class']});
+ const navigation=new MutationObserver(()=>{if(current?.ready)requestAnimationFrame(()=>show());});
+ navigation.observe(document.body,{attributes:true,attributeFilter:['class']});
+ navigation.observe(library,{attributes:true,attributeFilter:['hidden']});
  root.addEventListener('online',()=>flush());
  root.addEventListener('storage',event=>{
   if(!owner||event.key!==key(owner)||!current)return;

@@ -5,7 +5,7 @@
  let hooks={},editing=null,renaming=null,manual=null,cloudState=null,manualError='';
  const owner=()=>root.PlanoAccounts?.getUser()?.id||'';
  const project=()=>hooks.project?.()||null;
- const clean=value=>String(value||'').trim().replace(/\.(?:pdf|plano)$/i,'');
+ const clean=value=>root.PlanoScreenplay.projectTitle(value);
  const nameOf=value=>clean(value?.project_name||value?.name)||'Sin título';
  const shorten=value=>{const chars=Array.from(value);return chars.length>32?chars.slice(0,29).join('')+'...':value;};
  function refreshIdentity(){
@@ -26,7 +26,7 @@
   cloudButton.title=description+' · Pulsar para guardar';cloudButton.setAttribute('aria-label','Guardar proyecto · '+description);
  }
  function refresh(){
-  const value=project();document.body.classList.toggle('has-header-project',Boolean(value));$('.header-project').hidden=!value;
+  const value=project();$('.header-project').hidden=!value;
   if(editing&&(editing.owner!==owner()||editing.id!==value?.id))cancel();
   const name=nameOf(value);nameButton.textContent=shorten(name);nameButton.title=name;nameButton.setAttribute('aria-label','Cambiar nombre del proyecto '+name);
   refreshCloud();

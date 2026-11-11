@@ -61,6 +61,26 @@
   if(error?.code==='CONFLICT'){notify('conflict');return;}
   error=null;notify('pending');timer=setTimeout(()=>flush().catch(()=>{}),1500);
  }
+ async function savePayload(project,payload){
+  // El título queda en el guion aunque falle la actualización del listado.
+  // Conserva la revisión del primer guardado para que el reintento pueda continuar.
+  const {project:saved}=await request('save',{id:project.id,revision:project.revision,payload});
+  let record={...saved,payload:copy(payload)};
+  const updateCurrent=()=>{if(current?.id===project.id)current={...current,...record};};
+  updateCurrent();
+  if(payload.projectName&&payload.projectName!==saved.project_name){
+   try{
+    const {project:renamed}=await request('rename_project',{id:project.id,revision:saved.revision,name:payload.projectName});
+    record={...record,...renamed};
+    updateCurrent();
+   }catch(reason){
+    reason.savedProject=record;
+    reason.message='El guion se guardó. Reintenta para actualizar el título en la biblioteca.';
+    throw reason;
+   }
+  }
+  return record;
+ }
  async function flush(){
   clearTimeout(timer);
   if(inflight)return inflight;
@@ -72,9 +92,8 @@
     const snapshot=copy(pending),savedSequence=sequence;
     if(new TextEncoder().encode(JSON.stringify(snapshot)).length>PAYLOAD_LIMIT)throw failure('TOO_LARGE','El guion y sus notas superan 350 KB. Descarga una copia antes de continuar.');
     error=null;notify('saving');
-    const {project}=await request('save',{id:projectId,revision:current.revision,payload:snapshot});
+    await savePayload(current,snapshot);
     if(epoch!==expectedEpoch)return;
-    current={...current,...project,payload:copy(snapshot)};
     if(sequence===savedSequence){pending=null;drafts.delete(key(owner,projectId));notify('saved');}
     else remember();
    }
@@ -85,6 +104,24 @@
   }finally{if(epoch===expectedEpoch)inflight=null;}
  }
  async function createEditable(payload,name,projectName){await flush();return(await request('create_editable',{name,projectName,payload:{...payload,documentFormat:2}})).project;}
+ async function commitPayload(project,payload){
+  await flush();
+  const attached=current?.id===project.id?current:null;
+  try{
+   const saved=await savePayload(attached||project,payload);
+   if(attached&&current?.id===attached.id){
+    if(pending)remember();
+    notify(pending?'pending':'saved');
+   }
+   return saved;
+  }catch(reason){
+   if(reason.savedProject&&attached&&current?.id===attached.id){
+    pending ||= copy(payload);sequence++;remember();error=reason;
+    notify(reason.code==='CONFLICT'?'conflict':'error');
+   }
+   throw reason;
+  }
+ }
  async function convertEditable(project,payload){
   await flush();const revision=current?.id===project.id?current.revision:project.revision;
   const result=await request('convert_editable',{id:project.id,revision,payload:{...payload,documentFormat:2,fingerprint:project.fingerprint}});
@@ -140,5 +177,5 @@
  root.addEventListener('beforeunload',event=>{if(hasPending()){event.preventDefault();event.returnValue='';}});
  root.addEventListener('online',()=>{if(pending&&error?.code!=='CONFLICT')flush().catch(()=>{});});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&pending&&error?.code!=='CONFLICT')flush().catch(()=>{});});
- root.PlanoCloud={configured,PAYLOAD_LIMIT,request,prefetch,changeOwner,attach,preview,schedule,flush,createEditable,convertEditable,open,rename,renameProject,remove,detach,reload,subscribe,info,hasPending,list:()=>request('list')};
+ root.PlanoCloud={configured,PAYLOAD_LIMIT,request,prefetch,changeOwner,attach,preview,schedule,flush,createEditable,commitPayload,convertEditable,open,rename,renameProject,remove,detach,reload,subscribe,info,hasPending,list:()=>request('list')};
 })(globalThis);

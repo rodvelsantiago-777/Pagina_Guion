@@ -124,7 +124,7 @@ async function assertLabelClearance(page) {
     assert.equal(await page.locator('.annotation-scene-group').count(),3,'Planos agrupados por escena');
     assert.equal(await page.locator('#annotation-filter').count(),0,'Sin filtro de anotaciones redundante');
     await page.locator('#scene-select').selectOption('print', {force:true}); await ready(page);
-    assert.equal(await page.locator('#breadcrumb-current').textContent(),'guion','La cabecera identifica el proyecto abierto');
+    assert.equal(await page.locator('#file-name').textContent(),'guion','La cabecera del editor identifica el proyecto abierto');
     assert(!(await page.locator('.sidebar').isVisible()),'Sin barra izquierda en el guion técnico');
     assert.equal(await page.locator('.coverage-status #scene-select').count(),1,'Vista del guion reunida con el zoom en la barra inferior');
     const panelBox=await page.locator('#annotations-panel').boundingBox(); const viewerBox=await page.locator('#pdf-stage').boundingBox();
@@ -413,7 +413,7 @@ async function assertLabelClearance(page) {
     await page.locator('.page-slot[data-page="1"]').scrollIntoViewIfNeeded(); await pageReady(page,1);
     assert.equal(await page.locator('.page-slot[data-page="1"] .screenplay-text-surface').count(),1,'Vuelve a dibujar al regresar');
     await menuAction(page,'#remove-button'); assert(await page.locator('#upload-view').isVisible());
-    assert(await page.locator('.sidebar').isVisible(),'La portada mantiene su barra lateral');
+    assert.equal(await page.locator('.sidebar').count(),0,'Inicio muestra la biblioteca sin menú lateral');
     // Nombres consecutivos reales en una sesión nueva, sin depender de notas anteriores.
     const numbering=await browser.newPage({viewport:{width:1540,height:1100}});
     numbering.on('pageerror',error=>errors.push(error.message));

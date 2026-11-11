@@ -1,4 +1,4 @@
-/* Cabecera global, nombres de carpeta independientes, edición en línea y guardado sin modales. */
+/* Cabecera global, título vinculado con la portada y guardado sin modales. */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 const {chromium}=require(path.join(process.env.PLANO_RUNTIME_MODULES,'playwright'));
 const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
@@ -12,11 +12,19 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
   const file=await page.evaluate(()=>state.file.name);
   const label=await page.locator('#file-name').textContent();assert.equal(Array.from(label).length,32);assert(label.endsWith('...'));assert.equal(await page.locator('#file-name').getAttribute('title'),full);
   assert.equal(await page.locator('#rename-current-file,#file-size').count(),0);
-  assert.equal((await page.locator('#editor-home').textContent()).trim(),'');assert(await page.locator('#editor-home .brand-mark').isVisible());
+  const wordmark=page.locator('#editor-home .home-wordmark');
+  assert(await wordmark.isHidden());assert(await page.locator('#editor-home .brand-mark').isVisible());
   await page.locator('#file-name').click();assert(await page.locator('#project-title-input').isVisible());assert.equal(await page.locator('dialog[open]').count(),0);
   assert.equal(await page.locator('#project-title-input').inputValue(),full);await page.locator('#project-title-input').fill('Rodaje de María');await page.keyboard.press('Enter');await page.locator('#project-title-form').waitFor({state:'hidden'});
-  assert.equal(await page.locator('#file-name').textContent(),'Rodaje de María');assert.equal(await page.evaluate(()=>state.file.name),file);assert.equal(await page.evaluate(()=>state.screenplay.title),full,'Renombrar la carpeta conserva el guion y su archivo');
-  await page.locator('#file-name').click();await page.locator('#project-title-input').fill('');await page.keyboard.press('Enter');assert(await page.locator('#project-title-input').isVisible());await page.keyboard.press('Escape');assert.equal(await page.locator('#file-name').textContent(),'Rodaje de María');
+  assert.equal(await page.locator('#file-name').textContent(),'Rodaje de María');
+  assert.equal(await page.evaluate(()=>state.file.name),file);
+  assert.equal(await page.locator('#writer-project-title').inputValue(),'Rodaje de María');
+  assert.equal(await page.evaluate(()=>state.screenplay.title),'Rodaje de María');
+  await page.locator('#writer-project-title').fill('Desde la portada');
+  await page.locator('#writer-project-title').press('Enter');
+  await page.waitForFunction(()=>document.querySelector('#file-name').textContent==='Desde la portada'&&!state.busy);
+  assert.equal(await page.evaluate(()=>currentLibraryProject().project_name),'Desde la portada');
+  await page.locator('#file-name').click();await page.locator('#project-title-input').fill('');await page.keyboard.press('Enter');assert(await page.locator('#project-title-input').isVisible());await page.keyboard.press('Escape');assert.equal(await page.locator('#file-name').textContent(),'Desde la portada');
   await page.locator('#file-name').click();await page.locator('#project-title-input').fill('Proyecto final');await page.keyboard.press('Tab');await page.locator('#project-title-form').waitFor({state:'hidden'});assert.equal(await page.locator('#file-name').textContent(),'Proyecto final');
   await page.evaluate(()=>{PlanoAccounts.getUser=()=>({id:'editor-test',name:'María López',email:'maria@example.invalid'});PlanoHeader.refreshIdentity();});assert.equal(await page.locator('#header-avatar').textContent(),'ML');
   for(const id of ['#open-account','#toggle-theme','#open-appearance'])assert(await page.locator(id).evaluate(el=>Boolean(el.closest('#project-menu'))));
@@ -24,7 +32,23 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
   await require('./header-menu.cjs').open(page);await page.locator('#open-appearance').click();assert(await page.locator('#appearance-dialog').isVisible());const palette=await page.locator('#appearance-dialog').boundingBox();assert(palette.x>700,'El selector se abre junto al avatar');await page.keyboard.press('Escape');assert(await page.locator('#account-menu-toggle').evaluate(el=>el===document.activeElement));
   for(const stage of ['coverage','technical','writing']){await page.locator(`#stage-tabs [data-stage="${stage}"]`).click();assert.equal(await page.locator('#file-name').textContent(),'Proyecto final');}
   await page.locator('#editor-home').click();assert(await page.locator('#project-overview').isHidden());assert(await page.locator('#home-projects').isVisible());assert(await page.locator('#file-name').isHidden());assert(await page.locator('#account-menu-toggle').isVisible());
-  await page.locator('.script-card-open').click();await page.locator('[data-project-stage=writing]').click();await page.waitForFunction(()=>state.screen==='editor'&&!state.busy);
+  assert(await wordmark.isVisible());
+  assert.equal(await wordmark.textContent(),'PLANO');
+  await page.locator('.script-card-open').click();
+  assert(await wordmark.isVisible());
+  assert(await page.locator('#file-name').isHidden());
+  assert.equal(await page.locator('#page-title').textContent(),'Proyecto final');
+  await page.setViewportSize({width:320,height:844});
+  assert(await wordmark.isVisible());
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.locator('#editor-home').click();
+  assert(await page.locator('#home-projects').isVisible());
+  await page.setViewportSize({width:1440,height:1000});
+  await page.locator('.script-card-open').click();
+  fs.mkdirSync(out,{recursive:true});
+  await page.screenshot({path:path.join(out,'cabecera-carpeta-plano.png')});
+  await page.locator('[data-project-stage=writing]').click();await page.waitForFunction(()=>state.screen==='editor'&&!state.busy);
+  assert(await wordmark.isHidden());
   for(const id of ['#open-cloud-library','#cloud-library','#menu-patch-notes','#rename-file-menu','#replace-button','#open-document'])assert.equal(await page.locator(id).count(),0,'Acceso retirado: '+id);
   // Componente de nube con latencia controlada. La escritura real se verifica en cloud.cjs.
   await page.evaluate(()=>{

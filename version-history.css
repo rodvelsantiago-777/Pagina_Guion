@@ -1,0 +1,74 @@
+.version-history-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, calc(100vw - 28px));
+  max-height: calc(100dvh - 36px);
+  height: min(800px, calc(100dvh - 36px));
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 13px/1.5 var(--sans);
+}
+.version-history-dialog:not([open]) { display: none; }
+.version-history-dialog::backdrop { background: var(--backdrop); }
+.version-history-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.version-history-dialog h2 { margin: 0; font-size: 22px; }
+#version-history-project { margin: 3px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.version-history-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px 24px 8px;
+  align-items: end;
+}
+.version-history-controls label { min-width: 0; font-weight: 600; }
+.version-history-controls select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface-alt);
+  color: var(--ink);
+  font: inherit;
+}
+.version-history-filter { display: flex; align-items: center; gap: 6px; padding: 7px 0; }
+.version-history-filter input { accent-color: var(--accent); }
+.version-history-legend { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 24px; }
+.version-history-legend span, .version-row-label .version-format { padding: 2px 6px; border-radius: 3px; }
+#version-history-status { margin: 8px 24px; color: var(--muted); font-size: 12px; }
+.version-history-result { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--line); }
+.version-history-columns, .version-history-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.version-history-single .version-history-columns,
+.version-history-single .version-history-row { grid-template-columns: minmax(0, 1fr); }
+.version-history-columns { position: sticky; top: 0; z-index: 1; background: var(--surface-alt); border-bottom: 1px solid var(--line); }
+.version-history-columns strong, .version-cell { min-width: 0; padding: 9px 18px; overflow-wrap: anywhere; }
+.version-history-row { border-bottom: 1px solid var(--line); content-visibility: auto; contain-intrinsic-block-size: auto 62px; }
+.version-history-columns > :nth-child(2), .version-cell:nth-child(2) { border-left: 1px solid var(--line); }
+.version-cell-empty { background: var(--surface-alt); }
+.version-row-label { display: block; color: var(--muted); font: 11px/1.6 var(--sans); }
+.version-cell p { margin: 4px 0 0; white-space: pre-wrap; font: 13px/1.55 "PLANO Courier", "Courier New", monospace; }
+.version-text-bold { font-weight: 700; }
+.version-text-italic { font-style: italic; }
+.version-text-underline { text-decoration: underline; }
+.version-text-character { text-decoration: underline dotted; }
+.version-removed { color: #691822; background: #ffd8dc; }
+.version-added { color: #144923; background: #cdefd6; }
+.version-format { color: #513476; background: #eadcff; }
+@media (max-width: 560px) {
+  .version-history-dialog > header, .version-history-controls { padding-inline: 12px; }
+  .version-history-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .version-history-filter { grid-column: 1 / -1; padding: 0; }
+  .version-history-legend { padding-inline: 12px; }
+  #version-history-status { margin-inline: 12px; }
+  .version-history-columns strong, .version-cell { padding-inline: 8px; }
+}
