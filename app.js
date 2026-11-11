@@ -45,6 +45,7 @@ function busy(value) {
   $("#writing-view").inert = value;
   syncTechnicalWindowLock();
   PlanoHeader.refresh();
+  refreshFinalizeButton();
 }
 
 function showScreen(screen) {
@@ -81,6 +82,12 @@ function updateStageView() {
   if (technical || !editing) PlanoPopover.hide($("#view-mode-menu"));
   document.body.classList.toggle("is-technical", editing && technical);
   document.body.classList.toggle("is-writing", editing && writing);
+  if (editing) {
+    const statusBar = $(writing ? ".writer-status" : technical ? ".technical-status" : ".coverage-status");
+    const cloud = $("#open-cloud");
+    if (cloud.parentElement !== statusBar) statusBar.prepend(cloud);
+  }
+  refreshFinalizeButton();
   $("#panel-backdrop").hidden = !editing || technical || !state.panelOpen || !smallScreen.matches;
 }
 async function switchStage(stage) {
@@ -1999,6 +2006,7 @@ function undo(redo = false) {
   cancelSpelling(); state.corrections = Array.isArray(restored) ? [] : restored.corrections || []; state.crew = restored.crew || state.crew; state.proofreading = restored.proofreading || state.proofreading; refreshSpelling(); changed();
 }
 function closeDocument() {
+  if ($("#finalize-screenplay-dialog").open) $("#finalize-screenplay-dialog").close();
   annotationShapes.clear();
   PlanoWriter.close(); state.pageSurface = null; state.screenplay = null; state.pdfBasis=null; state.writerPdfRevision = null;clearTimeout(writerRefreshTimer);
   if (state.exporting) return;
@@ -2346,7 +2354,11 @@ async function saveProjectInfo(context){
     if(PlanoCloud.configured)await PlanoCloud.flush();
     if(owner!==PlanoAccounts.getUser()?.id)throw Error('La cuenta ha cambiado.');
     const before=active?state.screenplay:context.script;
-    info=context.info;
+    info=active&&context.info?{...context.info,completed:Boolean(state.projectInfo?.completed)}:context.info;
+    if(context.finalize){
+      if(!active||state.screen!=='editor'||state.stage!=='writing'||before!==context.script||info?.completed)throw Error('El guion cambió. Vuelve a abrir la confirmación.');
+      info={...info,completed:true};
+    }
     versions=active?state.screenplayVersions:context.versions;
     authorsChanged=JSON.stringify(before.authors)!==JSON.stringify(context.authors);
     titleChanged=PlanoScreenplay.projectTitle(before.title)!==name;
@@ -2429,6 +2441,58 @@ async function saveProjectInfo(context){
   if(titleSyncError)throw titleSyncError;
   return project;
 }
+function refreshFinalizeButton(){
+  const button=$('#finalize-screenplay'),completed=Boolean(state.projectInfo?.completed);
+  button.hidden=state.screen!=='editor'||state.stage!=='writing'||!state.screenplay;
+  button.disabled=state.busy||completed;
+  const label=completed?'Guion finalizado':'Finalizar guion';
+  button.title=label;
+  button.setAttribute('aria-label',label);
+  button.querySelector('span').textContent=label;
+}
+const finalizeDialog=$('#finalize-screenplay-dialog'),confirmFinalization=$('#confirm-screenplay-finalization'),cancelFinalization=$('#cancel-screenplay-finalization');
+let finalization=null;
+$('#finalize-screenplay').addEventListener('click',()=>{
+  if(state.stage!=='writing'||!canSelectShots()||!state.screenplay||state.projectInfo?.completed)return;
+  const project=currentLibraryProject(),script=state.screenplay,owner=PlanoAccounts.getUser()?.id;
+  if(!project||!owner)return;
+  const version=PlanoScreenplayVersions.label(PlanoScreenplayVersions.number(script));
+  const nextVersion=PlanoScreenplayVersions.label(PlanoScreenplayVersions.number(script)+1);
+  const pages=PlanoProjectInfo.contentPages(script),duration=PlanoProjectInfo.description({...PlanoProjectInfo.empty(),completed:true},script);
+  $('#finalize-screenplay-title').textContent='Finalizar '+version;
+  $('#project-finalization-notice').textContent=pages
+    ? `Se guardará la versión ${version} en el historial. Cuando vuelvas a editar, trabajarás en ${nextVersion}.`
+    : 'Añade contenido al guion para poder finalizarlo.';
+  $('#finalize-screenplay-duration').textContent=pages?`Duración del proyecto: ${duration}. La portada queda fuera del cálculo.`:'';
+  $('#finalize-screenplay-error').hidden=true;
+  confirmFinalization.textContent='Finalizar '+version;
+  confirmFinalization.disabled=!pages;
+  finalization={project,script,owner,name:project.project_name,authors:script.authors,info:state.projectInfo||PlanoProjectInfo.empty(),finalize:true};
+  finalizeDialog.showModal();
+});
+cancelFinalization.addEventListener('click',()=>finalizeDialog.close());
+finalizeDialog.addEventListener('cancel',event=>{if(cancelFinalization.disabled)event.preventDefault();});
+finalizeDialog.addEventListener('close',()=>{finalization=null;});
+finalizeDialog.querySelector('form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!finalization||confirmFinalization.disabled||state.busy)return;
+  const context=finalization,error=$('#finalize-screenplay-error');
+  error.hidden=true;
+  confirmFinalization.disabled=cancelFinalization.disabled=true;
+  try{
+    if(!await saveProjectInfo(context))throw Error('La cuenta ha cambiado.');
+    finalizeDialog.close();
+    $('#file-name').focus();
+    message(`Guion ${PlanoScreenplayVersions.label(PlanoScreenplayVersions.number(context.script))} finalizado.`);
+  }catch(failure){
+    if(!finalizeDialog.open)return;
+    error.textContent=failure.message||'No se pudo finalizar el guion.';
+    error.hidden=false;
+  }finally{
+    confirmFinalization.disabled=Boolean(state.projectInfo?.completed);
+    cancelFinalization.disabled=false;
+  }
+});
 async function openVersionHistory(project=currentLibraryProject()){
   const owner=PlanoAccounts.getUser()?.id;
   if(!owner||!project)return;
@@ -2522,6 +2586,7 @@ PlanoWriter.init({
       if(state.thumbnail)PlanoCloudLibrary.updatePreview(currentLibraryProject(),state.thumbnail);
     }
     state.screenplay=screenplay;saveNotes();clearTimeout(writerRefreshTimer);
+    if(previous.edition!==screenplay.edition)refreshFinalizeButton();
     // El texto se guarda al escribir. Solo la ventana técnica abierta necesita regeneración en segundo plano.
     if(PlanoTechnicalWindow.isOpen())writerRefreshTimer=setTimeout(()=>{if(state.screen==='editor'&&state.stage==='writing'&&PlanoTechnicalWindow.isOpen())refreshWriterCoverage();},600);
     return screenplay.edition;

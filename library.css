@@ -217,9 +217,9 @@ body:not(.is-editing) .privacy-note { justify-content: flex-start; padding: 14px
 .project-rename svg { width: 14px; height: 14px; }
 .project-overview { display: grid; gap: 16px; }
 .project-stage-group {
-  --stage-color: #8a4e33;
-  --stage-ink: #8a4e33;
-  --stage-soft: #f8eee6;
+  --stage-color: var(--writing-fill, #8a4e33);
+  --stage-ink: var(--writing-ink, #8a4e33);
+  --stage-soft: var(--writing-soft, #f8eee6);
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
   min-width: 0;
@@ -228,11 +228,11 @@ body:not(.is-editing) .privacy-note { justify-content: flex-start; padding: 14px
   border-radius: var(--dashboard-radius);
   background: var(--paper);
 }
-.project-stage-breakdowns { --stage-color: #315e7a; --stage-ink: #315e7a; --stage-soft: #eaf2f7; }
-html[data-theme=dark] .project-stage-writing { --stage-color: #744a36; --stage-ink: #f0bd9d; --stage-soft: #32251e; }
-html[data-theme=dark] .project-stage-breakdowns { --stage-color: #29475b; --stage-ink: #a7cce7; --stage-soft: #1c2b35; }
-html:is([data-palette=gray], [data-palette=graphite]) .project-stage-writing { --stage-color: #464646; --stage-ink: var(--ink); --stage-soft: var(--accent-soft); }
-html:is([data-palette=gray], [data-palette=graphite]) .project-stage-breakdowns { --stage-color: #5e5e5e; --stage-ink: var(--ink); --stage-soft: var(--accent-soft); }
+.project-stage-breakdowns {
+  --stage-color: var(--breakdowns-fill, #315e7a);
+  --stage-ink: var(--breakdowns-ink, #315e7a);
+  --stage-soft: var(--breakdowns-soft, #eaf2f7);
+}
 .project-stage-heading { display: grid; place-content: center; justify-items: center; gap: 10px; min-height: 122px; padding: 18px 14px; background: var(--stage-color); color: #fff; }
 .project-stage-heading h2 { margin: 0; font: 650 14px/1.4 var(--sans); }
 .project-stage-badge { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: color-mix(in srgb, var(--stage-color) 82%, #fff); }

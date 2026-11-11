@@ -9,8 +9,8 @@ const lum=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.0404
 const contrast=(a,b)=>(Math.max(lum(a),lum(b))+.05)/(Math.min(lum(a),lum(b))+.05);
 async function ready(page){await page.waitForFunction(()=>document.querySelector('.page-slot[data-ready="true"] .textLayer')&&document.querySelector('#render-status').hidden&&document.querySelector('.script-workspace').getAttribute('aria-busy')==='false');}
 async function preset(page,value){if(!await page.locator('#appearance-dialog').isVisible()){await require('./header-menu.cjs').open(page);await page.locator('#open-appearance').click();}await page.locator(`[data-appearance-preset="${value}"]`).click();}
-async function tokens(page){return page.evaluate(()=>{const s=getComputedStyle(document.documentElement);return Object.fromEntries(['page','paper','surface-alt','ink','muted','faint','accent','accent-soft','on-accent','sidebar','side-ink','side-muted','side-accent','side-hover','side-selected','on-side-selected','table-header','table-header-ink'].map(k=>[k,s.getPropertyValue('--'+k).trim()]));});}
-function readable(t){for(const background of ['paper','surface-alt'])for(const foreground of ['ink','muted','faint','accent'])assert(contrast(t[foreground],t[background])>=4.5,`${foreground} sobre ${background}: ${contrast(t[foreground],t[background])}`);for(const background of ['sidebar','side-hover'])for(const foreground of ['side-ink','side-muted','side-accent'])assert(contrast(t[foreground],t[background])>=4.5,`${foreground} sobre ${background}`);assert(contrast(t['on-side-selected'],t['side-selected'])>=4.5);assert(contrast(t['table-header-ink'],t['table-header'])>=4.5);assert(contrast(t.accent,t['accent-soft'])>=4.5);assert(contrast(t.accent,t['on-accent'])>=4.5);}
+async function tokens(page){return page.evaluate(()=>{const s=getComputedStyle(document.documentElement);return Object.fromEntries(['page','paper','surface-alt','ink','muted','faint','accent','accent-soft','on-accent','sidebar','side-ink','side-muted','side-accent','side-hover','side-selected','on-side-selected','table-header','table-header-ink','writing-fill','writing-ink','writing-soft','breakdowns-fill','breakdowns-ink','breakdowns-soft'].map(k=>[k,s.getPropertyValue('--'+k).trim()]));});}
+function readable(t){for(const background of ['page','paper','surface-alt'])for(const foreground of ['ink','muted','faint','accent'])assert(contrast(t[foreground],t[background])>=4.5,`${foreground} sobre ${background}: ${contrast(t[foreground],t[background])}`);for(const background of ['sidebar','side-hover'])for(const foreground of ['side-ink','side-muted','side-accent'])assert(contrast(t[foreground],t[background])>=4.5,`${foreground} sobre ${background}`);assert(contrast(t['on-side-selected'],t['side-selected'])>=4.5);assert(contrast(t['table-header-ink'],t['table-header'])>=4.5);assert(contrast(t.accent,t['accent-soft'])>=4.5);assert(contrast(t.accent,t['on-accent'])>=4.5);for(const stage of ['writing','breakdowns']){assert(contrast('#ffffff',t[stage+'-fill'])>=4.5);assert(contrast(t[stage+'-ink'],t[stage+'-soft'])>=4.5);assert(contrast(t[stage+'-ink'],t.paper)>=4.5);}}
 async function documentSnapshot(page){const snapshot=await page.evaluate(async()=>({
   annotations:JSON.stringify(state.annotations),renderId:state.renderId,viewer:state.viewer.id,scene:state.scene,
   position:document.querySelector('#pdf-stage').scrollTop,
@@ -41,15 +41,19 @@ async function documentSnapshot(page){const snapshot=await page.evaluate(async()
    const dark=await tokens(page);await require('./header-menu.cjs').open(page);await page.locator('#toggle-theme').click();const light=await tokens(page);readable(light);
    assert(lum(light.paper)>.9&&lum(dark.paper)<.04,'Las superficies personalizadas conservan la diferencia clara/oscura');
    assert.notEqual(dark.accent,light.accent);
+   const backgrounds=new Set(),stagePairs=new Set();
    for(const value of ['default','red','brown','orange','yellow','green','sky','blue','pink','violet','gray','graphite']){
      await preset(page,value);
      for(const mode of ['light','dark']){
        if(await page.locator('html').getAttribute('data-theme')!==mode){await require('./header-menu.cjs').open(page);await page.locator('#toggle-theme').click();}
        const colors=await tokens(page);readable(colors);assert(mode==='light'?lum(colors.sidebar)>.5:lum(colors.sidebar)<.07,'Las barras y los laterales también distinguen día/noche en '+value);assert.equal(await page.locator('.topbar').evaluate(e=>getComputedStyle(e).colorScheme),mode);
-       if(!['default','gray','graphite'].includes(value)){const rgb=[1,3,5].map(i=>parseInt(colors.sidebar.slice(i,i+2),16));assert(Math.max(...rgb)-Math.min(...rgb)>=(mode==='light'?24:18),'El color se distingue en los paneles de '+value+' '+mode);}
+       backgrounds.add(colors.page);stagePairs.add(colors['writing-fill']+colors['breakdowns-fill']);assert.notEqual(colors['writing-fill'],colors['breakdowns-fill']);
+       if(!['default','gray','graphite'].includes(value))for(const [surface,minimum] of [['page',mode==='light'?17:16],['sidebar',mode==='light'?24:18]]){const rgb=[1,3,5].map(i=>parseInt(colors[surface].slice(i,i+2),16));assert(Math.max(...rgb)-Math.min(...rgb)>=minimum,'El color se distingue en '+surface+' de '+value+' '+mode);}
        if(['blue','red','brown','violet','graphite'].includes(value))await page.screenshot({path:path.join(output,'paleta-'+value+'-'+mode+'.png')});
      }
    }
+   assert.equal(backgrounds.size,24);
+   assert.equal(stagePairs.size,24);
    await preset(page,'default');
    assert(await page.locator('#account-menu-toggle').evaluate(el=>el===document.activeElement));
    const saved=await page.evaluate(key=>localStorage.getItem(key),key);await page.reload();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),saved);

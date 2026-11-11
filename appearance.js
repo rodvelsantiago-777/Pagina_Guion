@@ -4,18 +4,18 @@
   const key = "plano-appearance-v2", root = document.documentElement;
   const defaults = { mode: "light", preset: "default" };
   const palettes = {
-    default: { label: "Predeterminado", accent: "#93674b", surface: "#888888", contrast: "#383a3e" },
-    red: { label: "Rojo", accent: "#b94343", surface: "#9b8585", contrast: "#403134", chroma: .48, lightPanel: .89, darkPanel: .17 },
-    brown: { label: "Café", accent: "#876044", surface: "#9c8570", contrast: "#3c322c", chroma: .36, lightPanel: .86, darkPanel: .15 },
-    orange: { label: "Naranja", accent: "#be642a", surface: "#ac947f", contrast: "#43372f", chroma: .56, lightPanel: .90, darkPanel: .18 },
-    yellow: { label: "Amarillo", accent: "#a17a17", surface: "#a69f80", contrast: "#3e392d", chroma: .66, lightPanel: .90, darkPanel: .17 },
-    green: { label: "Verde", accent: "#438260", surface: "#84998a", contrast: "#2e3d34", chroma: .40, lightPanel: .88, darkPanel: .15 },
-    sky: { label: "Celeste", accent: "#2686ac", surface: "#819ba6", contrast: "#2c3b43", chroma: .60, lightPanel: .89, darkPanel: .165 },
-    blue: { label: "Azul", accent: "#476bab", surface: "#8290a2", contrast: "#29394e", chroma: .56, lightPanel: .89, darkPanel: .15 },
-    pink: { label: "Rosa", accent: "#b65d87", surface: "#a48897", contrast: "#44313c", chroma: .48, lightPanel: .90, darkPanel: .18 },
-    violet: { label: "Violeta", accent: "#8057ac", surface: "#9485a3", contrast: "#3a3046", chroma: .48, lightPanel: .90, darkPanel: .16 },
-    gray: { label: "Grises", accent: "#727272", surface: "#909090", contrast: "#353535", lightPanel: .91, darkPanel: .13 },
-    graphite: { label: "Grises oscuros", accent: "#434343", surface: "#696969", contrast: "#292929", lightPanel: .84, darkPanel: .07 }
+    default: { label: "Predeterminado", accent: "#93674b", surface: "#888888", contrast: "#383a3e", stages: ["#8a4e33", "#315e7a"] },
+    red: { label: "Rojo", accent: "#b94343", surface: "#9b8585", contrast: "#403134", chroma: .48, lightPanel: .89, darkPanel: .17, stages: ["#8f3648", "#386464"] },
+    brown: { label: "Café", accent: "#876044", surface: "#9c8570", contrast: "#3c322c", chroma: .36, lightPanel: .86, darkPanel: .15, stages: ["#795236", "#4c6151"] },
+    orange: { label: "Naranja", accent: "#be642a", surface: "#ac947f", contrast: "#43372f", chroma: .56, lightPanel: .90, darkPanel: .18, stages: ["#985027", "#475982"] },
+    yellow: { label: "Amarillo", accent: "#a17a17", surface: "#a69f80", contrast: "#3e392d", chroma: .66, lightPanel: .90, darkPanel: .17, stages: ["#82621d", "#65547d"] },
+    green: { label: "Verde", accent: "#438260", surface: "#84998a", contrast: "#2e3d34", chroma: .40, lightPanel: .88, darkPanel: .15, stages: ["#326452", "#86533a"] },
+    sky: { label: "Celeste", accent: "#2686ac", surface: "#819ba6", contrast: "#2c3b43", chroma: .60, lightPanel: .89, darkPanel: .165, stages: ["#266785", "#86576d"] },
+    blue: { label: "Azul", accent: "#476bab", surface: "#8290a2", contrast: "#29394e", chroma: .56, lightPanel: .89, darkPanel: .15, stages: ["#3c5e96", "#8a5834"] },
+    pink: { label: "Rosa", accent: "#b65d87", surface: "#a48897", contrast: "#44313c", chroma: .48, lightPanel: .90, darkPanel: .18, stages: ["#8c456b", "#446772"] },
+    violet: { label: "Violeta", accent: "#8057ac", surface: "#9485a3", contrast: "#3a3046", chroma: .48, lightPanel: .90, darkPanel: .16, stages: ["#694991", "#7d5b2d"] },
+    gray: { label: "Grises", accent: "#727272", surface: "#909090", contrast: "#353535", lightPanel: .91, darkPanel: .13, stages: ["#484848", "#696969"] },
+    graphite: { label: "Grises oscuros", accent: "#434343", surface: "#696969", contrast: "#292929", lightPanel: .84, darkPanel: .07, stages: ["#292929", "#515151"] }
   };
   let settings = { ...defaults }, accountManaged = false;
   const valid = value => Object.fromEntries(Object.entries(value || {}).filter(([name, item]) =>
@@ -61,19 +61,25 @@
     const deep = settings.preset === "graphite", colored = Boolean(palette.chroma), themed = settings.preset !== "default";
     // En los temas de color, el matiz ocupa superficies enteras. El predeterminado
     // conserva sus neutros; grises y grafito se distinguen por sus niveles de tinta.
-    const shade = (lightness, strength = 1) => hex(rgb(hsl(palette.accent)[0], palette.chroma * strength, lightness));
+    const hue = hsl(palette.accent)[0];
+    const shade = (lightness, strength = 1) => hex(rgb(hue, palette.chroma * strength, lightness));
     const surface = (lightness, strength, neutralSaturation) => colored ? shade(lightness, strength) : tone(s, lightness, neutralSaturation);
-    const paper = surface(dark ? (deep ? .085 : .125) : (deep ? .975 : .997), .30, .06);
+    const page = colored ? shade(dark ? .105 : .897, .92) : surface(dark ? (deep ? .05 : themed ? .095 : .085) : (deep ? .865 : .944), .50, .10);
+    const paper = colored ? shade(dark ? .145 : .975, .67) : surface(dark ? (deep ? .085 : .125) : (deep ? .935 : .99), .30, .06);
     const accentSoft = colored ? shade(dark ? .22 : .92, .90) : tone(palette.accent, dark ? .20 : .94, .20);
-    const accent = readableAccent(palette.accent, accentSoft, dark);
+    const surfaceHover = surface(dark ? .21 : colored ? .925 : .948, .80, .07);
+    const textBackground = [page, accentSoft, surfaceHover].reduce((a, b) => (dark ? luminance(a) > luminance(b) : luminance(a) < luminance(b)) ? a : b);
+    const accent = readableAccent(palette.accent, textBackground, dark);
     const panelLevel = dark ? palette.darkPanel ?? .105 : palette.lightPanel ?? .938;
     const sidebar = colored ? shade(panelLevel) : tone(dark ? c : s, panelLevel, dark ? .13 : .09);
     const sideHover = colored ? shade(dark ? panelLevel + .085 : panelLevel - .055, .95) : tone(dark ? c : s, dark ? panelLevel + .085 : panelLevel - .043, .12);
     const selected = readableAccent(palette.accent, "#ffffff", false);
     const tokens = {
-      page: surface(dark ? (deep ? .05 : .085) : (deep ? .925 : .958), .50, .07), paper,
-      "surface-alt": surface(dark ? (deep ? .12 : .155) : (deep ? .95 : .976), .55, .07), "surface-hover": surface(dark ? .19 : .948, .65, .07),
-      ink: tone(c, dark ? .925 : .14, .14), muted: tone(c, dark ? .73 : .39, .10), faint: tone(c, dark ? .70 : .42, .08),
+      page, paper,
+      "surface-alt": surface(dark ? (deep ? .12 : .174) : (deep ? .905 : colored ? .948 : .976), .73, .07), "surface-hover": surfaceHover,
+      ink: tone(c, dark ? .925 : .14, .14),
+      muted: readableAccent(tone(c, dark ? .73 : .39, .10), textBackground, dark),
+      faint: readableAccent(tone(c, dark ? .70 : .42, .08), textBackground, dark),
       line: surface(dark ? .25 : .855, .45, .07), "line-strong": surface(dark ? .34 : .74, .55, .07),
       accent, "accent-hover": tone(accent, dark ? Math.min(.85, hsl(accent)[2] + .07) : Math.max(.12, hsl(accent)[2] - .07), 1),
       "accent-soft": accentSoft,
@@ -82,12 +88,19 @@
       "side-accent": readableAccent(palette.accent, sideHover, dark),
       "side-line": colored ? shade(dark ? .31 : panelLevel - .13, .65) : tone(dark ? c : s, dark ? .25 : .81, .10), "side-hover": sideHover,
       "side-selected": selected, "on-side-selected": "#ffffff",
-      workspace: surface(dark ? .065 : .905, .55, .06),
+      workspace: surface(dark ? (colored ? .078 : .065) : (colored ? .84 : deep ? .80 : .895), .88, .09),
       "table-header": themed ? selected : tone(dark ? c : s, dark ? .20 : .90, .12), "table-header-ink": themed ? "#ffffff" : tone(c, dark ? .97 : .20, dark ? .04 : .12),
       "table-stripe": surface(dark ? .14 : .985, .35, .04),
       danger: dark ? "#f0a194" : "#a23d30", "danger-soft": dark ? "#382422" : "#fbede9",
       shadow: dark ? "#00000040" : "#181b2312", backdrop: "#0e1015a6"
     };
+    for (const [index, name] of ["writing", "breakdowns"].entries()) {
+      const color = palette.stages[index], lightness = hsl(color)[2];
+      const soft = tone(color, dark ? .235 : .885, .45);
+      tokens[name + "-fill"] = readableAccent(dark ? tone(color, Math.max(.18, lightness - .085), .60) : color, "#ffffff", false);
+      tokens[name + "-ink"] = readableAccent(color, soft, dark);
+      tokens[name + "-soft"] = soft;
+    }
     for (const [name, value] of Object.entries(tokens)) root.style.setProperty("--" + name, value);
     root.dataset.theme = settings.mode; root.dataset.palette = settings.preset; root.style.colorScheme = settings.mode;
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", tokens.sidebar);

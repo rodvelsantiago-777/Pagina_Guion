@@ -30,10 +30,9 @@
    <div class="project-info-fields"><label class="project-info-wide">Nombre del proyecto<input id="project-info-name" required maxlength="120" autocomplete="off" placeholder="Título del proyecto"></label><label>Género<input id="project-info-genre" maxlength="120" list="project-genre-options" placeholder="Por ejemplo, terror"><datalist id="project-genre-options"><option>Drama</option><option>Comedia</option><option>Terror</option><option>Suspenso</option><option>Ciencia ficción</option><option>Documental</option><option>Acción</option><option>Romance</option><option>Fantasía</option><option>Animación</option></datalist></label><label>Formato<select id="project-info-format"><option value="short">Cortometraje</option><option value="feature">Largometraje</option></select></label>
    <fieldset class="project-info-wide project-info-authors"><legend>Autor o autores</legend><div id="project-info-authors"></div><button id="project-add-author" class="project-info-text-button" type="button">+ Añadir autor</button><p class="project-info-hint">Se usarán también en la portada del guion.</p></fieldset>
    <label><span>Duración estimada <span class="project-info-unit">(minutos)</span></span><input id="project-info-duration" type="number" inputmode="decimal" min="0.1" max="1440" step="any" placeholder="Por ejemplo, 10"></label><label>Target / público objetivo<input id="project-info-target" maxlength="160" placeholder="Por ejemplo, adolescentes"></label><label>País de origen<input id="project-info-country" maxlength="80" placeholder="Por ejemplo, Colombia"></label><label>Idioma original<input id="project-info-language" maxlength="80" placeholder="Por ejemplo, español (latino)"></label></div>
-   <section id="project-completion" class="project-completion" hidden><label><input id="project-info-completed" type="checkbox"><span>Guion finalizado</span></label><p id="project-duration-preview" class="project-info-hint"></p><p id="project-finalization-notice" role="status" hidden></p></section>
    <section id="project-attachment" class="project-attachment"><div><strong>Guion existente <span>(opcional)</span></strong><p id="project-file-name">Si ya lo tienes escrito, puedes adjuntarlo aquí.</p></div><button id="project-attach-script" type="button">Adjuntar guion</button><button id="project-remove-script" class="project-info-text-button" type="button" hidden>Quitar</button><input id="project-info-file" type="file" hidden></section>
    <p id="project-info-error" class="project-info-error" role="alert" hidden></p><footer><button id="project-info-cancel" type="button" class="project-info-cancel">Cancelar</button><button id="create-project" type="submit" class="button button-primary">Crear proyecto</button></footer></form>`;
-  document.body.append(dialog);const $=s=>dialog.querySelector(s),form=$('#project-info-form');let current=null,saving=false,planned=null;
+  document.body.append(dialog);const $=s=>dialog.querySelector(s),form=$('#project-info-form');let current=null,saving=false;
   dialog.addEventListener('close',()=>{current=null;form.reset();$('#project-info-authors').replaceChildren();});
   function close(){if(!saving)dialog.close();}
   function authorRow(author){
@@ -43,28 +42,14 @@
    const remove=document.createElement('button');remove.type='button';remove.className='project-author-remove';remove.textContent='×';remove.setAttribute('aria-label','Quitar autor');remove.addEventListener('click',()=>{row.remove();authorButtons();});row.append(name,email,remove);return row;
   }
   function authorButtons(){const rows=[...$('#project-info-authors').children];for(const row of rows)row.querySelector('button').disabled=rows.length===1;$('#project-add-author').disabled=rows.length>=8;}
-  function updateDuration(){
-   const complete=$('#project-info-completed').checked;$('#project-info-duration').readOnly=complete;
-   if(current?.script&&complete)$('#project-info-duration').value=String(contentPages(current.script));
-   $('#project-duration-preview').textContent=complete?'Duración automática: '+description({...empty(),completed:true},current?.script)+'. Una página de contenido equivale a un minuto; la portada no cuenta.':contentPages(current?.script)?'Al finalizar, la duración se calculará a partir de las páginas de contenido. Se conservará también tu estimación inicial.':'Añade contenido al guion para poder marcarlo como finalizado.';
-   const notice=$('#project-finalization-notice');
-   notice.hidden=!complete||!current?.script||Boolean(current.info?.completed);
-   if(!notice.hidden){
-    const number=V.number(current.script),latest=current.versions?.at(-1);
-    const action=latest?.number===number?'Volverás a marcar la versión '+V.label(number)+' como finalizada.':'Se finalizará la versión '+V.label(number)+' y se guardará una copia en el historial.';
-    notice.textContent=action+' Cuando vuelvas a editar el guion, trabajarás en '+V.label(number+1)+'.';
-   }
-   $('#create-project').textContent=!current?.project?'Crear proyecto':notice.hidden?'Guardar ficha':'Finalizar '+V.label(V.number(current.script));
-  }
   function show(value={}){
    if(saving)return;const user=owner();if(!user)return;
    current={...value,owner:user.id};form.reset();$('#project-info-error').hidden=true;$('#project-info-file').value='';fileName();
    const editing=Boolean(value.project),info=validate(value.info)||empty();
    $('#project-info-name').value=value.name||'';for(const key of ['genre','format','target','country','language'])$('#project-info-'+key).value=info[key];
-   planned=info.estimatedMinutes;$('#project-info-duration').value=planned??'';$('#project-info-duration').readOnly=false;
+   $('#project-info-duration').value=info.estimatedMinutes??'';
    const authors=value.script?.authors?.length?value.script.authors:[{id:S.id(),name:user.name||'',email:user.email||'',phone:'',contact:''}];$('#project-info-authors').replaceChildren(...authors.map(authorRow));authorButtons();
-   $('#new-script-title').textContent=editing?'Ficha del proyecto':'Nuevo proyecto';$('#project-info-eyebrow').textContent=editing?'TU HISTORIA, EN DETALLE':'TU PRÓXIMA HISTORIA';$('#create-project').textContent=editing?'Guardar ficha':'Crear proyecto';$('#project-attachment').hidden=editing;$('#project-completion').hidden=!editing;
-   $('#project-info-completed').checked=info.completed;$('#project-info-completed').disabled=!info.completed&&!contentPages(value.script);updateDuration();
+   $('#new-script-title').textContent=editing?'Ficha del proyecto':'Nuevo proyecto';$('#project-info-eyebrow').textContent=editing?'TU HISTORIA, EN DETALLE':'TU PRÓXIMA HISTORIA';$('#create-project').textContent=editing?'Guardar ficha':'Crear proyecto';$('#project-attachment').hidden=editing;
    $('#project-info-file').accept=document.querySelector('#file-input').accept.replace('.plano,','');
    dialog.showModal();dialog.scrollTop=0;$('#project-info-name').focus();
   }
@@ -72,19 +57,19 @@
   $('#cancel-new-script').addEventListener('click',close);$('#project-info-cancel').addEventListener('click',close);dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   $('#project-add-author').addEventListener('click',()=>{if($('#project-info-authors').children.length>=8)return;const row=authorRow({id:S.id(),name:'',email:'',phone:'',contact:''});$('#project-info-authors').append(row);authorButtons();row.querySelector('input').focus();});
   $('#project-attach-script').addEventListener('click',()=>$('#project-info-file').click());$('#project-info-file').addEventListener('change',fileName);$('#project-remove-script').addEventListener('click',()=>{$('#project-info-file').value='';fileName();});
-  $('#project-info-completed').addEventListener('change',()=>{if($('#project-info-completed').checked)planned=$('#project-info-duration').value===''?null:Number($('#project-info-duration').value);else $('#project-info-duration').value=planned??'';updateDuration();});
   form.addEventListener('submit',async event=>{
    event.preventDefault();if(saving||!current||current.owner!==owner()?.id)return;
    try{
     const name=$('#project-info-name').value.trim();if(!name||name.length>120||/[\u0000-\u001f\u007f]/.test(name))throw Error('Escribe un nombre válido para el proyecto.');
     const authors=[...$('#project-info-authors').children].map(row=>({...row._author,name:row.querySelector('[data-author-name]').value.trim(),email:row.querySelector('[data-author-email]').value.trim()}));
     if(authors.some(a=>!a.name||a.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email)))throw Error('Revisa los nombres y correos de los autores.');
-    const completed=Boolean(current.project&&$('#project-info-completed').checked),info=validate({version:1,...Object.fromEntries(['genre','format','target','country','language'].map(key=>[key,$('#project-info-'+key).value])),estimatedMinutes:completed?planned:$('#project-info-duration').value===''?null:Number($('#project-info-duration').value),completed});
+    const duration=$('#project-info-duration').value;
+    const info=validate({version:1,...Object.fromEntries(['genre','format','target','country','language'].map(key=>[key,$('#project-info-'+key).value])),estimatedMinutes:duration===''?null:Number(duration),completed:Boolean(current.info?.completed)});
     const file=$('#project-info-file').files[0];if(file&&/\.plano$/i.test(file.name))throw Error('Para recuperar un proyecto .plano completo, usa Importar en Inicio.');
     saving=true;$('#project-info-error').hidden=true;for(const el of form.elements)el.disabled=true;$('#create-project').textContent='Guardando…';
     const creating=!current.project,result=await(current.project?save({...current,name,info,authors,updated:value=>Object.assign(current,value)}):create({name,info,authors,file}));if(result!==false&&current?.owner===owner()?.id){dialog.close();if(creating)document.querySelector('#writer-project-title')?.focus();}
    }catch(error){if(current?.owner===owner()?.id){$('#project-info-error').textContent=error.message||'No se pudo guardar la ficha.';$('#project-info-error').hidden=false;}}
-   finally{saving=false;for(const el of form.elements)el.disabled=false;authorButtons();if(current){updateDuration();$('#project-info-completed').disabled=!current.info?.completed&&!contentPages(current.script);}}
+   finally{saving=false;for(const el of form.elements)el.disabled=false;authorButtons();if(current)$('#create-project').textContent=current.project?'Guardar ficha':'Crear proyecto';}
   });
   return{dialog,show,get saving(){return saving;},close:()=>dialog.close()};
  };

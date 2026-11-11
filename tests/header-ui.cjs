@@ -30,7 +30,11 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
   for(const id of ['#open-account','#toggle-theme','#open-appearance'])assert(await page.locator(id).evaluate(el=>Boolean(el.closest('#project-menu'))));
   const mode=await page.locator('html').getAttribute('data-theme');await require('./header-menu.cjs').open(page);await page.locator('#toggle-theme').click();assert.notEqual(await page.locator('html').getAttribute('data-theme'),mode);
   await require('./header-menu.cjs').open(page);await page.locator('#open-appearance').click();assert(await page.locator('#appearance-dialog').isVisible());const palette=await page.locator('#appearance-dialog').boundingBox();assert(palette.x>700,'El selector se abre junto al avatar');await page.keyboard.press('Escape');assert(await page.locator('#account-menu-toggle').evaluate(el=>el===document.activeElement));
-  for(const stage of ['coverage','technical','writing']){await page.locator(`#stage-tabs [data-stage="${stage}"]`).click();assert.equal(await page.locator('#file-name').textContent(),'Proyecto final');}
+  for(const [stage,footer] of [['coverage','coverage-status'],['technical','technical-status'],['writing','writer-status']]){
+   await page.locator(`#stage-tabs [data-stage="${stage}"]`).click();
+   await page.locator(`.${footer} #open-cloud`).waitFor({state:'attached'});
+   assert.equal(await page.locator('#file-name').textContent(),'Proyecto final');
+  }
   await page.locator('#editor-home').click();assert(await page.locator('#project-overview').isHidden());assert(await page.locator('#home-projects').isVisible());assert(await page.locator('#file-name').isHidden());assert(await page.locator('#account-menu-toggle').isVisible());
   assert(await wordmark.isVisible());
   assert.equal(await wordmark.textContent(),'PLANO');
@@ -61,7 +65,7 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
   await page.evaluate(()=>PlanoHeader.syncCloud({configured:true,project:{id:'local'},status:'error',error:'Error de conexión de prueba'}));assert(await page.locator('#open-cloud .cloud-mark-error').isVisible());assert.equal(await page.locator('dialog[open]').count(),0);
   await page.evaluate(()=>PlanoHeader.syncCloud({configured:true,project:{id:'local'},status:'saved',error:''}));
   fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'cabecera-compacta.png')});
-  for(const width of [1440,900,390,320]){await page.setViewportSize({width,height:844});assert(await page.locator('#editor-home .brand-mark').isVisible());assert(await page.locator('#account-menu-toggle').isVisible());assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));const box=await page.locator('#file-name').boundingBox(),cloud=await page.locator('#open-cloud').boundingBox();assert(box.x>=0&&box.x+box.width<=width);assert(cloud.x>=box.x+box.width-1&&cloud.x-box.x-box.width<15,'La nube queda junto al nombre');assert(Math.abs((cloud.y+cloud.height/2)-(box.y+box.height/2))<5,'Título y nube comparten fila');}
+  for(const width of [1440,900,390,320]){await page.setViewportSize({width,height:844});assert(await page.locator('#editor-home .brand-mark').isVisible());assert(await page.locator('#account-menu-toggle').isVisible());assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));const box=await page.locator('#file-name').boundingBox(),finalize=await page.locator('.topbar #finalize-screenplay').boundingBox(),cloud=await page.locator('.writer-status #open-cloud').boundingBox();assert(box.x>=0&&box.x+box.width<=width);assert(finalize.x>=box.x+box.width-1&&finalize.x+finalize.width<=width);assert(cloud.x>=0&&cloud.x+cloud.width<=width&&cloud.y>finalize.y);}
   await require('./header-menu.cjs').open(page);const menu=await page.locator('.account-menu').boundingBox();assert(menu.x>=0&&menu.x+menu.width<=320);await page.screenshot({path:path.join(out,'cabecera-cuenta-movil.png')});assert.deepEqual(errors,[]);
   console.log('OK: icono, título limitado y editable sin modal, archivo independiente, iniciales, opciones de cuenta/tema globales, nube con estados y guardado directo, móvil.');
  }finally{await browser.close();}

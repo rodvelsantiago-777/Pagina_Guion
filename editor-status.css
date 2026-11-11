@@ -22,6 +22,17 @@
 .is-editing #feedback{bottom:calc(var(--editor-status-height,34px) + 12px);pointer-events:none}
 .editor-status #spelling-status{font:inherit;margin:0;max-width:230px;overflow-wrap:anywhere}.editor-status .spelling-status{display:inline}
 .editor-status #technical-summary{font:inherit;color:var(--ink);margin:0}.technical-status #technical-edit-status{margin-left:auto;max-width:none}
+.editor-status .status-cloud{display:inline-grid;place-items:center;flex:0 0 31px;width:31px;height:27px;min-height:27px;padding:1px;border-radius:4px}
+.status-cloud svg{width:25px;height:24px;overflow:visible}
+.status-cloud .cloud-mark-backdrop{fill:var(--paper);stroke:none}
+.status-cloud :is(.cloud-mark-check,.cloud-mark-error,.cloud-mark-saving){fill:none;stroke:currentColor;stroke-width:1.7}
+.status-cloud :is(.cloud-mark-backdrop,.cloud-mark-check,.cloud-mark-error,.cloud-mark-saving){display:none}
+.status-cloud[data-sync-state=saved] :is(.cloud-mark-backdrop,.cloud-mark-check),
+.status-cloud:is([data-sync-state=pending],[data-sync-state=saving]) :is(.cloud-mark-backdrop,.cloud-mark-saving),
+.status-cloud:is([data-sync-state=error],[data-sync-state=conflict]) :is(.cloud-mark-backdrop,.cloud-mark-error){display:block}
+.status-cloud .cloud-mark-saving{stroke-dasharray:13 8;transform-origin:21px 19px;animation:cloud-saving 1s linear infinite}
+@keyframes cloud-saving{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.status-cloud .cloud-mark-saving{animation:none}}
 @media(max-width:1250px){.editor-status .status-format{display:none}.editor-status{gap:4px 10px}.editor-status .status-info{gap:7px}}
 @media(max-width:800px){.editor-status,.editor-status.writer-status{padding:4px 62px 4px 10px;gap:4px 9px;min-height:36px}.editor-status .status-info{gap:5px 8px}.editor-status .status-zoom-range{width:72px;max-width:none}.editor-status .status-view-zoom,.editor-status>.status-zoom{justify-content:flex-end;flex-basis:100%}.editor-status .status-sync,.editor-status .save-status{max-width:none}.editor-status .status-info>span+span{padding-left:8px}.technical-status #technical-edit-status{margin-left:0}}
 @media print{.editor-status{display:none!important}}
