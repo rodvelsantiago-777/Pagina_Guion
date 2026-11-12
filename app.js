@@ -408,7 +408,7 @@ function createDocumentPreview(pdf) {
 }
 function currentLibraryProject() {
   if (!state.file) return null;
-  return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), project_emoji: state.projectInfo?.emoji??null, name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
+  return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), project_emoji: state.projectInfo?.emoji??null, project_genre: state.projectInfo?.genre??null, name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
 }
 function renameDocumentFile(name) {
   state.file = new File([state.file], pdfName(name), { type: "application/pdf" });
@@ -2395,7 +2395,7 @@ async function saveProjectInfo(context){
       }
       if(owner!==PlanoAccounts.getUser()?.id)return false;
       if(active)state.cloudProject={...project,...saved,payload};
-      project={...project,...saved,project_name:name,project_emoji:info?.emoji??null,payload};
+      project={...project,...saved,project_name:name,project_emoji:info?.emoji??null,project_genre:info?.genre??null,payload};
     }else{
       delete payload.thumbnail;
       localStorage.setItem(state.key,JSON.stringify(payload));

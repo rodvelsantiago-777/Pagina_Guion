@@ -35,6 +35,8 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   const editableMigration=process.env.PLANO_TEST_EDITABLE_MIGRATION||path.join(root,'supabase/migrations',fs.readdirSync(path.join(root,'supabase/migrations')).find(n=>n.endsWith('_editable_storage.sql'))||'missing.sql');await db.exec(fs.readFileSync(editableMigration,'utf8'));
   const emojiMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_project_emoji.sql'));
   const emojiSql=fs.readFileSync(path.join(root,'supabase/migrations',emojiMigration),'utf8');await db.exec(emojiSql);await db.exec(emojiSql);
+  const genreMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(name=>name.endsWith('_project_genre_accent.sql'));
+  const genreSql=fs.readFileSync(path.join(root,'supabase/migrations',genreMigration),'utf8');await db.exec(genreSql);await db.exec(genreSql);
   await db.exec('set role service_role');try{assert.equal(await preferences('ana','read',{}),null);}finally{await db.exec('reset role');}
   for(const role of ['anon','authenticated']){await db.exec('set role '+role);try{await assert.rejects(db.query('select * from public.plano_preferences'),/permission denied/);await assert.rejects(db.query("select public.plano_preferences('ana','read')"),/permission denied/);}finally{await db.exec('reset role');}}
   assert.equal((await json('preferences_read',{},'')).status,401);
@@ -277,8 +279,10 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await writerDevice.page.locator('#project-facts').getByRole('button',{name:'Editar ficha'}).click();
   assert.equal(await writerDevice.page.locator('#project-info-duration').inputValue(),'10');
   await writerDevice.page.locator('#project-info-name').fill('Proyecto de terror');
+  await writerDevice.page.locator('#project-info-genre').fill('Terror psicológico');
   await writerDevice.page.locator('#project-icon-button').click();
-  await writerDevice.page.locator('#project-emoji-search').fill('👻');
+  await writerDevice.page.locator('#project-emoji-search').fill('fantasma');
+  await writerDevice.page.locator('#project-emoji-grid').getByRole('button',{name:'fantasma',exact:true}).click();
   await writerDevice.page.locator('#project-add-author').click();
   await writerDevice.page.locator('[data-author-name]').last().fill('Eva Ríos');
   await writerDevice.page.route(url=>url.href===endpoint+'?action=save',route=>route.abort(),{times:1});
@@ -314,7 +318,9 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   const card=iconDevice.page.locator(`.script-card[data-project-id="${nativeId}"]`);
   await card.locator('.project-folder-symbol .project-emoji').waitFor();
   assert.equal(await card.locator('.project-folder-symbol').textContent(),'👻');
-  assert.equal((await rpc('ana','list',null,{})).projects.find(project=>project.id===nativeId).project_emoji,'👻');
+  assert.equal(await card.getAttribute('data-genre-accent'),'horror');
+  const listed=(await rpc('ana','list',null,{})).projects.find(project=>project.id===nativeId);
+  assert.equal(listed.project_emoji,'👻');assert.equal(listed.project_genre,'Terror psicológico');assert(!('payload' in listed));
   assert(!(await rpc('bob','list',null,{})).projects.some(project=>project.id===nativeId));
   await iconDevice.context.close();
   assert.equal(remoteInfo.payload.screenplayVersions[0].number,1);

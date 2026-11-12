@@ -24,6 +24,11 @@
  }
  const labels={idle:'Mis proyectos',saved:'Guardado en la nube',pending:'Cambios pendientes',saving:'Guardando…',conflict:'Conflicto de versiones',error:'No se ha guardado'};
  const projectName=project=>project.project_name||project.name.replace(/\.(pdf|plano)$/i,'');
+ function paintGenre(element,genre){
+  const accent=root.PlanoProjectInfo.genreAccent(genre);
+  if(accent)element.dataset.genreAccent=accent;
+  else delete element.dataset.genreAccent;
+ }
  const previewKey=project=>`${accountOwner}/${project.id}/${project.fingerprint}`;
  const atHome=()=>!document.body.classList.contains('is-editing');
  function sync(state){
@@ -83,6 +88,7 @@
   for(const project of projects){
    const title=project.id===openProjectInfo?.id&&(pending||project.id==='local')?openProjectInfo.project_name:projectName(project);
    const card=document.createElement('article');card.className='script-card project-folder';card.dataset.projectId=project.id;
+   paintGenre(card,project.project_genre===undefined&&project.id===openProjectInfo?.id?openProjectInfo.project_genre:project.project_genre);
    const open=button('',()=>openProject(project),'script-card-open');open.setAttribute('aria-label',`Abrir proyecto ${title}`);open.title=`Abrir ${title}`;open.disabled=project.state!=='ready';
    const preview=document.createElement('span');preview.className='script-card-preview';applyPreview(preview,project);
    const name=document.createElement('strong');name.className='script-card-name';name.textContent=title;
@@ -120,6 +126,8 @@
   $('#project-breadcrumb').hidden=!inProject;
   $('#project-rename').hidden=!inProject;
   $('#workspace-banner').dataset.view=inProject?'project':'library';
+  const workspace=$('#main-content');
+  paintGenre(workspace,selected?.project_genre);
   $('#library-banner-icon').hidden=inProject;
   $('#project-banner-preview').hidden=!inProject;
   $('#home-project-actions').hidden=inProject;
@@ -140,6 +148,7 @@
    if(version!==factsVersion||owner!==accountOwner||selectedProject?.id!==selected.id||!value)return;
    if(atHome()){
     $('#page-title').textContent=value.name;
+    paintGenre(workspace,value.info?.genre);
     renderProjectCover(thumbnail(value.project)?value.project:selected);
    }
    root.PlanoProjectInfo.render(facts,value,()=>task(()=>hooks.editProject(selected)),
@@ -308,7 +317,7 @@
  function projectUpdated(project){
   const record=projects.find(item=>item.id===project.id);
   if(record&&record.revision>project.revision)return;
-  if(record)for(const key of ['name','project_name','project_emoji','size_bytes','revision','updated_at','storage_kind','thumbnail'])if(Object.hasOwn(project,key))record[key]=project[key];
+  if(record)for(const key of ['name','project_name','project_emoji','project_genre','size_bytes','revision','updated_at','storage_kind','thumbnail'])if(Object.hasOwn(project,key))record[key]=project[key];
   if(selectedProject?.id===project.id)selectedProject=record||{...selectedProject,...project};
   if(atHome())renderHome();
  }

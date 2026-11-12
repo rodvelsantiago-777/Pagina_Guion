@@ -6,7 +6,8 @@
     if (!anchor || !element.matches(":popover-open")) return;
     const box = anchor instanceof Element ? anchor.getBoundingClientRect() : { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y };
     const size = element.getBoundingClientRect(), gap = 7;
-    const left = Math.max(8, Math.min(innerWidth - size.width - 8, box.right - size.width));
+    const idealLeft = element.dataset.align === "start" ? box.left : box.right - size.width;
+    const left = Math.max(8, Math.min(innerWidth - size.width - 8, idealLeft));
     const below = box.bottom + gap, above = box.top - size.height - gap;
     const top = below + size.height <= innerHeight - 8 || above < 8 ? Math.max(8, Math.min(innerHeight - size.height - 8, below)) : above;
     element.style.left = `${left}px`; element.style.top = `${top}px`;

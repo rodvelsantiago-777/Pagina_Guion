@@ -4,6 +4,18 @@
  const S=typeof module==='object'&&module.exports?require('./screenplay.js'):root.PlanoScreenplay;
  const V=typeof module==='object'&&module.exports?require('./screenplay-versions.js'):root.PlanoScreenplayVersions;
  const formats={short:'Cortometraje',feature:'Largometraje'},limits={genre:120,target:160,country:80,language:80};
+ const genreAliases={
+  drama:'drama',dramatico:'drama',comedia:'comedy',humor:'comedy',
+  terror:'horror',horror:'horror',suspenso:'thriller',suspense:'thriller',thriller:'thriller',
+  'ciencia ficcion':'scifi',scifi:'scifi','sci fi':'scifi',documental:'documentary',
+  accion:'action',aventura:'action',romance:'romance',romantico:'romance',romantica:'romance',
+  fantasia:'fantasy',fantastico:'fantasy',fantastica:'fantasy',animacion:'animation'
+ };
+ const genrePattern=new RegExp('\\b(?:'+Object.keys(genreAliases).join('|')+')\\b');
+ function genreAccent(genre){
+  const normalized=typeof genre==='string'?genre.slice(0,limits.genre).normalize('NFD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^a-z0-9]+/g,' '):'';
+  return genreAliases[normalized.match(genrePattern)?.[0]]||'';
+ }
  // Un icono puede incluir tono de piel, selectores de presentación o una secuencia unida.
  const emojiPattern=/^(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\u{1F3F4}[\u{E0061}-\u{E007A}]+\u{E007F}|\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?(?:\u200D\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?)*)$/u;
  function emoji(value){
@@ -30,7 +42,7 @@
  function duration(info,script){const pages=contentPages(script),automatic=Boolean(info?.completed);return{pages,automatic,minutes:automatic?pages:info?.estimatedMinutes??null};}
  const minutes=value=>value==null?'Por definir':value.toLocaleString('es',{maximumFractionDigits:2})+' min';
  function description(info,script){const value=duration(info,script);return value.automatic?`${minutes(value.minutes)} · ${value.pages} ${value.pages===1?'página de guion':'páginas de guion'}`:minutes(value.minutes)+' · estimación inicial';}
- const api={validate,empty,formats,contentPages,duration,description,emoji};if(typeof module==='object'&&module.exports){module.exports=api;return;}root.PlanoProjectInfo=api;
+ const api={validate,empty,formats,contentPages,duration,description,emoji,genreAccent};if(typeof module==='object'&&module.exports){module.exports=api;return;}root.PlanoProjectInfo=api;
  api.paintIcon=function(container,value){
   const symbol=emoji(value);
   if(symbol){
@@ -42,69 +54,108 @@
  api.editor=function({owner,create,save,loadEmojis}){
   const dialog=document.createElement('dialog');dialog.id='new-script-dialog';dialog.className='project-info-dialog';dialog.setAttribute('aria-labelledby','new-script-title');
   dialog.innerHTML=`<form id="project-info-form"><header><div><p class="dialog-eyebrow" id="project-info-eyebrow">TU PRÓXIMA HISTORIA</p><h2 id="new-script-title">Nuevo proyecto</h2><p class="project-info-lead">Define la ficha de tu historia. Podrás completarla o ajustarla después.</p></div><button id="cancel-new-script" class="shot-close" type="button" aria-label="Cerrar ficha del proyecto">×</button></header>
-   <div class="project-info-fields"><div class="project-identity project-info-wide"><div class="project-icon-field"><span>Icono</span><button id="project-icon-button" type="button" title="Elegir icono del proyecto" aria-label="Elegir icono del proyecto" aria-expanded="false" aria-controls="project-emoji-picker"><span id="project-icon-preview" aria-hidden="true"></span></button></div><label>Nombre del proyecto<input id="project-info-name" required maxlength="120" autocomplete="off" placeholder="Título del proyecto"></label>
-   <section id="project-emoji-picker" class="project-emoji-picker" aria-label="Elegir emoji del proyecto" hidden>
-    <div class="project-emoji-controls"><input id="project-emoji-search" type="search" placeholder="Buscar o pegar un emoji" aria-label="Buscar o pegar un emoji" autocomplete="off" spellcheck="false" maxlength="80"><select id="project-emoji-category" aria-label="Categoría de emojis" disabled></select></div>
-    <div id="project-emoji-grid" class="project-emoji-grid" role="group" aria-label="Emojis disponibles"></div>
-    <div class="project-emoji-footer"><button id="project-emoji-reset" type="button" class="project-info-text-button">Usar carpeta</button><span id="project-emoji-status" role="status"></span><button id="project-emoji-prev" type="button" aria-label="Emojis anteriores" disabled>‹</button><button id="project-emoji-next" type="button" aria-label="Más emojis" disabled>›</button></div>
+   <div class="project-info-fields"><div class="project-identity project-info-wide"><div class="project-icon-field"><span>Icono</span><button id="project-icon-button" type="button" title="Elegir icono del proyecto" aria-label="Elegir icono del proyecto" aria-expanded="false" aria-controls="project-emoji-picker" popovertarget="project-emoji-picker"><span id="project-icon-preview" aria-hidden="true"></span></button></div><label>Nombre del proyecto<input id="project-info-name" required maxlength="120" autocomplete="off" placeholder="Título del proyecto"></label>
+   <section id="project-emoji-picker" class="compact-popover project-emoji-picker" popover="auto" data-align="start" aria-label="Elegir emoji del proyecto">
+    <div id="project-emoji-categories" class="project-emoji-categories" role="group" aria-label="Categorías de emojis"></div>
+    <label class="project-emoji-search"><svg aria-hidden="true"><use href="#i-search"/></svg><input id="project-emoji-search" type="search" placeholder="Buscar emoji" aria-label="Buscar emoji" autocomplete="off" spellcheck="false" maxlength="80"></label>
+    <div class="project-emoji-heading"><h3 id="project-emoji-title">Caras y emociones</h3><button id="project-emoji-tones" type="button" aria-pressed="false" hidden>Tonos de piel</button></div>
+    <div id="project-emoji-scroll" class="project-emoji-scroll"><p id="project-emoji-status" role="status" hidden></p><div id="project-emoji-grid" class="project-emoji-grid" role="group" aria-labelledby="project-emoji-title"></div></div>
+    <footer class="project-emoji-footer"><button id="project-emoji-reset" type="button"><svg aria-hidden="true"><use href="#i-folder"/></svg>Usar carpeta</button></footer>
    </section></div><label>Género<input id="project-info-genre" maxlength="120" list="project-genre-options" placeholder="Por ejemplo, terror"><datalist id="project-genre-options"><option>Drama</option><option>Comedia</option><option>Terror</option><option>Suspenso</option><option>Ciencia ficción</option><option>Documental</option><option>Acción</option><option>Romance</option><option>Fantasía</option><option>Animación</option></datalist></label><label>Formato<select id="project-info-format"><option value="short">Cortometraje</option><option value="feature">Largometraje</option></select></label>
    <fieldset class="project-info-wide project-info-authors"><legend>Autor o autores</legend><div id="project-info-authors"></div><button id="project-add-author" class="project-info-text-button" type="button">+ Añadir autor</button><p class="project-info-hint">Se usarán también en la portada del guion.</p></fieldset>
    <label><span>Duración estimada <span class="project-info-unit">(minutos)</span></span><input id="project-info-duration" type="number" inputmode="decimal" min="0.1" max="1440" step="any" placeholder="Por ejemplo, 10"></label><label>Target / público objetivo<input id="project-info-target" maxlength="160" placeholder="Por ejemplo, adolescentes"></label><label>País de origen<input id="project-info-country" maxlength="80" placeholder="Por ejemplo, Colombia"></label><label>Idioma original<input id="project-info-language" maxlength="80" placeholder="Por ejemplo, español (latino)"></label></div>
    <section id="project-attachment" class="project-attachment"><div><strong>Guion existente <span>(opcional)</span></strong><p id="project-file-name">Si ya lo tienes escrito, puedes adjuntarlo aquí.</p></div><button id="project-attach-script" type="button">Adjuntar guion</button><button id="project-remove-script" class="project-info-text-button" type="button" hidden>Quitar</button><input id="project-info-file" type="file" hidden></section>
    <p id="project-info-error" class="project-info-error" role="alert" hidden></p><footer><button id="project-info-cancel" type="button" class="project-info-cancel">Cancelar</button><button id="create-project" type="submit" class="button button-primary">Crear proyecto</button></footer></form>`;
   document.body.append(dialog);const $=s=>dialog.querySelector(s),form=$('#project-info-form');let current=null,saving=false;
-  const iconButton=$('#project-icon-button'),picker=$('#project-emoji-picker'),search=$('#project-emoji-search'),category=$('#project-emoji-category');
-  const grid=$('#project-emoji-grid'),status=$('#project-emoji-status'),prev=$('#project-emoji-prev'),next=$('#project-emoji-next');
-  const perPage=42;
-  let symbol='',page=0,catalog=null,allEmojis=[],matches=[];
+  const iconButton=$('#project-icon-button'),picker=$('#project-emoji-picker'),search=$('#project-emoji-search');
+  const grid=$('#project-emoji-grid'),scroller=$('#project-emoji-scroll'),status=$('#project-emoji-status'),tones=$('#project-emoji-tones');
+  const categories=[
+   ['Caras y emociones','smile'],['Personas y gestos','people'],['Animales y naturaleza','paw'],
+   ['Comida y bebida','cup'],['Actividades','ball'],['Viajes y lugares','car'],
+   ['Objetos','bulb'],['Símbolos','symbols'],['Banderas','flag']
+  ];
+  const categoryButtons=categories.map(([label,icon])=>{
+   const button=document.createElement('button');button.type='button';button.title=label;
+   button.setAttribute('aria-label',label);button.setAttribute('aria-pressed','false');
+   button.innerHTML=`<svg aria-hidden="true"><use href="#i-${icon}"/></svg>`;
+   button.addEventListener('click',()=>{category=label;search.value='';filterEmojis();});
+   return button;
+  });
+  $('#project-emoji-categories').append(...categoryButtons);
+  let symbol='',category=categories[0][0],catalog=null,allEmojis=[],matches=[];
   const searchKey=value=>value.normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('es');
   function setIcon(value){
    symbol=emoji(value);api.paintIcon($('#project-icon-preview'),symbol);
    iconButton.setAttribute('aria-label',symbol?'Cambiar icono del proyecto '+symbol:'Elegir icono del proyecto');
   }
   function hidePicker(focus=false){
-   picker.hidden=true;iconButton.setAttribute('aria-expanded','false');
-   if(focus)iconButton.focus({preventScroll:true});
+   if(picker.matches(':popover-open'))root.PlanoPopover.hide(picker,focus);
   }
   function selectIcon(value){setIcon(value);hidePicker(true);}
-  function renderEmojis(){
-   const start=page*perPage,end=Math.min(matches.length,start+perPage);
-   grid.replaceChildren(...matches.slice(start,end).map(([value,label])=>{
-    const button=document.createElement('button');button.type='button';button.className='project-emoji';button.textContent=value;button.title=label;button.setAttribute('aria-label',label);button.dataset.emoji=value;button.disabled=saving;return button;
+  function appendEmojis(){
+   const start=grid.childElementCount;
+   grid.append(...matches.slice(start,start+120).map(({value,label},offset)=>{
+    const button=document.createElement('button');button.type='button';button.className='project-emoji';button.textContent=value;
+    button.title=label;button.setAttribute('aria-label',label);button.dataset.emoji=value;button.tabIndex=start+offset===0?0:-1;
+    if(value===symbol)button.setAttribute('aria-current','true');
+    return button;
    }));
-   prev.disabled=saving||page===0;next.disabled=saving||end>=matches.length;
-   status.textContent=matches.length?`${start+1}–${end} de ${matches.length}`:'Sin coincidencias';
   }
   function filterEmojis(){
-   if(!catalog)return;
    const words=searchKey(search.value.trim()).split(/\s+/).filter(Boolean);
-   const entries=category.value?catalog[category.value]:allEmojis;
-   matches=words.length?entries.filter(entry=>words.every(word=>entry[2].includes(word))):entries;
-   page=0;renderEmojis();
+   const searching=words.length>0;
+   $('#project-emoji-title').textContent=searching?'Resultados':category;
+   categoryButtons.forEach((button,index)=>button.setAttribute('aria-pressed',String(!searching&&categories[index][0]===category)));
+   if(!catalog)return;
+   const entries=searching?allEmojis.filter(entry=>words.every(word=>entry.keywords.includes(word))):catalog[category];
+   const hasTones=entries.some(entry=>entry.tone),showTones=tones.getAttribute('aria-pressed')==='true';
+   tones.hidden=!hasTones;
+   matches=showTones?entries:entries.filter(entry=>!entry.tone);
+   grid.replaceChildren();scroller.scrollTop=0;appendEmojis();
+   status.hidden=matches.length>0;
+   if(!status.hidden)status.textContent='Sin coincidencias';
   }
-  iconButton.addEventListener('click',async()=>{
-   if(!picker.hidden){hidePicker();return;}
-   picker.hidden=false;iconButton.setAttribute('aria-expanded','true');search.value='';search.focus();
+  iconButton.addEventListener('click',async event=>{
+   event.preventDefault();
+   if(picker.matches(':popover-open')){hidePicker();return;}
+   search.value='';category=categories[0][0];tones.setAttribute('aria-pressed','false');
+   root.PlanoPopover.show(picker,iconButton);
    if(catalog){filterEmojis();return;}
-   grid.replaceChildren();category.disabled=true;prev.disabled=next.disabled=true;status.textContent='Cargando emojis…';
+   filterEmojis();grid.replaceChildren();status.textContent='Cargando emojis…';status.hidden=false;
    try{
     await loadEmojis();
     if(!catalog){
-     catalog=Object.fromEntries(Object.entries(root.PlanoProjectEmojiData).map(([group,items])=>[group,items.map(([value,label,keywords])=>[value,label,searchKey(label+' '+keywords)])]));
+     catalog=Object.fromEntries(categories.map(([group])=>[group,root.PlanoProjectEmojiData[group].map(([value,label,keywords])=>({
+      value,label,keywords:searchKey(label+' '+keywords),tone:/\p{Emoji_Modifier}/u.test(value)
+     }))]));
      allEmojis=Object.values(catalog).flat();
-     category.replaceChildren(new Option('Todos',''),...Object.keys(catalog).map(label=>new Option(label,label)));
     }
-    if(dialog.open&&!picker.hidden){category.disabled=saving;filterEmojis();}
-   }catch{if(dialog.open&&!picker.hidden)status.textContent='Puedes pegar un emoji del teclado.';}
+    if(picker.matches(':popover-open'))filterEmojis();
+   }catch{if(picker.matches(':popover-open'))status.textContent='No se pudo cargar el catálogo. Cierra el selector y vuelve a abrirlo.';}
   });
-  search.addEventListener('input',event=>{if(event.isComposing)return;const value=emoji(search.value);if(value)selectIcon(value);else filterEmojis();});
-  search.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing)event.preventDefault();});
-  category.addEventListener('change',filterEmojis);
+  search.addEventListener('input',event=>{if(!event.isComposing)filterEmojis();});
+  search.addEventListener('keydown',event=>{
+   if(event.isComposing)return;
+   if(event.key==='Enter')event.preventDefault();
+   if(event.key==='ArrowDown'&&grid.firstElementChild){event.preventDefault();grid.querySelector('[tabindex="0"]')?.focus();}
+  });
+  tones.addEventListener('click',()=>{tones.setAttribute('aria-pressed',String(tones.getAttribute('aria-pressed')!=='true'));filterEmojis();});
+  scroller.addEventListener('scroll',()=>{
+   if(grid.childElementCount<matches.length&&scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight<96)appendEmojis();
+  },{passive:true});
   grid.addEventListener('click',event=>{const button=event.target.closest('button[data-emoji]');if(button)selectIcon(button.dataset.emoji);});
-  prev.addEventListener('click',()=>{page--;renderEmojis();if(prev.disabled)next.focus();});
-  next.addEventListener('click',()=>{page++;renderEmojis();if(next.disabled)prev.focus();});
+  grid.addEventListener('keydown',event=>{
+   if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+   event.preventDefault();
+   const columns=getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+   const step={ArrowLeft:-1,ArrowRight:1,ArrowUp:-columns,ArrowDown:columns}[event.key];
+   const index=Array.prototype.indexOf.call(grid.children,event.target),target=index+step;
+   if(target<0||target>=matches.length)return;
+   if(target>=grid.childElementCount)appendEmojis();
+   event.target.tabIndex=-1;grid.children[target].tabIndex=0;grid.children[target].focus();
+  });
   $('#project-emoji-reset').addEventListener('click',()=>selectIcon(''));
-  dialog.addEventListener('close',()=>{current=null;form.reset();$('#project-info-authors').replaceChildren();});
+  dialog.addEventListener('close',()=>{hidePicker();current=null;form.reset();$('#project-info-authors').replaceChildren();});
   function close(){if(!saving)dialog.close();}
   function authorRow(author){
    const row=document.createElement('div');row.className='project-author-row';row.dataset.id=author.id;row._author={...author};
@@ -126,7 +177,7 @@
    dialog.showModal();dialog.scrollTop=0;$('#project-info-name').focus();
   }
   function fileName(){const file=$('#project-info-file').files[0];$('#project-file-name').textContent=file?file.name:'Si ya lo tienes escrito, puedes adjuntarlo aquí.';$('#project-remove-script').hidden=!file;}
-  $('#cancel-new-script').addEventListener('click',close);$('#project-info-cancel').addEventListener('click',close);dialog.addEventListener('cancel',event=>{if(saving||!picker.hidden)event.preventDefault();if(!saving&&!picker.hidden)hidePicker(true);});
+  $('#cancel-new-script').addEventListener('click',close);$('#project-info-cancel').addEventListener('click',close);dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   $('#project-add-author').addEventListener('click',()=>{if($('#project-info-authors').children.length>=8)return;const row=authorRow({id:S.id(),name:'',email:'',phone:'',contact:''});$('#project-info-authors').append(row);authorButtons();row.querySelector('input').focus();});
   $('#project-attach-script').addEventListener('click',()=>$('#project-info-file').click());$('#project-info-file').addEventListener('change',fileName);$('#project-remove-script').addEventListener('click',()=>{$('#project-info-file').value='';fileName();});
   form.addEventListener('submit',async event=>{

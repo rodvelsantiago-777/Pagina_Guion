@@ -18,6 +18,7 @@
     {"id": "linked-project-screenplay-title", "category": "fixed", "text": "El título se sincroniza entre la portada, la cabecera y la biblioteca al renombrar el proyecto.", "topic": "projects", "order": 10},
     {"id": "project-dashboard-redesign", "category": "improved", "text": "Las carpetas reúnen portada, ficha y módulos por etapa. La biblioteca adopta el mismo diseño y destaca los accesos para crear e importar proyectos.", "topic": "projects", "order": 11},
     {"id": "project-emoji-icons", "category": "new", "text": "Elige un emoji como icono de proyecto al crearlo o al editar su ficha.", "topic": "projects", "order": 12},
+    {"id": "project-genre-accents", "category": "improved", "text": "El género da color a la tarjeta y a la carpeta de cada proyecto.", "topic": "projects", "order": 13},
     {"id": "script-library", "category": "new", "text": "Inicio con miniaturas de proyectos y botón + para añadir uno nuevo.", "topic": "projects", "order": 10},
     {"id": "account-storage-meter", "category": "new", "text": "Consulta el espacio usado y disponible desde Inicio.", "topic": "projects", "order": 20},
     {"id": "screenplay-pages-account", "category": "new", "text": "Guiones guardados en la cuenta y exportación a PDF con formato de guion.", "topic": "projects", "order": 30},
