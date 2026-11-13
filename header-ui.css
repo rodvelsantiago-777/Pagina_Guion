@@ -1,11 +1,10 @@
 /* Marca de Inicio y controles del proyecto en el editor. */
-.auth-entry-header .brand,.sidebar .brand{width:max-content;gap:0}.auth-entry-header .brand-mark,.sidebar .brand-mark{margin-right:0}
+.auth-entry-header .brand{width:max-content;gap:0}.auth-entry-header .brand-mark{margin-right:0}
 .topbar .editor-home{padding:0;min-width:28px;max-width:28px;flex:0 0 28px;letter-spacing:0}.topbar .editor-home .brand-mark{display:inline-flex;margin:0;transform:scale(.7) skewY(-15deg)}
 body:not(.is-editing) .topbar .editor-home{max-width:none;flex:0 0 auto;gap:6px}
 .topbar .editor-home .home-wordmark{display:block;font:700 18px/1 var(--sans);letter-spacing:.16em}
 .is-editing .topbar .editor-home .home-wordmark{display:none}
 .topbar .header-project{display:flex;align-items:center;min-width:0;flex:0 1 auto;max-width:38ch;gap:6px;overflow:visible}.topbar .header-project[hidden]{display:none}
-.topbar .local-badge{display:none}
 .header-project-name{flex:0 1 auto;box-sizing:border-box;display:block;max-width:100%;min-width:0;padding:5px 2px;border:1px solid transparent;border-radius:4px;background:none;color:var(--ink);font:600 14px/1.4 var(--sans);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text}
 .header-project-name:hover{border-color:var(--line);background:var(--surface-alt)}.header-project-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #project-title-form{flex:1 1 240px;min-width:0;max-width:100%;width:100%;margin:0}#project-title-input{box-sizing:border-box;width:100%;min-width:0;max-width:100%;border:1px solid var(--accent);border-radius:4px;padding:5px 7px;background:var(--paper);color:var(--ink);font:600 14px/1.4 var(--sans)}#project-title-input:disabled{opacity:.65}

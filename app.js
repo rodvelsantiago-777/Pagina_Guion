@@ -32,10 +32,6 @@ function message(text, error = false) {
   $("#feedback").classList.toggle("info", !error);
   if (text && !error) feedbackTimer = setTimeout(() => { $("#feedback").hidden = true; }, 4500);
 }
-function status(text, ready = false) {
-  $("#workspace-status").replaceChildren(document.createElement("span"), document.createTextNode(text));
-  $("#workspace-status").classList.toggle("ready", ready);
-}
 function busy(value) {
   state.busy = value;
   $("#open-export").disabled = value;
@@ -57,11 +53,10 @@ function showScreen(screen) {
   $("#upload-view").hidden = editing;
   updateStageView();
   $("#return-editor").hidden = !state.pdf;
-  $("#workspace-title").textContent = editing ? "Guion técnico / líneas de cobertura" : "Biblioteca de proyectos";
   $("#project-menu").open = false;
   if (editing) {
     setPanelOpen(state.panelOpen ?? !smallScreen.matches);
-    if (state.stage === "coverage") renderDocument({ anchor: state.viewAnchor });
+    if (state.stage === "coverage") { refreshAnnotations(); renderDocument({ anchor: state.viewAnchor }); }
     else if (state.stage === "writing") PlanoWriter.open(state.screenplay).catch(error => message(error.message, true));
     else refreshTechnicalScript();
   } else { $("#panel-backdrop").hidden = true; PlanoCloudLibrary.showHome(); }
@@ -100,7 +95,7 @@ async function switchStage(stage) {
   state.stage = stage; updateStageView();
   if (stage === "writing") await PlanoWriter.open(state.screenplay);
   else if (stage === "technical") refreshTechnicalScript();
-  else { await renderDocument({ anchor: state.viewAnchor }); startSpelling(); }
+  else { refreshAnnotations();await renderDocument({ anchor: state.viewAnchor }); startSpelling(); }
 }
 for (const button of document.querySelectorAll("#stage-tabs [data-stage]")) button.addEventListener("click", () => switchStage(button.dataset.stage));
 $("#stage-tabs").addEventListener("keydown", async event => {
@@ -141,13 +136,16 @@ async function generateScreenplayPdf(screenplay) {
 }
 async function buildScreenplayPdf(screenplay) {
   const version = new URL($("script[src^='app.js']").src).search;
-  await Promise.all([window.PDFLib?null:loadScript(`vendor/pdf-lib.min.js${version}`),window.fontkit?null:loadScript(`vendor/fontkit.min.js${version}`),window.PlanoScreenplayFonts?null:loadScript(`vendor/screenplay-fonts.js${version}`)]);
-  await window.PlanoScreenplayFonts.ready;
+  await Promise.all([window.PDFLib?null:loadScript(`vendor/pdf-lib.min.js${version}`),window.fontkit?null:loadScript(`vendor/fontkit.min.js${version}`),prepareScreenplayFonts()]);
   return PlanoScreenplay.pdf(screenplay,{primaryFonts:{fontkit:window.fontkit,face:window.PlanoScreenplayFonts.face},loadUnicode:async()=>{
     if(!window.PlanoPdfUnicode)try{await loadScript(`vendor/pdf-unicode.js${version}`);}catch{throw Error('No se pudieron cargar las fuentes del guion. Recarga la página y vuelve a intentarlo; el PDF original se conserva.');}
     if(!window.PlanoPdfUnicode?.fontkit)throw Error('No se pudieron cargar las fuentes del guion. Recarga la página y vuelve a intentarlo; el PDF original se conserva.');
     return window.PlanoPdfUnicode;
   }});
+}
+async function prepareScreenplayFonts() {
+  if(!window.PlanoScreenplayFonts){const version=new URL($("script[src^='app.js']").src).search;await loadScript(`vendor/screenplay-fonts.js${version}`);}
+  await window.PlanoScreenplayFonts.ready;
 }
 let engineReady;
 function prepareEngine() {
@@ -165,14 +163,16 @@ function prepareEngine() {
 }
 // La cobertura usa la superficie del redactor. El lector PDF solo se materializa
 // si una exportación necesita acceder a una página del archivo generado.
-function generatedDocument(generated) {
+function generatedDocument(script, pageCount) {
   let destroyed=false,task=null,opening=null;
-  const document={numPages:generated.surface.length,
+  const pdfBytes=async()=> (await generateScreenplayPdf(script)).bytes;
+  const document={numPages:pageCount,
+    source:name=>({name,arrayBuffer:async()=> (await pdfBytes()).slice().buffer}),
     async getPage(number){
       if(destroyed)throw Error('Documento cerrado.');
       if(!opening)opening=(async()=>{
-        await prepareEngine();if(destroyed)throw Error('Documento cerrado.');
-        task=pdfjsLib.getDocument({data:new Uint8Array(generated.bytes),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory});
+        const [bytes]=await Promise.all([pdfBytes(),prepareEngine()]);if(destroyed)throw Error('Documento cerrado.');
+        task=pdfjsLib.getDocument({data:bytes.slice(),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory});
         return task.promise;
       })().catch(error=>{opening=null;throw error;});
       const pdf=await opening;if(destroyed)throw Error('Documento cerrado.');return pdf.getPage(number);
@@ -215,7 +215,7 @@ function prepareDocx(){
   if(!docxEngine)docxEngine=Promise.all([loadScript('vendor/jszip.min.js'+version),loadScript('docx-script.js'+version)]).catch(error=>{docxEngine=null;throw error;});
   return docxEngine;
 }
-function prepareTxt(){return loadScript('txt-script.js'+new URL($("script[src^='app.js']").src).search);}
+async function prepareTxt(){await loadScript('screenplay-text.js');return loadScript('txt-script.js');}
 function prepareRtf(){return loadScript('rtf-script.js'+new URL($("script[src^='app.js']").src).search);}
 function prepareHtml(){return loadScript('html-script.js'+new URL($("script[src^='app.js']").src).search);}
 function prepareJson(){return loadScript('json-script.js'+new URL($("script[src^='app.js']").src).search);}
@@ -234,9 +234,17 @@ function selectCeltxScript(candidates){return selectImportedScript(candidates);}
 function selectWdzScript(candidates){return selectImportedScript(candidates,'WriterDuet','wdz');}
 function editableName(name){return (name||'Sin título').replace(/\.(?:pdf|plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i,'').slice(0,174)+'.plano';}
 function pdfName(name){return (name||'Sin título').replace(/\.(?:pdf|plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i,'')+'.pdf';}
-function linkedCorrections(items,script){if(items.every(item=>item.textAnchor))return structuredClone(items);const map=PlanoScreenplayLinks.geometry(script);return items.map(item=>{const textAnchor=item.textAnchor||PlanoScreenplayLinks.selectionAnchor(item.parts,map,item.id);if(textAnchor&&textAnchor.layoutRevision===undefined)textAnchor.layoutRevision=script.revision;return textAnchor?{...item,textAnchor}:{...item};});}
+function linkedCorrections(items,script,getMap=()=>PlanoScreenplayLinks.geometry(script)){
+  if(items.every(item=>item.textAnchor))return structuredClone(items);
+  const map=getMap();
+  return items.map(item=>{
+    const anchor=item.textAnchor||PlanoScreenplayLinks.selectionAnchor(item.parts,map,item.id);
+    const textAnchor=anchor&&anchor.layoutRevision===undefined?{...anchor,layoutRevision:script.revision}:anchor;
+    return textAnchor?{...item,textAnchor}:{...item};
+  });
+}
 function mapCorrectionEdits(items,change,doc,mapper){if(!items.length)return[];const mapped=(mapper||PlanoScreenplayLinks.editMapper(change.beforeDoc,doc,change.transactions))(items.map(item=>({coverageAnchor:item.textAnchor})));return items.map((item,index)=>mapped[index].coverageAnchor?{...item,textAnchor:mapped[index].coverageAnchor}:{...item});}
-function flowCorrections(items,script){const map=PlanoScreenplayLinks.geometry(script);return linkedCorrections(items,script).filter(item=>!PlanoCorrections.automatic(item)||item.textAnchor?.layoutRevision===script.revision).map(item=>{if(!item.textAnchor||item.textAnchor.layoutRevision===script.revision)return item;const ranges=PlanoScreenplayLinks.ranges(item.textAnchor,script,map),parts=[];for(const range of ranges){let part=parts.find(part=>part.page===range.page);if(!part){part={page:range.page,text:'',rects:[]};parts.push(part);}part.text+=(part.text?'\n':'')+range.text;part.rects.push(range.rect);}return{...item,textAnchor:{...item.textAnchor,layoutRevision:script.revision},parts:parts.length?parts:item.parts.map(part=>({...part,page:Math.min(part.page,map.pages.length)}))};});}
+function flowCorrections(items,script,getMap=()=>PlanoScreenplayLinks.geometry(script)){let map;const geometry=()=>map??=getMap();return linkedCorrections(items,script,geometry).filter(item=>!PlanoCorrections.automatic(item)||item.textAnchor?.layoutRevision===script.revision).map(item=>{if(!item.textAnchor||item.textAnchor.layoutRevision===script.revision)return item;const map=geometry(),ranges=PlanoScreenplayLinks.ranges(item.textAnchor,script,map),parts=[];for(const range of ranges){let part=parts.find(part=>part.page===range.page);if(!part){part={page:range.page,text:'',rects:[]};parts.push(part);}part.text+=(part.text?'\n':'')+range.text;part.rects.push(range.rect);}return{...item,textAnchor:{...item.textAnchor,layoutRevision:script.revision},parts:parts.length?parts:item.parts.map(part=>({...part,page:Math.min(part.page,map.pages.length)}))};});}
 function linkedProjectTitle(script,fallback){
   const title=PlanoScreenplay.projectTitle(script?.title);
   const name=PlanoScreenplay.projectTitle(fallback);
@@ -249,6 +257,7 @@ async function upload(file,options={}){
   const importingDocx=Boolean(file&&/\.docx$/i.test(file.name)&&!options.project&&!options.screenplay);
   const importingTxt=Boolean(file&&/\.txt$/i.test(file.name)&&!options.project&&!options.screenplay),importingRtf=Boolean(file&&/\.rtf$/i.test(file.name)&&!options.project&&!options.screenplay),importingHtml=Boolean(file&&/\.html?$/i.test(file.name)&&!options.project&&!options.screenplay),importingJson=Boolean(file&&/\.json$/i.test(file.name)&&!options.project&&!options.screenplay),importingCsv=Boolean(file&&/\.csv$/i.test(file.name)&&!options.project&&!options.screenplay),importingCeltx=Boolean(file&&/\.celtx$/i.test(file.name)&&!options.project&&!options.screenplay),importingFdx=Boolean(file&&/\.fdx$/i.test(file.name)&&!options.project&&!options.screenplay),importingWdz=Boolean(file&&/\.wdz$/i.test(file.name)&&!options.project&&!options.screenplay),importingFountain=Boolean(file&&/\.fountain$/i.test(file.name)&&!options.project&&!options.screenplay),importingScript=importingFountain||importingWdz||importingFdx||importingCeltx||importingDocx||importingTxt||importingRtf||importingHtml||importingJson||importingCsv;
   const converting=Boolean(!options.screenplay&&options.project?.storage_kind!=='editable'&&file&&!/\.(?:plano|docx|txt|rtf|html?|json|csv|celtx|fdx|wdz|fountain)$/i.test(file.name));
+  if(options.stage==='writing'||importingScript)PlanoWriter.prepare().catch(()=>{});
   const identity=state.fingerprint;busy(true);
   try{
     if(PlanoCloud.configured)await PlanoCloud.flush();
@@ -298,7 +307,10 @@ async function upload(file,options={}){
     if(basis){annotations=PlanoScreenplayLinks.attach(annotations,basis);corrections=linkedCorrections(corrections,basis);}
     if(basis&&basis.revision!==script.revision){annotations=PlanoScreenplayLinks.rebase(annotations,basis.doc,script.doc);for(const correction of corrections)if(correction.textAnchor)correction.textAnchor=PlanoScreenplayLinks.rebase([{coverageAnchor:correction.textAnchor}],basis.doc,script.doc)[0].coverageAnchor;}
     if(project?.storage_kind==='editable'||basis&&basis.revision!==script.revision){annotations=PlanoScreenplayLinks.reflow(annotations,script);corrections=flowCorrections(corrections,script);}
-    const generated=!retitled&&options.generated||await generateScreenplayPdf(script),pageCount=generated.titlePages+generated.pages;
+    await prepareScreenplayFonts();
+    const plan=PlanoScreenplay.pagePlan(script),pageCount=plan.surface.length;
+    // Comprueba la conversión antes de retirar un PDF antiguo de la cuenta.
+    if(converting)await generateScreenplayPdf(script);
     annotations=validateNotes(annotations,pageCount);corrections=PlanoCorrections.validate(corrections,pageCount);
     payload={...payload,version:1,documentFormat:2,projectName:name,screenplay:script,annotations,corrections,crew:PlanoCrew.validate(payload.crew),proofreading:PlanoSpelling.validate(payload.proofreading)};delete payload.screenplayCoverage;
     const validatedInfo=PlanoProjectInfo.validate(payload.projectInfo);if(validatedInfo)payload.projectInfo=validatedInfo;else delete payload.projectInfo;
@@ -314,8 +326,8 @@ async function upload(file,options={}){
     const fingerprint=project?.fingerprint||fingerprintHint||(options.writerRefresh?state.fingerprint:null)||Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('editable:'+script.id))),b=>b.toString(16).padStart(2,'0')).join('');
     if(PlanoAccounts.getUser()?.id!==owner.id||state.fingerprint!==identity)return false;
     PlanoEditableImport.update('Abriendo tu guion editable…',96);
-    const virtual=new File([generated.bytes],pdfName(project?.name||file?.name||script.title),{type:'application/pdf'});
-    const loaded=await openEditableDocument(virtual,{...options,project,payload,screenplay:script,generated,fingerprint,localProjectName:name,titleNeedsSync,importedProject:Boolean(archive&&!archive.legacy),stage:options.stage||archive?.payload.view?.stage||(importingScript?'writing':!options.screenplay&&converting?'coverage':undefined)});
+    const filename=pdfName(project?.name||file?.name||script.title);
+    const loaded=await openEditableDocument(filename,{...options,project,payload,screenplay:script,plan,fingerprint,localProjectName:name,titleNeedsSync,importedProject:Boolean(archive&&!archive.legacy),stage:options.stage||archive?.payload.view?.stage||(importingScript?'writing':!options.screenplay&&converting?'coverage':undefined)});
     if(loaded&&project?.pdf_cleanup_pending)message('El guion editable está guardado. La retirada del PDF pendiente se reintentará al volver a abrirlo.');else if(loaded&&importWarning)message(importWarning);
     return loaded;
   }catch(error){message(error.message||'No se pudo convertir el guion. El PDF original se conserva.',true);return false;}
@@ -323,20 +335,18 @@ async function upload(file,options={}){
 }
 
 // Solo recibe un guion ya convertido y validado. Los PDF originales se leen en readEditablePdf.
-async function openEditableDocument(file,options={}) {
+async function openEditableDocument(filename,options={}) {
   await PlanoAccounts.ready;
   if(!PlanoAccounts.getUser()){ $("#file-input").value="";PlanoAccounts.open("signup");return; }
-  if(!file||state.pending||state.editing||state.pasteHighlight||!PlanoTechnicalScript.finishEditing())return;
+  if(!filename||state.pending||state.editing||state.pasteHighlight||!PlanoTechnicalScript.finishEditing())return;
   const id=++state.loadId;let candidate=null;busy(true);message("");
-  const previousStatus=state.pdf?"Guion listo":"Sin documento";
   try{
     if(PlanoCloud.configured)await PlanoCloud.flush();
     if(id!==state.loadId)return;
-    const generated=options.generated,sourcePayload=options.payload,incomingScreenplay=PlanoScreenplay.validate(options.screenplay),hash=options.fingerprint;
-    if(!incomingScreenplay||!sourcePayload||!Array.isArray(generated?.surface)||!generated.surface.length||!hash)throw Error("Faltan las páginas del guion editable.");
-    status("Preparando páginas…");
-    const pdf=generatedDocument(generated);candidate=pdf;
-    const pages=PlanoScreenplaySurface.pages(generated.surface);
+    const surface=options.plan?.surface,sourcePayload=options.payload,incomingScreenplay=options.screenplay,hash=options.fingerprint;
+    if(!incomingScreenplay||!sourcePayload||!surface?.length||!hash)throw Error("Faltan las páginas del guion editable.");
+    const pdf=generatedDocument(incomingScreenplay,surface.length);candidate=pdf;
+    const pages=PlanoScreenplaySurface.pages(surface);
     let cloudProject=options.project||null;
     if(PlanoCloud.configured){
       if(!cloudProject||cloudProject.storage_kind!=="editable"||cloudProject.fingerprint!==hash)throw Error("El guion no coincide con el proyecto confirmado por la cuenta.");
@@ -351,7 +361,7 @@ async function openEditableDocument(file,options={}) {
     crewEditor.close();
     cancelSpelling();
     const previousPdf = state.pdf;
-    state.pdf = pdf; state.file = cloudProject ? new File([file], pdfName(cloudProject.name), { type: 'application/pdf' }) : file;
+    state.pdf = pdf; state.file = pdf.source(filename);
     state.cloudProject = cloudProject;
     state.localProjectName = options.localProjectName || null;
     state.pages = pages;
@@ -366,7 +376,7 @@ async function openEditableDocument(file,options={}) {
     state.projectInfo = incomingInfo;
     state.screenplayVersions = incomingVersions;
     state.proofreading = incomingProofreading; refreshSpelling();
-    state.screenplay = incomingScreenplay; state.pageSurface = generated.surface;
+    state.screenplay = incomingScreenplay; state.pageSurface = surface;
     state.pdfBasis = incomingScreenplay;
     cacheAnnotationShapes();
     state.writerPdfRevision = incomingScreenplay.revision;
@@ -379,8 +389,7 @@ async function openEditableDocument(file,options={}) {
     }
     if (["writing", "coverage", "technical"].includes(options.stage)) state.stage = options.stage;
     PlanoHeader.refresh();
-    updateSceneOptions(); refreshSegments(); setTool("select"); refreshAnnotations();
-    status(`${state.scenes.length} ${state.scenes.length === 1 ? "escena" : "escenas"} · Guion listo`, true);
+    updateSceneOptions(); refreshSegments(); setTool("select");
     if (previousPdf) previousPdf.destroy().catch(() => {});
     showScreen("editor");
     if (!state.thumbnail) createDocumentPreview(pdf);
@@ -391,7 +400,7 @@ async function openEditableDocument(file,options={}) {
     return true;
   }catch(error){
     if(id!==state.loadId)return;
-    candidate?.destroy().catch(()=>{});status(previousStatus,Boolean(state.pdf));
+    candidate?.destroy().catch(()=>{});
     message(`No se pudo abrir el guion editable. ${error.message||"Inténtalo de nuevo."}`,true);return false;
   }finally{if(id===state.loadId){busy(false);$("#file-input").value="";}}
 }
@@ -411,7 +420,7 @@ function currentLibraryProject() {
   return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), project_emoji: state.projectInfo?.emoji??null, project_genre: state.projectInfo?.genre??null, name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
 }
 function renameDocumentFile(name) {
-  state.file = new File([state.file], pdfName(name), { type: "application/pdf" });
+  state.file = state.pdf.source(pdfName(name));
   PlanoHeader.refresh();
   PlanoTechnicalWindow.publish();
 }
@@ -501,11 +510,16 @@ function cancelRendering() {
 function capturePosition() {
   if (!state.viewer) return null;
   const stageTop = $("#pdf-stage").getBoundingClientRect().top;
-  const contexts = Array.from(state.viewer.contexts.values());
-  const context = contexts.find(item => item.crop.getBoundingClientRect().bottom > stageTop + 3) || contexts.at(-1);
+  const contexts = state.viewer.ordered;
+  const context = contexts[firstContextBelow(contexts,stageTop+3)] || contexts.at(-1);
   if (!context) return null;
   const offset = stageTop - context.crop.getBoundingClientRect().top;
   return { page: context.segment.page, y: Math.max(context.segment.top, Math.min(context.segment.bottom, context.segment.top + offset / context.viewport.height)) };
+}
+function firstContextBelow(contexts, y) {
+  let start=0,end=contexts.length;
+  while(start<end){const mid=(start+end)>>1;if(contexts[mid].crop.getBoundingClientRect().bottom<=y)start=mid+1;else end=mid;}
+  return start;
 }
 
 function scrollToPosition(anchor) {
@@ -529,7 +543,8 @@ async function renderDocument({ preservePosition = false, anchor = null } = {}) 
   cancelRendering();
   const stage = $("#pdf-stage");
   state.renderWidth = stage.clientWidth;
-  const viewer = { id: state.renderId, surface: state.pageSurface, contexts: new Map(), queue: [], active: 0, nearby: new Set(), cancelled: false, observer: null };
+  const furniture=state.scene === 'print'?null:sceneTools.pageFurniture(state.pages);
+  const viewer = { id: state.renderId, surface: state.pageSurface, contexts: new Map(), ordered: [], furniture, queue: [], active: 0, nearby: new Set(), ready: new Set(), cancelled: false, observer: null };
   state.viewer = viewer;
   $("#render-status").hidden = false;
   $("#render-status").textContent = "Preparando guion…";
@@ -541,7 +556,7 @@ async function renderDocument({ preservePosition = false, anchor = null } = {}) 
     if (cover.length) {
       const card = document.createElement("section"); card.className = "script-cover-card"; card.setAttribute("aria-label", "Información de la portada");
       const page = state.pages[(state.segments[0]?.page || 1) - 1];
-      const scale = state.fit ? Math.min(1.6, Math.max(0.2, (stage.clientWidth - 48) / page.width)) : state.zoom;
+      const scale = state.fit ? Math.min(1.6, Math.max(0.2, (state.renderWidth - 48) / page.width)) : state.zoom;
       const width = page.width * scale;
       card.style.width = `${width}px`;
       card.style.setProperty("--cover-font-size", `${Math.max(16, 12 * scale)}px`);
@@ -556,7 +571,7 @@ async function renderDocument({ preservePosition = false, anchor = null } = {}) 
   $("#pdf-container").classList.toggle("has-scene-blocks", divided);
   for (const [index, segment] of state.segments.entries()) {
     const base = state.pages[segment.page - 1];
-    const fitScale = Math.max(0.2, (stage.clientWidth - 48) / base.width);
+    const fitScale = Math.max(0.2, (state.renderWidth - 48) / base.width);
     const scale = state.fit ? Math.min(1.6, fitScale) : state.zoom;
     const viewport = { width: base.width * scale, height: base.height * scale, scale };
     const slot = document.createElement("section"); slot.className = "page-slot";
@@ -583,7 +598,8 @@ async function renderDocument({ preservePosition = false, anchor = null } = {}) 
       }
       blocks.get(segment.sceneId).append(slot);
     } else fragment.append(slot);
-    viewer.contexts.set(segment.id, { viewer, index, segment, viewport, slot, crop, labelLayer, labelTextBoxes: [], inkBlocked: null, status: "idle", promise: null, resolve: null, content: null, svg: null });
+    const context={ viewer, index, segment, viewport, slot, crop, labelLayer, labelTextBoxes: [], inkBlocked: null, status: "idle", promise: null, resolve: null, content: null, svg: null };
+    viewer.contexts.set(segment.id, context);viewer.ordered.push(context);
   }
   $("#pdf-container").replaceChildren(fragment);
   stage.scrollTop = 0; stage.scrollLeft = 0;
@@ -660,11 +676,10 @@ async function renderContext(context) {
     svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-label", "Capa de líneas, resaltados y correcciones");
     content.append(textLayer,svg); crop.replaceChildren(content);
     context.content = content; context.svg = svg; context.paintKey = null;
-    const furniture = state.scene === "print" ? [] : state.pages[segment.page - 1].lines.filter(sceneTools.pageFurniture(state.pages));
+    const furniture = viewer.furniture ? state.pages[segment.page - 1].lines.filter(viewer.furniture) : [];
     await PlanoScreenplaySurface.render(surface,textLayer,viewport.scale,{top:segment.top,bottom:segment.bottom,excluded:furniture});
     if (viewer.cancelled) return;
-    PlanoDocumentLabels.prepare(context);
-    context.status = "ready"; context.slot.dataset.ready = "true"; context.slot.setAttribute("aria-busy", "false");
+    context.status = "ready"; viewer.ready.add(context);context.slot.dataset.ready = "true"; context.slot.setAttribute("aria-busy", "false");
     drawAnnotations(context); bindDrawing(context);
     let highlightDown = null;
     textLayer.addEventListener("pointerdown", event => { highlightDown = event.button === 0 ? { x: event.clientX, y: event.clientY } : null; });
@@ -681,7 +696,7 @@ async function renderContext(context) {
     });
   } catch (error) {
     if (viewer.cancelled || error.name === "RenderingCancelledException" || error.name === "AbortException") return;
-    context.status = "error";
+    context.status = "error";viewer.ready.delete(context);
     const warning = document.createElement("p"); warning.className = "page-error";
     warning.textContent = `No se pudo mostrar la página ${segment.page} del guion. `;
     const retry = document.createElement('button');retry.type='button';retry.className='button button-secondary';retry.textContent='Volver a intentar';
@@ -694,18 +709,18 @@ async function renderContext(context) {
 }
 
 function releaseDistantPages(viewer) {
-  if (viewer.cancelled) return;
-  const ready = Array.from(viewer.contexts.values()).filter(context => context.status === "ready");
-  if (ready.length <= 8) return;
+  if (viewer.cancelled||viewer.ready.size<=8) return;
+  const ready=[...viewer.ready];
   const stageTop = $("#pdf-stage").getBoundingClientRect().top;
   const selection = window.getSelection();
   const range = selection && !selection.isCollapsed && selection.rangeCount ? selection.getRangeAt(0) : null;
   const candidates = ready.filter(context => !viewer.nearby.has(context) && !context.draggingTitle && state.drawing?.context !== context && state.lineGesture?.context !== context && !range?.intersectsNode(context.content)).sort((a, b) => Math.abs(b.slot.getBoundingClientRect().top - stageTop) - Math.abs(a.slot.getBoundingClientRect().top - stageTop));
   for (const context of candidates.slice(0, ready.length - 8)) {
+    viewer.ready.delete(context);
     context.crop.replaceChildren();
     context.labelLayer.replaceChildren();
     if (context.overflowTitles) { context.overflowTitles.style.minHeight = `${context.overflowTitles.offsetHeight}px`; context.overflowTitles.replaceChildren(); }
-    Object.assign(context, { content: null, svg: null, labelTextBoxes: [], inkBlocked: null, paintKey: null, promise: null, status: "idle" });
+    Object.assign(context, { content: null, svg: null, labelTextBoxes: [], inkBlocked: null, paintKey: null, labelKey: null, linePreview: null, promise: null, status: "idle" });
     context.slot.dataset.ready = "false"; context.slot.setAttribute("aria-busy", "true");
   }
 }
@@ -714,15 +729,18 @@ function updatePageIndicator() {
   if (!state.viewer) return;
   const stage = $("#pdf-stage").getBoundingClientRect();
   let context = null; let largestArea = 0;
-  for (const candidate of state.viewer.contexts.values()) {
+  const contexts=state.viewer.ordered;
+  for(let i=firstContextBelow(contexts,stage.top);i<contexts.length;i++){
+    const candidate=contexts[i];
     const bounds = candidate.crop.getBoundingClientRect();
+    if(bounds.top>=stage.bottom)break;
     const visible = Math.max(0, Math.min(bounds.bottom, stage.bottom) - Math.max(bounds.top, stage.top));
     if (visible > largestArea) { largestArea = visible; context = candidate; }
   }
   if (!context) return;
   state.segmentIndex = context.index;
-  $("#page-label").textContent = `${context.segment.page} / ${state.pdf.numPages}`;
-  $("#page-label").setAttribute("aria-label", `Página ${context.segment.page} de ${state.pdf.numPages}. Lectura continua.`);
+  const label=$("#page-label"),value=`${context.segment.page} / ${state.pdf.numPages}`;
+  if(label.textContent!==value){label.textContent=value;label.setAttribute("aria-label", `Página ${context.segment.page} de ${state.pdf.numPages}. Lectura continua.`);}
 }
 
 function setTool(tool) {
@@ -1040,61 +1058,70 @@ function drawAnnotations(onlyContext = null) {
   if (!onlyContext?.segment) { cancelAnimationFrame(annotationDrawFrame); annotationDrawFrame = 0; }
   syncContinueLine();
   // Los listeners pueden pasar un evento: solo se aceptan contextos de página aquí.
-  const contexts = onlyContext?.segment ? [onlyContext] : Array.from(state.viewer?.contexts.values() || []);
+  const contexts = onlyContext?.segment ? [onlyContext] : Array.from(state.viewer?.ready || []);
   const items = [...state.annotations, ...PlanoCorrections.annotations(state.corrections), ...(state.pending?.items || [])].map(item => state.lineGesture && item.id === state.lineGesture.id ? state.lineGesture.draft : item);
+  const preview=state.drawing&&{type:"line",...PlanoCoverage.fromEnds(state.drawing.start,state.drawing.end)};
+  const previewColor=preview&&$("#annotation-color").value;
   const pages = new Map();
   for (const context of contexts) {
     if (!context.svg || context.status !== "ready") continue;
     if (!pages.has(context.segment.page)) pages.set(context.segment.page, PlanoCoverage.onPage(items, context.segment.page));
     const annotations = pages.get(context.segment.page).filter(item => annotationInSegment(item, context.segment));
-    const drawing = state.drawing && PlanoCoverage.part({type:"line", ...PlanoCoverage.fromEnds(state.drawing.start, state.drawing.end)}, context.segment.page);
-    const paintKey = JSON.stringify([state.tool, state.selectedLine, Boolean(state.drawing), drawing && [drawing.start, drawing.end, $("#annotation-color").value], annotations.map(item => [
+    const drawing=preview&&PlanoCoverage.part(preview,context.segment.page);
+    const selected=state.tool==='select'&&annotations.find(item=>item.id===state.selectedLine&&item.type==='line');
+    const paintKey = JSON.stringify([state.tool, selected?.id, annotations.map(item => [
       item.id, item.type, item.page, item.start, item.end, item.rects, item.color, annotationDisplayName(item),
-      item.labelPosition, item.lineLabel, item.labelPinned, item.labelUnrestricted, item.continuesBefore, item.continuesAfter, item.correction, item.correctionId, item.text
+      item.continuesBefore, item.continuesAfter, item.correction, item.correctionId, item.reviewKind, item.text
     ])]);
     // Una edición de sonido o notas no altera las marcas ni necesita medir de nuevo sus rótulos.
-    if (context.paintKey === paintKey) continue;
-    context.svg.replaceChildren();
-    for (const annotation of annotations.filter(item => item.page === context.segment.page)) {
-      const group = svgElement("g", { "data-annotation-id": annotation.id || "pending", ...(annotation.id ? {} : { class: "pending-annotation" }) });
-      if (annotation.correction) {
-        group.classList.add("script-correction-mark");group.dataset.reviewKind=annotation.reviewKind;
-        const size = state.pages[annotation.page - 1], shapes = PlanoCorrections.zigzags(annotation.rects, size);
-        for (const shape of shapes) {
-          const points = shape.map(point => `${point.x * 1000},${point.y * 1000}`).join(" ");
-          group.append(svgElement("polyline", { class: "script-correction-underline", points, fill: "none", stroke: annotation.color || PlanoCorrections.color, "stroke-width": .9 * context.viewport.scale, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round", "stroke-linecap": "round" }));
-          const hit = svgElement("polyline", { class: "correction-hit-target", points, tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Corrección: ${annotation.text.slice(0, 160)}` });
-          hit.addEventListener("pointerdown", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); } });
-          hit.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); showCorrectionAction(annotation.correctionId, { x: event.clientX, y: event.clientY }); });
-          hit.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); const box = hit.getBoundingClientRect(); showCorrectionAction(annotation.correctionId, { x: box.left, y: box.bottom }); } });
-          group.append(hit);
+    if (context.paintKey !== paintKey) {
+      context.svg.replaceChildren();context.linePreview=null;
+      for (const annotation of annotations) {
+        const group = svgElement("g", { "data-annotation-id": annotation.id || "pending", ...(annotation.id ? {} : { class: "pending-annotation" }) });
+        if (annotation.correction) {
+          group.classList.add("script-correction-mark");group.dataset.reviewKind=annotation.reviewKind;
+          const size = state.pages[annotation.page - 1], shapes = PlanoCorrections.zigzags(annotation.rects, size);
+          for (const shape of shapes) {
+            const points = shape.map(point => `${point.x * 1000},${point.y * 1000}`).join(" ");
+            group.append(svgElement("polyline", { class: "script-correction-underline", points, fill: "none", stroke: annotation.color || PlanoCorrections.color, "stroke-width": .9 * context.viewport.scale, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round", "stroke-linecap": "round" }));
+            const hit = svgElement("polyline", { class: "correction-hit-target", points, tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Corrección: ${annotation.text.slice(0, 160)}` });
+            hit.addEventListener("pointerdown", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); } });
+            hit.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); showCorrectionAction(annotation.correctionId, { x: event.clientX, y: event.clientY }); });
+            hit.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); const box = hit.getBoundingClientRect(); showCorrectionAction(annotation.correctionId, { x: box.left, y: box.bottom }); } });
+            group.append(hit);
+          }
+        } else if (annotation.type === "highlight") {
+          for (const rect of annotation.rects) group.append(svgElement("rect", { x: rect.x * 1000, y: rect.y * 1000, width: rect.width * 1000, height: rect.height * 1000, fill: annotation.color, "fill-opacity": 0.38, stroke: "none" }));
+        } else group.append(lineElement(annotation.start, annotation.end, annotation.color), ...lineCaps(annotation.start, annotation.end, annotation.color, context.viewport, annotation));
+        if (annotation.id && annotation.type === "line") {
+          const target = svgElement("path", { class: "line-hit-target", d: `M${annotation.start.x * 1000} ${annotation.start.y * 1000}L${annotation.end.x * 1000} ${annotation.end.y * 1000}`, stroke: "transparent", fill: "none", "stroke-width": 18, "vector-effect": "non-scaling-stroke", tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Mover línea: ${annotationDisplayName(annotation)}`, "aria-pressed": String(state.selectedLine === annotation.id) });
+          const help = svgElement("title"); help.textContent = "Arrastra para mover la línea. Clic para mostrar sus extremos. Flechas: mover; Mayús + flechas: 10 px."; target.append(help);
+          target.addEventListener("pointerdown", event => beginLineGesture(event, annotation, context, "move"));
+          target.addEventListener("keydown", event => lineKeydown(event, annotation, context, "move"));
+          group.append(target);
         }
-      } else if (annotation.type === "highlight") {
-        for (const rect of annotation.rects) group.append(svgElement("rect", { x: rect.x * 1000, y: rect.y * 1000, width: rect.width * 1000, height: rect.height * 1000, fill: annotation.color, "fill-opacity": 0.38, stroke: "none" }));
-      } else group.append(lineElement(annotation.start, annotation.end, annotation.color), ...lineCaps(annotation.start, annotation.end, annotation.color, context.viewport, annotation));
-      if (annotation.id && annotation.type === "line") {
-        const target = svgElement("path", { class: "line-hit-target", d: `M${annotation.start.x * 1000} ${annotation.start.y * 1000}L${annotation.end.x * 1000} ${annotation.end.y * 1000}`, stroke: "transparent", fill: "none", "stroke-width": 18, "vector-effect": "non-scaling-stroke", tabindex: state.tool === "select" ? 0 : -1, role: "button", "aria-label": `Mover línea: ${annotationDisplayName(annotation)}`, "aria-pressed": String(state.selectedLine === annotation.id) });
-        const help = svgElement("title"); help.textContent = "Arrastra para mover la línea. Clic para mostrar sus extremos. Flechas: mover; Mayús + flechas: 10 px."; target.append(help);
-        target.addEventListener("pointerdown", event => beginLineGesture(event, annotation, context, "move"));
-        target.addEventListener("keydown", event => lineKeydown(event, annotation, context, "move"));
-        group.append(target);
+        context.svg.append(group);
       }
-      context.svg.append(group);
+      if (selected) drawLineHandles(selected, context);
+      context.paintKey = paintKey;
     }
-    if (state.drawing) {
-      const draft = PlanoCoverage.part({type:"line", ...PlanoCoverage.fromEnds(state.drawing.start, state.drawing.end)}, context.segment.page);
-      if (draft) context.svg.append(lineElement(draft.start, draft.end, $("#annotation-color").value, true), ...lineCaps(draft.start, draft.end, $("#annotation-color").value, context.viewport, draft));
-    }
-    const selected = state.tool === "select" && annotations.find(item => item.id === state.selectedLine && item.type === "line");
-    if (selected) drawLineHandles(selected, context);
-    if (!state.drawing) PlanoDocumentLabels.draw(context, annotations.filter(item => !item.correction && item.page === context.segment.page), {
+    if(drawing){
+      if(!context.linePreview){context.linePreview=svgElement('g',{class:'line-drawing-preview','aria-hidden':'true'});context.svg.append(context.linePreview);}
+      context.linePreview.replaceChildren(lineElement(drawing.start,drawing.end,previewColor,true),...lineCaps(drawing.start,drawing.end,previewColor,context.viewport,drawing));
+    }else if(context.linePreview){context.linePreview.remove();context.linePreview=null;}
+    if(state.drawing)continue;
+    const labels=annotations.filter(item=>item.id&&!item.correction);
+    const labelKey=labels.length?JSON.stringify(labels.map(item=>[item.id,item.type,item.start,item.end,item.rects,item.color,annotationDisplayName(item),item.labelPosition,item.lineLabel,item.labelPinned,item.labelUnrestricted])):null;
+    if(context.labelKey===labelKey)continue;
+    if(labels.length&&!context.inkBlocked)PlanoDocumentLabels.prepare(context);
+    if(labelKey||context.labelKey)PlanoDocumentLabels.draw(context, labels, {
       displayName: annotationDisplayName, locate: jumpToAnnotation, scenes: state.scenes,
       positionMenu: showTitlePositionMenu,
       canDrag: () => state.tool === "select" && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight,
       move: (item, position) => { const source = state.annotations.find(note => note.id === item.id); if (!source) return; remember(); source.labelPosition = position; changed(); },
       moveLineTitle: (item, position) => { const source = state.annotations.find(note => note.id === item.id); if (!source) return; remember(); source.lineLabel = position; delete source.labelPosition; changed(); }
     });
-    context.paintKey = paintKey;
+    context.labelKey=labelKey;
   }
 }
 function annotationInSegment(item, segment) {
@@ -1326,7 +1353,7 @@ function startTextPlacement(data) {
   const tool = state.tool, panelOpen = state.panelOpen;
   setTool("highlight"); window.getSelection()?.removeAllRanges();
   if (smallScreen.matches) setPanelOpen(false);
-  const locks = Array.from(document.querySelectorAll('.topbar,#annotations-panel,.annotation-toolbar,#technical-view,.page-heading,.workspace-toolbar,.main-footer')).map(node => ({ node, inert: node.inert }));
+  const locks = Array.from(document.querySelectorAll('.topbar,#annotations-panel,.annotation-toolbar,#technical-view,.page-heading')).map(node => ({ node, inert: node.inert }));
   for (const {node} of locks) node.inert = true;
   state.pasteHighlight = { ...data, tool, panelOpen, locks };
   $("#paste-highlight-bar [role='status']").textContent = data.kind === "script-link" ? "Selecciona el texto que abarca este plano. Pulsa Listo para confirmar." : "Resalta el texto donde quieres colocar el plano copiado.";
@@ -1589,7 +1616,14 @@ $("#locate-shot-details").addEventListener("click", () => {
   if (item) jumpToAnnotation(item);
 });
 function changed() {
-  if(state.pdfBasis){const moved=new Set(state.annotations.filter(item=>annotationShapes.get(item.id)!==annotationShape(item)).map(item=>item.id));state.annotations=PlanoScreenplayLinks.attach(state.annotations,state.pdfBasis,moved);cacheAnnotationShapes();state.corrections=linkedCorrections(state.corrections,state.pdfBasis);}
+  if(state.pdfBasis){
+    const shapes=new Map(),moved=new Set();
+    for(const item of state.annotations){const shape=annotationShape(item);shapes.set(item.id,shape);if(annotationShapes.get(item.id)!==shape)moved.add(item.id);}
+    let geometry;const getMap=()=>geometry??=PlanoScreenplayLinks.geometry(state.pdfBasis);
+    state.annotations=PlanoScreenplayLinks.attach(state.annotations,state.pdfBasis,moved,{reuse:true,getMap});
+    annotationShapes=shapes;
+    if(state.corrections.some(item=>!item.textAnchor))state.corrections=linkedCorrections(state.corrections,state.pdfBasis,getMap);
+  }
   PlanoTechnicalWindow.publish();
   const anchor = state.screen === "editor" ? capturePosition() : null;
   refreshSegments();
@@ -1602,7 +1636,7 @@ function changed() {
   if (anchor) scrollToPosition(anchor);
   updatePageIndicator();
 }
-function currentPayload(overrides={}) {
+function currentPayload(overrides={},thumbnailMode='fit') {
   const payload = {
     version:1, documentFormat:2, fingerprint:state.fingerprint,
     annotations:state.annotations, corrections:state.corrections, crew:state.crew, proofreading:state.proofreading,
@@ -1612,9 +1646,9 @@ function currentPayload(overrides={}) {
     ...(state.screenplayVersions.length ? {screenplayVersions:state.screenplayVersions} : {}),
     ...overrides
   };
-  if (PlanoScreenplay.validThumbnail(payload.thumbnail??state.thumbnail)) {
+  if (thumbnailMode!=='omit'&&PlanoScreenplay.validThumbnail(payload.thumbnail??state.thumbnail)) {
     payload.thumbnail ??= state.thumbnail;
-    if (new TextEncoder().encode(JSON.stringify(payload)).length > PlanoCloud.PAYLOAD_LIMIT) delete payload.thumbnail;
+    if (thumbnailMode==='fit'&&new TextEncoder().encode(JSON.stringify(payload)).length > PlanoCloud.PAYLOAD_LIMIT) delete payload.thumbnail;
   }
   return payload;
 }
@@ -1622,11 +1656,11 @@ function saveNotes() {
   if (!state.key) return;
   if (PlanoCloud.configured) {
     if (!state.cloudProject) { $("#save-status").textContent = "Este guion todavía no está guardado en tu cuenta."; return; }
-    PlanoCloud.schedule(currentPayload());
+    PlanoCloud.schedule(currentPayload({},'defer'));
     return;
   }
   try {
-    const {thumbnail,...payload}=currentPayload();
+    const payload=currentPayload({},'omit');
     localStorage.setItem(state.key, JSON.stringify(payload));
     $("#save-status").textContent = "✓ Notas guardadas en este navegador";
   } catch { $("#save-status").textContent = "No se pudo guardar aquí. Exporta las notas antes de cerrar."; }
@@ -1714,7 +1748,7 @@ async function startSpelling() {
     if (!current()) return;
     const manual = state.corrections.filter(item => !PlanoCorrections.automatic(item));
     const ids = new Set(manual.map(item => item.id)), additions = [];
-    const {thumbnail,...budget}=currentPayload({corrections:manual});
+    const budget=currentPayload({corrections:manual},'omit');
     let size = new TextEncoder().encode(JSON.stringify(budget)).length;
     for (const item of found) {
       if(state.proofreading.ignored.includes(PlanoCorrections.ignoreKey(item)))continue;
@@ -2032,7 +2066,7 @@ function closeDocument() {
   refreshCorrections();
   syncShotSelection();
   $("#pdf-container").replaceChildren(); $("#technical-table-body").replaceChildren();
-  busy(false); message(""); status("Sin documento"); showScreen("import"); $("#upload-button").focus();
+  busy(false); message(""); showScreen("import"); $("#upload-button").focus();
 }
 
 $("#file-input").addEventListener("change", event => upload(event.target.files[0]));
@@ -2173,7 +2207,6 @@ async function legacyNotesAction(action,data){
   catch(error){message('No se pudo abrir la copia antigua. '+error.message,true);if(data?.input)data.input.value='';return false;}
 }
 $("#save-backup").addEventListener('click',()=>legacyNotesAction('save'));
-$("#restore-backup").addEventListener('click',()=>$("#backup-input").click());
 $("#backup-input").addEventListener('change',event=>{const input=event.target;legacyNotesAction('importNotes',{input,file:input.files[0],pdf:state.pdf});});
 document.addEventListener("keydown", event => {
   if (document.querySelector(".compact-popover:popover-open")) return;
@@ -2265,7 +2298,20 @@ PlanoCloudLibrary.init({
   canRename: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
   preview: buildLibraryPreview,
   home: () => showScreen("import"),
-  open: async (id, stage = "coverage") => { if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion."); if (state.pdf && (id === state.cloudProject?.id || id === "local")) { if(state.screen==='editor')await switchStage(stage);else{if(stage!=="writing"&&!await refreshWriterCoverage())throw Error("No se pudo actualizar el guion.");state.stage=stage;showScreen("editor");}return; } const loaded = await PlanoCloud.open(id); if (!await upload(loaded.file, { project: loaded.project, stage })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo."); },
+  open: async (id, stage = "coverage") => {
+    if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion.");
+    if (state.pdf && (id === state.cloudProject?.id || id === "local")) {
+      if(state.screen==='editor')await switchStage(stage);
+      else{
+        if(stage!=="writing"&&!await refreshWriterCoverage())throw Error("No se pudo actualizar el guion.");
+        state.stage=stage;showScreen("editor");
+      }
+      return;
+    }
+    if(stage==='writing')PlanoWriter.prepare().catch(()=>{});
+    const loaded = await PlanoCloud.open(id);
+    if (!await upload(loaded.file, { project: loaded.project, stage })) throw new Error("No se pudo abrir el proyecto. Comprueba el mensaje del editor e inténtalo de nuevo.");
+  },
   renameLocal: name => { renameDocumentFile(name);return currentLibraryProject(); },
   renameProject:renameLinkedProject,
   projectRenamed: project => { if (state.cloudProject?.id === project.id) state.cloudProject = {...state.cloudProject, ...project}; PlanoHeader.refresh();PlanoTechnicalWindow.publish(); },
@@ -2530,15 +2576,17 @@ async function refreshWriterCoverage(){
   const work=(async()=>{
     let candidate=null,committed=false;
     try{
-      const generated=await generateScreenplayPdf(script);candidate=generatedDocument(generated);const pdf=candidate,pages=[];
-      pages.push(...PlanoScreenplaySurface.pages(generated.surface));
+      await prepareScreenplayFonts();
+      const {surface}=PlanoScreenplay.pagePlan(script);candidate=generatedDocument(script,surface.length);
+      const pdf=candidate,pages=PlanoScreenplaySurface.pages(surface);
       if(PlanoAccounts.getUser()?.id!==owner||state.fingerprint!==key||state.screenplay?.revision!==script.revision){retry=state.fingerprint===key&&state.screenplay?.id===script.id;await candidate.destroy();return false;}
-      const notes=validateNotes(PlanoScreenplayLinks.reflow(state.annotations,script),pdf.numPages),corrections=PlanoCorrections.validate(flowCorrections(state.corrections,script),pdf.numPages);
+      let geometry;const getMap=()=>geometry??=PlanoScreenplayLinks.geometry(script);
+      const notes=validateNotes(PlanoScreenplayLinks.reflow(state.annotations,script,getMap),pdf.numPages),corrections=PlanoCorrections.validate(flowCorrections(state.corrections,script,getMap),pdf.numPages);
       const previous=state.pdf;cancelRendering();cancelSpelling();
-      state.pdf=pdf;state.pageSurface=generated.surface;committed=true;state.file=new File([generated.bytes],pdfName(state.file.name),{type:'application/pdf'});state.pages=pages;state.scenes=sceneTools.detectScenes(pages);state.annotations=notes;cacheAnnotationShapes();state.corrections=corrections;state.pdfBasis=script;state.writerPdfRevision=script.revision;
-      for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=PlanoScreenplayLinks.reflow(snapshot.annotations,script);snapshot.corrections=flowCorrections(snapshot.corrections||[],script);}
+      state.pdf=pdf;state.pageSurface=surface;committed=true;state.file=pdf.source(state.file.name);state.pages=pages;state.scenes=sceneTools.detectScenes(pages);state.annotations=notes;cacheAnnotationShapes();state.corrections=corrections;state.pdfBasis=script;state.writerPdfRevision=script.revision;
+      for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=PlanoScreenplayLinks.reflow(snapshot.annotations,script,getMap);snapshot.corrections=flowCorrections(snapshot.corrections||[],script,getMap);}
       if(!['all','editing','print',...state.scenes.map(scene=>scene.id)].includes(state.scene))state.scene='all';
-      updateSceneOptions();refreshSegments();refreshAnnotations();refreshSpelling();PlanoTechnicalWindow.publish();saveNotes();previous?.destroy().catch(()=>{});if(state.proofreading.enabled)startSpelling();
+      updateSceneOptions();refreshSegments();if(state.stage==='coverage')refreshAnnotations();else refreshTechnicalScript();refreshSpelling();PlanoTechnicalWindow.publish();saveNotes();previous?.destroy().catch(()=>{});if(state.proofreading.enabled)startSpelling();
       if(state.screen==='editor'&&state.stage==='coverage')await renderDocument({anchor:state.viewAnchor});
       return true;
     }catch(error){if(candidate&&!committed)candidate.destroy().catch(()=>{});if(state.fingerprint===key)message('No se pudo actualizar la vista del guion: '+error.message,true);return false;}
@@ -2570,14 +2618,17 @@ PlanoWriter.init({
       if(state.projectInfo)state.projectInfo={...state.projectInfo,completed:false};
       message('Estás editando el borrador '+PlanoScreenplayVersions.label(draft.edition)+'.');
     }
-    const anchored=items=>items.every(item=>item.coverageAnchor)?items:PlanoScreenplayLinks.attach(items,state.pdfBasis||state.screenplay);
+    const basis=state.pdfBasis||state.screenplay;let geometry;
+    const getMap=()=>geometry??=PlanoScreenplayLinks.geometry(basis);
+    const anchored=items=>items.every(item=>item.coverageAnchor)?items:PlanoScreenplayLinks.attach(items,basis,false,{reuse:true,getMap});
+    const correctionsLinked=items=>items.every(item=>item.textAnchor)?items:linkedCorrections(items,basis,getMap);
     state.annotations=anchored(state.annotations);
-    state.corrections=linkedCorrections(state.corrections,state.pdfBasis||state.screenplay);
+    state.corrections=correctionsLinked(state.corrections);
     if(change?.transactions){
-      const mapEdit=PlanoScreenplayLinks.editMapper(change.beforeDoc,screenplay.doc,change.transactions);
+      const mapEdit=PlanoScreenplayLinks.editMapper(change.beforeDoc,screenplay.doc,change.transactions,{reuse:true});
       state.annotations=mapEdit(state.annotations);
       state.corrections=mapCorrectionEdits(state.corrections,change,screenplay.doc,mapEdit);
-      for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=mapEdit(anchored(snapshot.annotations));snapshot.corrections=mapCorrectionEdits(linkedCorrections(snapshot.corrections||[],state.pdfBasis||state.screenplay),change,screenplay.doc,mapEdit);}
+      for(const snapshot of [...state.history,...state.future]){if(Array.isArray(snapshot))continue;snapshot.annotations=mapEdit(anchored(snapshot.annotations));snapshot.corrections=mapCorrectionEdits(correctionsLinked(snapshot.corrections||[]),change,screenplay.doc,mapEdit);}
     }
     const previous=state.screenplay;
     if(previous.title!==screenplay.title||previous.edition!==screenplay.edition||previous.copyright!==screenplay.copyright||
@@ -2609,7 +2660,6 @@ PlanoWriter.init({
   exportProject:exportProjectArchive,
 
 });
-async function restoreWrittenBackup(data){return legacyNotesAction('restore',data);}
 
 function exportProjectArchive(){
   if(!state.screenplay||state.busy||state.pending||state.editing||state.pasteHighlight||!PlanoTechnicalScript.finishEditing())return;

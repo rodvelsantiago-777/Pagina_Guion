@@ -3,7 +3,7 @@
 .editor-only{display:none}
 body:not(.is-editing) .editor-only{display:none}
 body.is-editing{height:100dvh;overflow:hidden}
-.is-editing .sidebar,.is-editing .page-heading,.is-editing .workspace-toolbar,.is-editing .coming-next,.is-editing .page-footer,.is-editing .breadcrumb,.is-editing .local-badge{display:none}
+.is-editing .page-heading,.is-editing .page-footer{display:none}
 .is-editing .app-shell{display:flex;height:100%;min-height:0}
 .is-editing .main-shell{display:flex;flex-direction:column;min-height:0}
 .is-editing main{max-width:none;margin:0;padding:0;min-height:0;flex:1;width:100%}

@@ -13,3 +13,15 @@ const source=S.fromPdf([{width:612,height:792,lines:[{text:'INT. CASA - DÍA',x:
 console.log('OK: vínculos estables, desplazamiento a otras páginas, datos de plano conservados, rangos borrados, transacciones, compatibilidad de archivos antiguos de escritura, autores y geometría inicial de PDF.');
 
 const reuse=L.editMapper(script.doc,after,[transaction]);const saved=structuredClone(linked);assert.deepEqual(reuse(linked),mapped);assert.deepEqual(reuse(linked),mapped,'El mismo índice sirve para varias instantáneas');assert.deepEqual(linked,saved,'El mapeo no modifica los planos del historial original');
+
+let mappingCalls=0;
+const counted={mapping:{mapResult(...args){mappingCalls++;return transaction.mapping.mapResult(...args);}}};
+const shared=L.editMapper(script.doc,after,[counted],{reuse:true});
+assert.deepEqual(shared(linked),mapped);
+const firstPass=mappingCalls;
+assert.deepEqual(shared(structuredClone(linked)),mapped);
+assert.equal(mappingCalls,firstPass,'Deshacer conserva los vínculos idénticos sin volver a proyectarlos');
+const resized=structuredClone(linked);
+resized[1].coverageAnchor.to.offset--;
+assert.deepEqual(shared(resized),L.mapEdits(resized,script.doc,after,[transaction]),'Un resalte previo con el mismo identificador conserva su tamaño');
+assert(mappingCalls>firstPass);

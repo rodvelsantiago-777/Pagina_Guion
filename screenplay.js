@@ -66,11 +66,17 @@
    if(from===newline){from++;if(from===text.length)lines.push({from,to:from,text:''});}
   }return lines;
  }
- function layout(doc,{literal=false}={}){
+ function layout(doc,{literal=false,wrapped}={}){
   const blocks=[],pages=[[]],continued=continuations(doc),semantic=doc.attrs?.screenplaySyntax===1;let page=0,row=0,pos=0,speaker='',sceneNumber=0;
   for(const node of doc.content){
-   const raw=plain(node),kind=node.attrs.kind,spec=types[kind],range=semantic||literal?{from:0,to:raw.length}:syntaxRange(kind,raw),text=raw.slice(range.from,range.to),label=!literal&&kind==='character'&&continued.get(node.attrs.id)?" (CONT'D)":'',shown=spec.upper?text.toLocaleUpperCase('es'):text;
-   const lines=kind==='parenthetical'&&!literal?wrap('('+shown+')',spec.columns).map(line=>({...line,from:Math.max(0,Math.min(text.length,line.from-1)),to:Math.max(0,Math.min(text.length,line.to-1)),text:text.slice(Math.max(0,line.from-1),Math.min(text.length,line.to-1)),prefix:line.from===0?'(':'',suffix:line.to===shown.length+2?')':''})):wrap(shown,spec.columns-label.length).map((line,index,array)=>({...line,suffix:index===array.length-1?label:''}));
+   const kind=node.attrs.kind,spec=types[kind],label=!literal&&kind==='character'&&continued.get(node.attrs.id)?" (CONT'D)":'';
+   let paragraph=wrapped?.get(node);
+   if(!paragraph||paragraph.label!==label||paragraph.literal!==literal||paragraph.semantic!==semantic){
+    const raw=plain(node),range=semantic||literal?{from:0,to:raw.length}:syntaxRange(kind,raw),text=raw.slice(range.from,range.to),shown=spec.upper?text.toLocaleUpperCase('es'):text;
+    const lines=kind==='parenthetical'&&!literal?wrap('('+shown+')',spec.columns).map(line=>({...line,from:Math.max(0,Math.min(text.length,line.from-1)),to:Math.max(0,Math.min(text.length,line.to-1)),text:text.slice(Math.max(0,line.from-1),Math.min(text.length,line.to-1)),prefix:line.from===0?'(':'',suffix:line.to===shown.length+2?')':''})):wrap(shown,spec.columns-label.length).map((line,index,array)=>({...line,suffix:index===array.length-1?label:''}));
+    paragraph={raw,range,text,lines,label,literal,semantic};wrapped?.set(node,paragraph);
+   }
+   const {raw,range,text,lines}=paragraph;
    if(kind==='character')speaker=withoutContinued(raw);else if(!['dialogue','parenthetical'].includes(kind))speaker='';
    if(kind==='scene'&&text.trim())sceneNumber++;
    let space=row&&!['dialogue','parenthetical'].includes(kind)?kind==='scene'?2:1:0;
@@ -154,7 +160,7 @@
     }
    }script.sourceLayout={...script.sourceLayout,rows};
   }
-  return{script:validate(script),mapping,changed};
+  return{script:changed?validate(script):script,mapping,changed};
  }
  function forExport(value){const script=normalizeSyntax(value).script;if(!script)return script;const labels=continuations(script.doc);script.doc.content=script.doc.content.map(node=>{const content=(node.content||[]).map(piece=>({...piece}));if(node.attrs.kind==='parenthetical'){content.unshift({type:'text',text:'('});content.push({type:'text',text:')'});}else if(node.attrs.kind==='character'&&labels.get(node.attrs.id))content.push({type:'text',text:" (CONT'D)"});return{...node,...(content.length?{content}: {})};});delete script.doc.attrs;delete script.sourceLayout;return script;}
  const copyrightLine=/^(?:copyright\b|©)/i;
@@ -198,17 +204,50 @@
   for(const author of script.authors.filter(a=>a.name.trim()))top+=wrap(author.name,60).length*12+6;
   return coverFooter(script,top);
  }
- async function pdf(value,{loadUnicode,primaryFonts}={}){
-  const script=normalizeSyntax(value).script;if(!root.PDFLib)throw Error('No se pudo cargar el generador PDF.');const {PDFDocument,StandardFonts,rgb}=root.PDFLib;
-  const document=await PDFDocument.create(),fonts={normal:await document.embedFont(StandardFonts.Courier),bold:await document.embedFont(StandardFonts.CourierBold),italic:await document.embedFont(StandardFonts.CourierOblique),both:await document.embedFont(StandardFonts.CourierBoldOblique)};
-  const unicodeFonts=new Map(),primary=new Map(),surfaceRows=new Map();
-  function surfaceText(page,text,x,baseline,size,marks,font){
-   if(!text)return;
-   const kind=marks.some(mark=>mark.type==='bold')?(marks.some(mark=>mark.type==='italic')?'both':'bold'):(marks.some(mark=>mark.type==='italic')?'italic':'normal');
-   if(!surfaceRows.has(page))surfaceRows.set(page,[]);
-   surfaceRows.get(page).push({text,x,baseline,size,width:font?font.widthOfTextAtSize(text,size):text.length*size*.6,kind,underline:marks.some(mark=>mark.type==='underline'),unicode:font&&unicodeFonts.get(kind)?.font===font});
+ const fontKind=marks=>{const bold=marks.some(mark=>mark.type==='bold'),italic=marks.some(mark=>mark.type==='italic');return bold?(italic?'both':'bold'):(italic?'italic':'normal');};
+ const boldMarks=[{type:'bold'}];
+ function pagePlan(script){
+  const newPage=(width=612,height=792)=>({width,height,runs:[]});
+  const add=(page,text,x,baseline,size=12,marks=[])=>{if(text)page.runs.push({text,x,baseline,size,kind:fontKind(marks),underline:marks.some(mark=>mark.type==='underline')});};
+  const source=script.sourceLayout;
+  if(source?.revision===script.revision){
+   const surface=source.pages.map(size=>newPage(size.width,size.height)),nodes=new Map(script.doc.content.map(node=>[node.attrs.id,node])),labels=continuations(script.doc),lastRows=new Map();
+   for(const row of source.rows)if(row.id)lastRows.set(row.id,row);
+   for(const row of source.rows){
+    const node=nodes.get(row.id),text=node?plain(node).slice(row.from||0,row.to):row.text;if(!text)continue;
+    const page=surface[row.page-1],marks=node&&['scene','section'].includes(node.attrs.kind)?boldMarks:[],size=row.height*page.height,baseline=row.y*page.height+size*.9;
+    for(const part of row.parts||[[0,text.length,row.x,row.width]])add(page,text.slice(part[0],part[1]),part[2]*page.width,baseline,size,marks);
+    if(node?.attrs.kind==='character'&&labels.get(node.attrs.id)&&lastRows.get(row.id)===row)add(page," (CONT'D)",(row.x+row.width)*page.width,baseline,size);
+   }
+   return{titlePages:0,pages:surface.length,surface};
   }
-  const surface=()=>document.getPages().map(page=>({width:page.getWidth(),height:page.getHeight(),runs:surfaceRows.get(page)||[]}));
+  const cover=newPage(),titleLines=wrap((script.title||'Sin título').toLocaleUpperCase('es'),60);let top=252;
+  const draw=(page,text,x,y,marks)=>add(page,text,x,y+12,12,marks);
+  for(const line of titleLines){draw(cover,line.text,(612-line.text.length*7.2)/2,top,boldMarks);top+=12;}
+  top+=24;draw(cover,'Escrito por',(612-10*7.2)/2,top);top+=24;
+  for(const author of script.authors.filter(a=>a.name.trim())){for(const line of wrap(author.name,60)){draw(cover,line.text,(612-line.text.length*7.2)/2,top);top+=12;}top+=6;}
+  const footer=coverFooter(script,top),surface=[cover];
+  while(surface.length<footer.pages)surface.push(newPage());
+  for(const entry of footer.entries)draw(surface[entry.page],entry.text,entry.x,entry.top);
+  const titlePages=surface.length,flow=layout(script.doc),nodesById=new Map(script.doc.content.map(node=>[node.attrs.id,node])),scenes=new Map(flow.blocks.filter(block=>block.sceneNumber).map(block=>[block.id,block.sceneNumber]));
+  for(const [number,lines]of flow.pages.entries()){
+   const page=newPage();surface.push(page);if(number>0)draw(page,(number+1)+'.',540-String(number+1).length*7.2,36);
+   for(const line of lines){
+    const y=72+line.row*12;
+    if(line.virtual){draw(page,line.text,line.left,y);continue;}
+    const node=nodesById.get(line.blockId),spec=types[line.kind];let x=spec.right?540-line.text.trimEnd().length*7.2:spec.left;
+    if(line.kind==='scene'&&line.first&&scenes.has(line.blockId)){const label=String(scenes.get(line.blockId));draw(page,label,54,y);draw(page,label,564,y);}
+    if(line.prefix){draw(page,line.prefix,x,y);x+=line.prefix.length*7.2;}
+    for(const run of runs(node,line.from,line.to)){let text=spec.upper?run.text.toLocaleUpperCase('es'):run.text;text=text.replace(/\n/g,'');const marks=['scene','section'].includes(line.kind)?[...run.marks,...boldMarks]:run.marks;draw(page,text,x,y,marks);x+=text.length*7.2;}
+    if(line.suffix)draw(page,line.suffix,x,y);
+   }
+  }
+  return{titlePages,pages:flow.pageCount,surface};
+ }
+ async function pdf(value,{loadUnicode,primaryFonts}={}){
+  const script=normalizeSyntax(value).script,plan=pagePlan(script);if(!root.PDFLib)throw Error('No se pudo cargar el generador PDF.');const {PDFDocument,StandardFonts,rgb}=root.PDFLib;
+  const document=await PDFDocument.create(),fonts={normal:await document.embedFont(StandardFonts.Courier),bold:await document.embedFont(StandardFonts.CourierBold),italic:await document.embedFont(StandardFonts.CourierOblique),both:await document.embedFont(StandardFonts.CourierBoldOblique)};
+  const unicodeFonts=new Map(),primary=new Map();
   async function textFont(text,kind){
    if(primaryFonts){if(!primary.has(kind)){document.registerFontkit(primaryFonts.fontkit);const font=await document.embedFont(primaryFonts.face(kind),{subset:true});primary.set(kind,{font,supported:new Set(font.getCharacterSet())});}const face=primary.get(kind);if(Array.from(text).every(char=>face.supported.has(char.codePointAt(0))))return face.font;}
    else{const standard=fonts[kind];try{standard.encodeText(text);return standard;}catch{}}
@@ -222,41 +261,23 @@
    return font;
   }
   document.setTitle(script.title||'Sin título');document.setAuthor(script.authors.map(a=>a.name).filter(Boolean).join(', '));document.setSubject('PLANO · Guion editable · '+script.id);document.setCreator('PLANO');
-  const fallback=new Map();let canvas,context;
-  async function draw(page,text,x,top,marks=[]){
-   const bold=marks.some(mark=>mark.type==='bold'),italic=marks.some(mark=>mark.type==='italic');
-   try{const font=await textFont(text,bold&&italic?'both':bold?'bold':italic?'italic':'normal');page.drawText(text,{x,y:792-top-12,font,size:12,color:rgb(0,0,0)});surfaceText(page,text,x,top+12,12,marks,font);}catch{
-    canvas||=root.document.createElement('canvas');context=canvas.getContext('2d');const key=[text,bold,italic].join('|');let image=fallback.get(key);
-    if(!image){canvas.width=Math.max(1,Math.ceil(text.length*7.2+4))*3;canvas.height=60;context.scale(3,3);context.font=`${italic?'italic ':''}${bold?'bold ':''}12px "Courier New",monospace`;context.fillStyle='#000';context.textBaseline='top';context.fillText(text,0,1);image=await document.embedPng(canvas.toDataURL('image/png'));fallback.set(key,image);}page.drawImage(image,{x,y:792-top-16,width:canvas?Math.max(1,Math.ceil(text.length*7.2+4)):image.width/3,height:20});surfaceText(page,text,x,top+12,12,marks);
-   }
-   if(marks.some(mark=>mark.type==='underline'))page.drawLine({start:{x,y:792-top-13},end:{x:x+text.length*7.2,y:792-top-13},thickness:.55,color:rgb(0,0,0)});
-  }
-  if(script.sourceLayout?.revision===script.revision){
-   const source=script.sourceLayout,pages=source.pages.map(size=>document.addPage([size.width,size.height])),nodes=new Map(script.doc.content.map(node=>[node.attrs.id,node])),labels=continuations(script.doc),lastRows=new Map();for(const row of source.rows)if(row.id)lastRows.set(row.id,row);
-   for(const row of source.rows){const node=nodes.get(row.id),text=node?plain(node).slice(row.from||0,row.to):row.text;if(!text)continue;const page=pages[row.page-1],size=source.pages[row.page-1],kind=node&&['scene','section'].includes(node.attrs.kind)?'bold':'normal',fontSize=row.height*size.height;
-    for(const part of row.parts||[[0,text.length,row.x,row.width]]){const fragment=text.slice(part[0],part[1]),font=await textFont(fragment,kind);page.drawText(fragment,{x:part[2]*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});surfaceText(page,fragment,part[2]*size.width,row.y*size.height+fontSize*.9,fontSize,kind==='bold'?[{type:'bold'}]:[],font);}
-    if(node?.attrs.kind==='character'&&labels.get(node.attrs.id)&&lastRows.get(row.id)===row){const font=await textFont(" (CONT'D)",'normal');page.drawText(" (CONT'D)",{x:(row.x+row.width)*size.width,y:size.height-(row.y*size.height+fontSize*.9),font,size:fontSize,color:rgb(0,0,0)});surfaceText(page," (CONT'D)",(row.x+row.width)*size.width,row.y*size.height+fontSize*.9,fontSize,[],font);}
-   }
-   return{bytes:await document.save(),titlePages:0,pages:pages.length,surface:surface()};
-  }
-  const cover=document.addPage([612,792]),titleLines=wrap((script.title||'Sin título').toLocaleUpperCase('es'),60);let top=252;
-  for(const line of titleLines){await draw(cover,line.text,(612-line.text.length*7.2)/2,top,[{type:'bold'}]);top+=12;}
-  top+=24;await draw(cover,'Escrito por',(612-10*7.2)/2,top);top+=24;
-  for(const author of script.authors.filter(a=>a.name.trim())){for(const line of wrap(author.name,60)){await draw(cover,line.text,(612-line.text.length*7.2)/2,top);top+=12;}top+=6;}
-  const footer=coverFooter(script,top),coverPages=[cover];
-  while(coverPages.length<footer.pages)coverPages.push(document.addPage([612,792]));
-  for(const entry of footer.entries)await draw(coverPages[entry.page],entry.text,entry.x,entry.top);
-  const titlePages=document.getPageCount(),flow=layout(script.doc),nodesById=new Map(script.doc.content.map(node=>[node.attrs.id,node]));
-  for(const [number,lines]of flow.pages.entries()){
-   const page=document.addPage([612,792]);if(number>0)await draw(page,(number+1)+'.',540-String(number+1).length*7.2,36);
-   for(const line of lines){if(line.virtual){await draw(page,line.text,line.left,72+line.row*12);continue;}const node=nodesById.get(line.blockId),spec=types[line.kind];let x=spec.right?540-line.text.trimEnd().length*7.2:spec.left;
-    if(line.kind==='scene'&&line.first){const number=String(flow.blocks.find(block=>block.id===line.blockId).sceneNumber||'');if(number){await draw(page,number,54,72+line.row*12);await draw(page,number,564,72+line.row*12);}}
-    if(line.prefix){await draw(page,line.prefix,x,72+line.row*12);x+=line.prefix.length*7.2;}
-    for(const run of runs(node,line.from,line.to)){let text=spec.upper?run.text.toLocaleUpperCase('es'):run.text;text=text.replace(/\n/g,'');const marks=['scene','section'].includes(line.kind)?[...run.marks,{type:'bold'}]:run.marks;await draw(page,text,x,72+line.row*12,marks);x+=text.length*7.2;}
-    if(line.suffix)await draw(page,line.suffix,x,72+line.row*12);
+  const fallback=new Map(),color=rgb(0,0,0);let canvas;
+  const imported=script.sourceLayout?.revision===script.revision;
+  for(const {width,height,runs}of plan.surface){
+   const page=document.addPage([width,height]);
+   for(const {text,x,baseline,size,kind,underline}of runs){
+    const y=height-baseline;
+    try{const font=await textFont(text,kind);page.drawText(text,{x,y,font,size,color});}
+    catch(error){
+     if(imported)throw error;
+     const key=kind+'|'+text,imageWidth=Math.max(1,Math.ceil(text.length*7.2+4));let image=fallback.get(key);
+     if(!image){canvas||=root.document.createElement('canvas');canvas.width=imageWidth*3;canvas.height=60;const context=canvas.getContext('2d');context.scale(3,3);context.font=`${kind==='italic'||kind==='both'?'italic ':''}${kind==='bold'||kind==='both'?'bold ':''}12px "Courier New",monospace`;context.fillStyle='#000';context.textBaseline='top';context.fillText(text,0,1);image=await document.embedPng(canvas.toDataURL('image/png'));fallback.set(key,image);}
+     page.drawImage(image,{x,y:y-4,width:imageWidth,height:20});
+    }
+    if(underline)page.drawLine({start:{x,y:y-1},end:{x:x+text.length*7.2,y:y-1},thickness:.55,color});
    }
   }
-  if(canvas)canvas.width=canvas.height=0;return{bytes:await document.save(),titlePages,pages:flow.pageCount,surface:surface()};
+  if(canvas)canvas.width=canvas.height=0;return{bytes:await document.save(),titlePages:plan.titlePages,pages:plan.pages};
  }
  function repairPdf(value){
   const script=validate(value),source=script?.sourceLayout,mapping=new Map();
@@ -316,5 +337,5 @@
   for(const entry of titleFooter(value).entries)if(entry.page===0)context.fillText(entry.text,entry.x*scale,entry.top*scale);
   const result=canvas.toDataURL('image/jpeg',.72);canvas.width=canvas.height=0;return result.length<=20000?result:null;
  }
- const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,characterRoster,create,projectTitle,validate,wrap,layout,analyze,runs,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail,coverDetails,titleFooter};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
+ const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,characterRoster,create,projectTitle,validate,wrap,layout,analyze,runs,pagePlan,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail,coverDetails,titleFooter};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
 })(globalThis);

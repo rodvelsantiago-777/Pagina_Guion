@@ -17,7 +17,14 @@ const baseline=process.env.PLANO_PERF_BASELINE==='1',ready=page=>page.waitForFun
   assert.equal(metrics.initialHeavyAssets,0,'El inicio tampoco carga motores de escritura, exportación o diccionario antes de usarlos');
   await page.locator('#file-input').setInputFiles({name:'Rendimiento.pdf',mimeType:'application/pdf',buffer});await ready(page);
   const notes=Array.from({length:400},(_,i)=>({id:'perf-'+i,shotId:'perf-'+i,shotName:'P'+(i+1),type:'line',page:Math.floor(i/9)+1,color:'#64a7d9',start:{x:.78+(i%3)*.04,y:.18+(i%9)*.045},end:{x:.78+(i%3)*.04,y:.21+(i%9)*.045},description:'Preparación de la toma.',sound:'Sonido directo.',note:''}));
-  metrics.changeMs=await page.evaluate(notes=>{state.annotations=validateNotes(notes);const start=performance.now();changed();return performance.now()-start;},notes);
+  metrics.change=await page.evaluate(notes=>{
+   state.annotations=validateNotes(notes);const breakdown={};
+   const measure=(name,run)=>(...args)=>{const start=performance.now();try{return run(...args);}finally{breakdown[name]=(breakdown[name]||0)+performance.now()-start;}};
+   const attach=PlanoScreenplayLinks.attach,segments=sceneTools.workingSegments,labels=PlanoDocumentLabels.draw,cards=refreshAnnotations;
+   PlanoScreenplayLinks.attach=measure('attachMs',attach);sceneTools.workingSegments=measure('segmentsMs',segments);PlanoDocumentLabels.draw=measure('labelsMs',labels);refreshAnnotations=measure('cardsMs',cards);
+   const start=performance.now();try{changed();return {elapsedMs:performance.now()-start,...breakdown};}
+   finally{PlanoScreenplayLinks.attach=attach;sceneTools.workingSegments=segments;PlanoDocumentLabels.draw=labels;refreshAnnotations=cards;}
+  },notes);
   metrics.hiddenTechnicalRows=await page.locator('#technical-table-body tr[data-shot-id]').count();if(!baseline)assert.equal(metrics.hiddenTechnicalRows,0,'La tabla oculta no construye cientos de filas');
   await ready(page);
   metrics.metadata=await page.evaluate(()=>{
@@ -42,17 +49,25 @@ const baseline=process.env.PLANO_PERF_BASELINE==='1',ready=page=>page.waitForFun
   metrics.oldCanvasesReleased=await page.evaluate(()=>perfOldCanvases.every(canvas=>canvas.width===0&&canvas.height===0));if(!baseline)assert(metrics.oldCanvasesReleased,'El visor libera explícitamente los lienzos reemplazados');
   await page.locator('#scene-select').selectOption('print',{force:true});await ready(page);
   for(const number of [9,18,27,36,48]){await page.locator(`.page-slot[data-page="${number}"]`).scrollIntoViewIfNeeded();await page.locator(`.page-slot[data-page="${number}"][data-ready="true"]`).waitFor();}
+  metrics.scroll=await page.evaluate(()=>{
+   const contexts=[...state.viewer.contexts.values()];let reads=0;
+   for(const {crop} of contexts){const bounds=crop.getBoundingClientRect.bind(crop);crop.getBoundingClientRect=()=>{reads++;return bounds();};}
+   try{updatePageIndicator();return{reads,total:contexts.length,page:contexts[state.segmentIndex].segment.page};}
+   finally{for(const {crop} of contexts)delete crop.getBoundingClientRect;}
+  });
+  if(!baseline){assert.equal(metrics.scroll.page,48);assert(metrics.scroll.reads<metrics.scroll.total/2,'Actualizar el indicador al desplazarse solo mide las páginas cercanas');}
   metrics.livePages=await page.locator('.page-slot[data-ready=true]').count();assert(metrics.livePages<=8);await page.locator('.page-slot[data-page="1"]').scrollIntoViewIfNeeded();await page.locator('.page-slot[data-page="1"][data-ready="true"]').waitFor();
   assert(await page.locator('.page-slot[data-page="1"] .annotation-overlay [data-annotation-id="perf-0"]').count(),'Las marcas reaparecen al volver a una página liberada');
   assert(await page.locator('.page-slot[data-page="1"] .document-shot-tag[data-annotation-id="perf-0"]').count(),'Sus títulos también reaparecen tras liberar el lienzo');
   await page.locator('[data-tool=line]').click();const box=await page.locator('.page-slot[data-page="1"] .page-window').boundingBox(),x=box.x+box.width*.65,y=Math.max(180,box.y+150);
+  await page.evaluate(()=>{globalThis.existingMarks=[...document.querySelectorAll('.page-slot[data-page="1"] .annotation-overlay > [data-annotation-id]')];});
   await page.mouse.move(x,y);await page.mouse.down();assert(await page.evaluate(()=>!!state.drawing));
   metrics.burst=await page.evaluate(async({x,y})=>{
    const original=drawAnnotations,pointer=coveragePointer;let draws=0,positions=0;drawAnnotations=(...args)=>{draws++;return original(...args);};coveragePointer=(...args)=>{positions++;return pointer(...args);};
    const start=performance.now();for(let i=0;i<80;i++)document.querySelector('#pdf-stage').dispatchEvent(new PointerEvent('pointermove',{pointerId:state.drawing.pointerId,clientX:x,clientY:y+i/4,bubbles:true,cancelable:true,pointerType:'mouse',buttons:1}));
    const synchronous=draws;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));drawAnnotations=original;coveragePointer=pointer;
-   return{events:80,synchronous,draws,positions,elapsedMs:performance.now()-start};
-  },{x,y});if(!baseline){assert.equal(metrics.burst.synchronous,0);assert(metrics.burst.draws<=2,'Una ráfaga se dibuja como máximo una vez por fotograma');assert(metrics.burst.positions<=2,'La geometría del puntero también se calcula una vez por fotograma');}
+   return{events:80,synchronous,draws,positions,elapsedMs:performance.now()-start,marksKept:existingMarks.length>0&&existingMarks.every(mark=>mark.isConnected)};
+  },{x,y});if(!baseline){assert.equal(metrics.burst.synchronous,0);assert(metrics.burst.draws<=2,'Una ráfaga se dibuja como máximo una vez por fotograma');assert(metrics.burst.positions<=2,'La geometría del puntero también se calcula una vez por fotograma');assert(metrics.burst.marksKept,'La vista previa de una línea conserva las marcas ya pintadas');}
   await page.keyboard.press('Escape');await page.mouse.up();assert.equal(await page.evaluate(()=>state.annotations.length),400);
   await page.evaluate(async()=>{const version=new URL(document.querySelector("script[src^='app.js']").src).search;await Promise.all([loadScript('vendor/jszip.min.js'),loadScript('./vendor/jszip.min.js'+version)]);});
   assert.equal(requests.filter(url=>/\/vendor\/jszip\.min\.js(?:\?|$)/.test(url)).length,1,'Las herramientas comparten una única carga versionada de la misma biblioteca');

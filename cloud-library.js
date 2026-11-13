@@ -304,9 +304,7 @@
    }finally{renaming=false;input.disabled=false;$('#save-file-rename').disabled=false;$('#cancel-file-rename').disabled=false;queueMicrotask(pumpPreviews);}
   });
   if(cloud.configured){
-   $('.local-badge').textContent='Biblioteca privada';
    $('.privacy-note').textContent='Tus guiones y planos se guardan de forma privada en tu cuenta.';
-   $('.file-hint').textContent='Guion Fountain, WDZ, FDX, Celtx, DOCX, RTF, HTML, JSON, CSV, TXT o PDF · Proyecto completo .plano';
    $('#auth-local-description').textContent='Tus guiones y planos, disponibles al iniciar sesión en tu cuenta.';
    $('#account-local-note').textContent='Verifica tu correo para activar la cuenta. El estudio guarda tus guiones de forma privada en la nube.';
    $('#account-storage-description').textContent='Se guarda el guion editable y sus planos. Los PDF nuevos se convierten en el navegador; los antiguos se retiran después de confirmar su conversión.';

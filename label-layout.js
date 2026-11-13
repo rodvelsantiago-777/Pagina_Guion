@@ -86,15 +86,22 @@
   }
   function resolveLineLabel(label, preferred, options, occupied = []) {
     const opposite = preferred.side === "right" ? "left" : "right";
+    const clear = rect => label.unrestricted ? withinBounds(rect, options, true) : isClear(rect, options, occupied, true);
+    const origin = lineLabelRect(label, preferred.t, preferred.side);
+    if (clear(origin)) return origin;
+    // En la posición automática se prueban primero ambos lados del inicio.
+    if (!label.lineLabel && !label.unrestricted) {
+      const other = lineLabelRect(label, preferred.t, opposite);
+      if (clear(other)) return other;
+    }
     const positions = [preferred, { t: preferred.t, side: opposite }];
     const length = Math.hypot(label.line.end.x - label.line.start.x, label.line.end.y - label.line.start.y);
     const steps = Math.max(1, Math.ceil(length / 8));
     for (let i = 0; i <= steps; i++) for (const side of [preferred.side, opposite]) positions.push({ t: i / steps, side });
-    const origin = lineLabelRect(label, preferred.t, preferred.side);
     const rects = positions.map(({ t, side }) => lineLabelRect(label, t, side));
     if (label.lineLabel || label.unrestricted) rects.sort((a, b) => (a.x - origin.x) ** 2 + (a.y - origin.y) ** 2 - (b.x - origin.x) ** 2 - (b.y - origin.y) ** 2);
     else rects.splice(2, rects.length - 2, ...rects.slice(2).sort((a, b) => Math.abs(a.lineT - preferred.t) - Math.abs(b.lineT - preferred.t)));
-    return rects.find(rect => label.unrestricted ? withinBounds(rect, options, true) : isClear(rect, options, occupied, true)) || null;
+    return rects.find(clear) || null;
   }
   function placeLabels(options) {
     const { width, top, labels, inlineAllowed = true } = options;

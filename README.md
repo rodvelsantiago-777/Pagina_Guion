@@ -1,6 +1,6 @@
 # PLANO — Estudio de guion y cobertura
 
-Aplicación web de producción audiovisual en HTML, CSS y JavaScript. Interfaz en español y adaptable a escritorio, tableta y móvil. Incluye un visor propio basado en [PDF.js de Mozilla](https://mozilla.github.io/pdf.js/), distribuido en `vendor/` con sus recursos y licencias. El acceso requiere una cuenta de Firebase con correo verificado; los PDF y las anotaciones se procesan en el navegador. No requiere compilación.
+PLANO es una aplicación web de producción audiovisual en HTML, CSS y JavaScript. El redactor, la cobertura y el guion técnico comparten un documento editable. Las cuentas usan Firebase y los proyectos se guardan en Supabase. PDF.js se usa en el navegador al importar o exportar PDF. La interfaz está en español y se adapta a escritorio, tableta y móvil.
 
 ## Etiquetas de diálogo y acotaciones
 
@@ -188,17 +188,17 @@ El guardado automático solo se confirma tras responder el servidor. Si falta co
 
 ## Exportar el PDF con cobertura
 
-Abre **Exportar** y pulsa **Guion con líneas y resaltados (PDF)**. Se descarga `nombre-del-guion-cobertura.pdf`, con todas las páginas originales, las líneas con sus remates, los resaltados con transparencia y los nombres de los planos con su color y Courier New negrita. Funciona desde cobertura y desde guion técnico, aunque la vista actual muestre una sola escena.
+Abre **Exportar** y pulsa **Guion con líneas y resaltados (PDF)**. Se descarga `nombre-del-guion-cobertura.pdf`, con todas las páginas del guion, líneas con remates, resaltados y nombres de plano. Funciona desde cobertura y desde guion técnico, aunque la vista actual muestre una sola escena.
 
-La exportación trabaja sobre el PDF original: conserva la portada, el texto seleccionable, las páginas escaneadas, los tamaños, los recortes y las rotaciones. No incluye los recortes visuales por escenas ni los colores de la interfaz; el zoom y el modo claro/oscuro no cambian la descarga. Los trazos se guardan como gráficos del PDF; solo las etiquetas de nombre se incrustan como pequeñas imágenes a alta resolución para admitir también caracteres Unicode y emojis. Si aún no hay anotaciones, descarga los bytes originales con el nombre de exportación.
+La exportación genera el PDF desde el guion editable y aplica las marcas a sus páginas. Las líneas y los resaltados se dibujan como gráficos del PDF, y los nombres de plano se incrustan como imágenes para admitir emojis. La descarga usa la disposición de impresión y es independiente del zoom, la vista por escenas y el tema de la interfaz.
 
-Los títulos se colocan en los espacios seguros de las páginas originales y respetan sus posiciones manuales cuando caben sin tapar contenido. Las posiciones de los márgenes visuales de las escenas se recalculan si caen sobre texto del PDF original. Cuando un nombre no encuentra hueco, se añade a una hoja de **Referencias de cobertura** al final; su raya o resalte permanece en la página correspondiente. No se ensanchan las páginas originales ni se recortan nombres fuera de ellas.
+Los títulos se colocan en los espacios disponibles del guion y respetan las posiciones manuales permitidas. Cuando un nombre no encuentra hueco, se añade a una hoja de **Referencias de cobertura** y su marca permanece en la página correspondiente.
 
 El proceso se ejecuta en el navegador, sin subir el documento ni depender de Internet. La lectura y el historial no cambian; se usan los planos guardados al iniciar la exportación. La interfaz muestra el progreso y evita cambiar o cerrar el archivo durante la preparación. **Copia editable del proyecto (.plano)** permite recuperar o continuar editando todo el proyecto en PLANO; el PDF exportado es la copia visual para compartir o imprimir. Las antiguas copias JSON se conservan solo para compatibilidad interna, sin opción pública en el menú.
 
 ## Exportar todo en un PDF
 
-**Cobertura + guion técnico (PDF)**, dentro de **Exportar**, descarga un único archivo: primero el PDF original con cobertura y correcciones, y después el guion técnico en hojas A3 horizontales. La segunda parte usa el mismo libro y plantilla que la exportación Excel: columnas, cabecera, datos, agrupación, colores neutros y duración estimada. Los encabezados se repiten al continuar en otra hoja; los campos largos se reparten sin perder contenido. El texto habitual se mantiene seleccionable; los glifos Unicode que no admiten las fuentes estándar se incrustan como pequeñas imágenes. Si aún no hay planos se incluye la cabecera técnica con una indicación de que está vacía.
+**Cobertura + guion técnico (PDF)** descarga el guion con sus marcas seguido del guion técnico en hojas A3 horizontales. La tabla usa los mismos datos y plantilla que Excel, repite sus encabezados en cada hoja y divide los campos largos cuando hace falta. Si el proyecto aún está sin planos, se incluye la cabecera técnica con un aviso.
 
 La exportación completa se prepara localmente y carga su motor solo al usarla. Respeta todas las escenas, aunque el visor muestre solo una, guarda la celda técnica que esté editándose y conserva la vista y el historial. `tests/all-export.cjs` comprueba una descarga real sin red, el orden de las páginas, su orientación, cobertura, textos extensos, edición pendiente, errores recuperables y ausencia de cambios por tema o vista. `all-export.js` genera las páginas técnicas desde el modelo compartido de `excel-export.js`.
 
@@ -210,25 +210,25 @@ En la esquina superior derecha, **luna/sol** alterna entre modo claro y oscuro. 
 
 La selección se aplica inmediatamente y se guarda en la cuenta: otro dispositivo recupera el tema y el modo al iniciar sesión. El menú indica el estado del guardado y permite reintentar si falla la conexión. Una caché mínima por usuario conserva preferencias pendientes; se sincronizan al volver a conectar o entrar. La apariencia previa de `plano-appearance-v2` se adopta al activar esta versión en la primera cuenta del navegador, si esa cuenta aún no tiene preferencias. Sin almacenamiento de nube configurado se conserva el guardado local en `plano-appearance-v2`. Al recargar se elimina la clave antigua `plano-appearance-v1`, incluidos los tonos libres y el tema anterior, y se vuelve al predeterminado conservando solo el modo claro/oscuro. Esta limpieza no toca las notas ni los colores guardados de los planos, y las nuevas elecciones de tema se conservan normalmente. El tema predeterminado usa superficies grises neutras, también en oscuro. Pulsa fuera, el cierre o **Esc** para cerrar el menú. Si el almacenamiento no está disponible, funciona durante la sesión.
 
-La personalización afecta exclusivamente a la interfaz: el PDF conserva sus colores, los de sus marcas, la portada visual, sus dimensiones y su posición de lectura. La **Vista de impresión** conserva el PDF original. No se altera el contenido del guion ni se incorpora la apariencia a las copias JSON de los planos.
+Los temas se aplican a la interfaz. La **Vista de impresión** muestra las páginas completas del guion editable. Las descargas mantienen su propia disposición y colores.
 
 ## Abrir y usar
 
 1. Abre la web publicada o sirve esta carpeta por HTTP en una versión actualizada de Edge, Chrome o Firefox. La primera pantalla permite crear una cuenta o iniciar sesión. Verifica tu correo para entrar al estudio. Una sesión verificada guardada entra directamente. Conserva las carpetas y archivos del proyecto juntos; abrir el archivo mediante `file://` no habilita la autenticación. Consulta [CUENTAS.md](CUENTAS.md).
-2. El inicio muestra todos los guiones de tu cuenta con miniatura y título. Pulsa una tarjeta para abrirlo o **+ Nuevo guion** para seleccionar un PDF de hasta 10 MB; también puedes arrastrarlo a la biblioteca. Se guardará en tu cuenta, se analizará su texto y pasarás automáticamente a **Guion técnico / líneas de cobertura**. **Renombrar** en una tarjeta cambia su nombre; dentro del editor usa **Cambiar nombre del guion** en el menú de cuenta. El nombre de la cabecera corresponde a la carpeta del proyecto y se edita directamente al pulsarlo. Conserva el PDF y las anotaciones; las siguientes exportaciones usan el nombre nuevo. El modo local de desarrollo sin configuración de nube mantiene el límite anterior de 100 MB y muestra solo el archivo abierto.
-3. En el icono **Vista del guion**, situado en la barra inferior, elige **Guion completo** o **Vista de edición** para trabajar únicamente con las escenas y una tarjeta compacta de portada; una escena del grupo **Escena por escena** para concentrarte en ella; o **Vista de impresión** para ver todas las páginas originales del PDF. Todas las vistas tienen desplazamiento vertical continuo.
+2. Inicio muestra los proyectos de la cuenta con miniatura y título. Pulsa una tarjeta para entrar en su carpeta. Usa **Nuevo proyecto** para crear uno o **Importar** para subir un archivo. Puedes cambiar el nombre desde la tarjeta o pulsando el título en la cabecera del editor.
+3. En la barra inferior de cobertura, **Vista del guion** permite elegir el guion completo, la vista de edición, una escena o la vista de impresión. Esta última muestra todas las páginas del guion editable.
 4. Usa **Resaltar** y selecciona un fragmento. Se abrirá una ventana que pide el **nombre del plano**; al guardarlo aparecerá en el documento y en el panel. Para una selección existente, o una selección táctil, pulsa **Resaltar selección**.
 5. Usa **Línea recta** y arrastra entre dos puntos. Al terminar, escribe el nombre del plano y pulsa **Guardar plano**. Mantén **Mayús** para fijar una dirección horizontal o vertical. **Esc** cancela la línea en curso.
 6. Las anotaciones se presentan como tarjetas: **nombre del plano**, una línea pequeña con **abreviatura del valor, angulación y óptica**, y la **descripción resumida a un máximo de 160 caracteres**, con hasta dos líneas visibles. Un icono de nota indica que hay observaciones. Pulsa la tarjeta o su título para abrir la **ficha completa**, sin recortar los textos. El documento sigue mostrando únicamente el nombre junto a la línea o el resalte.
 7. El icono de **localización** de cada tarjeta (o **Ver en el guion** dentro de la ficha) lleva a la marca. El **lápiz** abre la edición directamente; también puedes pulsar **Editar plano** en la ficha. Allí se configuran nombre, valor, angulación, óptica, movimiento, color, **grip, sonido, descripción y notas**. En modo **Seleccionar**, pulsa una raya para mostrar sus extremos: arrastra el cuerpo para moverla o un extremo para cambiar el tamaño. Pulsar un resalte muestra una pequeña opción **Corregir resalte** junto al punto pulsado, sin abrir la ficha.
 8. Arrastra el **asa de puntos** junto al nombre para ordenar los planos dentro de su escena. Una línea del color de acento marca dónde se insertará. También admite tacto y **Alt + flecha arriba/abajo** cuando el asa tiene el foco. **Esc** cancela un arrastre. El orden se guarda y admite deshacer/rehacer; no cambia los nombres, las marcas ni la secuencia automática. Si un plano tiene varias partes en la misma escena se ordenan juntas. El orden de otras escenas se conserva.
-9. Junto al archivo aparecen **tres botones de etapa**: **Escribir guion**, bloqueado por ahora; **Líneas de cubrimiento**, el visor de cobertura; y **Guion técnico**, la tabla editable de los planos. El botón activo queda marcado. Las flechas izquierda/derecha permiten cambiar de etapa con el teclado. En pantallas pequeñas los tres botones ocupan una segunda fila, con etiquetas abreviadas en móvil.
+9. En la cabecera puedes cambiar entre **Escribir guion**, **Líneas de cubrimiento** y **Guion técnico**. Usa las flechas izquierda y derecha para navegar por esos botones con el teclado.
 
 La tabla agrupa los planos por escena y respeta el orden del panel. Tiene **diez columnas**: nombre, valor, angulación, óptica, movimiento, duración estimada, descripción, grip, sonido y notas. Se retiraron color, página y tipo de marca de esta vista; sus datos siguen conservándose en las fichas. Las partes de un mismo plano en la misma escena se reúnen en una fila. Las filas ajustan automáticamente su altura al texto completo de sus celdas, respetando saltos de línea y palabras largas. Los campos también crecen mientras se escribe, sin un desplazamiento interno que oculte contenido. Los encabezados tienen fondo de tinta, texto centrado de 14 px y negrita; las escenas usan bandas del color de acento con número y título en negrita. Un sombreado alterno discreto facilita seguir las filas. Los encabezados y el nombre del plano permanecen como referencia al desplazarse por la tabla, con fondo opaco.
 
 **Pulsa cualquier celda para editarla directamente.** Los campos de texto permiten escribir; valor, angulación, óptica y movimiento ofrecen sus desplegables. Al elegir **Otro** se exige especificarlo antes de aplicar ese cambio. Elegir una opción conocida guarda la celda; el texto se guarda al salir de ella, mediante el botón de confirmación, con **Enter** para nombres o **Ctrl/Cmd + Enter** para textos de varias líneas. **Enter** normal en una descripción o nota introduce un salto de línea. **Tab** guarda y avanza a la siguiente celda; **Esc** o el botón de cancelación descarta el borrador. Las flechas permiten navegar entre celdas cuando no se está escribiendo. Un dato inválido requiere corrección o cancelación antes de cambiar de etapa.
 
-Los cambios directos se sincronizan con el proyecto de la nube, se reflejan en cobertura y se pueden deshacer/rehacer durante la sesión; las distintas partes de un plano comparten las ediciones. La flecha pequeña junto al nombre abre la ficha completa para consultar o editar los demás datos. **Ver en el guion** vuelve a cobertura y localiza la marca. La etapa de escritura permanece deshabilitada; no se modifica el texto del PDF.
+Los cambios se sincronizan con el proyecto, se reflejan en cobertura y se pueden deshacer o rehacer durante la sesión. Las distintas partes de un plano comparten las ediciones. Desde la ficha completa, **Ver en el guion** localiza la marca en cobertura.
 
 El valor es independiente del nombre y de su numeración automática: un plano llamado «1» puede tener valor «PA» sin que el siguiente deje de llamarse «2». El formulario muestra la abreviatura y el nombre completo de cada valor; la tarjeta conserva solo la abreviatura. **Sin definir** permite dejarlo pendiente (se muestra «—»). Las notas antiguas sin estos campos siguen funcionando. Toda la ficha técnica se conserva en el historial, el guardado local y las copias JSON; editar un plano entre páginas actualiza los datos de todas sus partes.
 
@@ -327,16 +327,14 @@ I/E. COCHE - DÍA
 
 Se admiten mayúsculas/minúsculas, numeración y variantes de INT./EXT. Los límites lógicos de una escena van **desde su encabezado hasta el siguiente**, incluso cuando comparten página. También se incluyen sus páginas de continuación. Dentro de esos límites, las vistas de trabajo se ajustan al texto y las marcas visibles y añaden un margen visual propio. **Guion completo** y **Vista de edición** muestran solo las escenas, con la información de portada resumida en una tarjeta. Los recortes de una misma página tienen identidades independientes, de modo que las marcas y la navegación se mantienen en la escena correcta. El texto oculto por un recorte no participa en las selecciones. **Vista de impresión** conserva todas las páginas originales y permite consultar cualquier contenido que no se haya clasificado como escena.
 
-La detección es una heurística de encabezados y necesita revisión: guiones con otra estructura, encabezados partidos, texto con orden de lectura inusual o columnas pueden producir omisiones o falsos resultados. La identificación de cabeceras y pies utiliza posición, repetición y patrones de numeración. Un PDF escaneado sin capa de texto no permite detectar escenas ni seleccionar palabras; puede abrirse en **Vista de impresión**, que mantiene disponible el dibujo y ajuste de líneas. Esta versión no incluye OCR.
+La detección utiliza encabezados y puede omitir escenas si los encabezados están partidos o si el texto tiene un orden de lectura inusual. La identificación de cabeceras y pies utiliza posición, repetición y patrones de numeración. Para importar un PDF escaneado, aplica OCR antes de subirlo.
 
 ## Guardado y copias
 
-- El PDF se procesa en el dispositivo; con la nube configurada, el original se sube de forma privada a tu cuenta una sola vez.
-- Las nuevas anotaciones se sincronizan con la nube y no se escriben en `localStorage`. **Mis proyectos** permite recuperar PDF y notas desde otro dispositivo. El modo local de desarrollo sin configuración de nube conserva el comportamiento anterior de notas locales; no debe confundirse con un guardado en la cuenta.
-- Se usa la huella SHA-256 de todo el archivo para asociar sus notas cuando Web Crypto está disponible; en otros contextos se utiliza la huella de PDF.js. Renombrar el archivo no afecta a la recuperación.
-- **Exportar notas** descarga un JSON con las marcas, nombres, orden de planos, colores, texto seleccionado, coordenadas, posiciones manuales o ligadas de títulos y ficha de plano. **Importar notas** permite recuperarlas junto al PDF correspondiente, conservando las existentes y evitando duplicados por identificador. Los colores recientes pertenecen al navegador y no al JSON de un documento.
-- Si falla el guardado en la nube se muestra un aviso y los cambios pendientes permanecen en memoria de la pestaña. Reintenta o exporta una copia antes de cerrar. Los proyectos ya confirmados en la nube no dependen del almacenamiento local del navegador.
-- Las anotaciones son una capa de la aplicación: **no se incrustan en el PDF original**. El botón **PDF original** abre la copia sin las marcas de PLANO. El JSON exportado necesita su PDF original para restaurarse.
+- Al importar un PDF, PLANO extrae el texto en el navegador y guarda el proyecto editable con sus planos en la cuenta. Los PDF de proyectos antiguos se retiran después de confirmar la conversión.
+- **Mis proyectos** permite abrir en otro dispositivo el guion, la cobertura y el guion técnico de tu cuenta.
+- En **Exportar**, descarga un **Proyecto completo (.plano)** para guardar una copia o abrirla en otra cuenta. **PDF con cobertura** genera un PDF nuevo con las marcas.
+- Si falla el guardado, los cambios pendientes siguen en la pestaña. Puedes reintentar o descargar un `.plano` antes de cerrarla.
 
 Los PDF dañados y protegidos con contraseña muestran un aviso y no reemplazan el trabajo abierto. Esta versión requiere una copia sin contraseña.
 
@@ -358,7 +356,7 @@ Los PDF dañados y protegidos con contraseña muestran un aviso y no reemplazan 
 - `technical-script.js`: tabla compacta por escenas, edición de celdas con validación, navegación de teclado y acceso a las fichas.
 - `label-layout.js`: búsqueda ordenada de espacios sin colisiones y validación de posiciones manuales.
 - `document-labels.js`: medición de nombres, texto e imagen del PDF y rótulos interactivos.
-- `pdf-export.js`: marcas sobre el PDF original, transformación de coordenadas, etiquetas y referencias de cobertura.
+- `pdf-export.js` aplica las marcas al PDF generado y prepara las etiquetas y referencias de cobertura.
 - `vendor/`: PDF.js 5.6.205, workers, fuentes, mapas de caracteres, decodificadores y licencias. Las bibliotecas están preparadas para uso directo; los recursos se incluyen localmente para evitar depender de CDN y admitir `file://`.
 - `tests/run.cjs`: pruebas automáticas con PDF de ejemplo generado durante la prueba.
 - `tools/build-vendor.cjs`: reconstrucción opcional de las bibliotecas distribuidas.
@@ -417,15 +415,13 @@ Para reconstruir `vendor/`, usa `pdfjs-dist` **5.6.205** y `esbuild` **0.28.2** 
 node tools/build-vendor.cjs RUTA_A_PDFJS_DIST RUTA_A_ESBUILD
 ```
 
-## Pendiente
+## Configuración de cuentas
 
-El sistema de cuentas está integrado con Firebase Authentication y conectado a la app web `planos-15624` mediante su configuración pública en `auth-config.js`. Requiere Email/Password habilitado y el dominio autorizado en Authentication. Sigue [CUENTAS.md](CUENTAS.md) y comprueba los ajustes con `node tools/check-accounts.cjs`. El registro o inicio de sesión con correo verificado es obligatorio para acceder al editor. Supabase conserva los PDF y sincroniza las anotaciones entre dispositivos como se describe en [NUBE.md](NUBE.md).
-
-La escritura/edición del guion literario, detección de personajes, importación de otros formatos y OCR todavía no están implementados.
+Firebase Authentication requiere habilitar el acceso por correo y contraseña y autorizar el dominio de la web. Consulta [CUENTAS.md](CUENTAS.md) y comprueba los ajustes con `node tools/check-accounts.cjs`. [NUBE.md](NUBE.md) documenta cómo se guardan y sincronizan los proyectos editables.
 
 ## Exportar guion técnico a Excel
 
-En la etapa **Guion técnico**, pulsa **Exportar Excel**. También está disponible en el menú del proyecto como **Exportar guion técnico a Excel**. Descarga `nombre-del-guion-guion-tecnico.xlsx`, con todos los planos, aunque estés viendo una sola escena. Debe haber al menos un plano. La celda que estés editando se guarda antes de exportar; si falta un valor obligatorio, debes completarlo o cancelar la edición.
+En el menú del proyecto, abre **Exportar** y elige la opción **Excel** del guion técnico. Descarga `nombre-del-guion-guion-tecnico.xlsx` con todos los planos, aunque estés viendo una sola escena. Debe haber al menos un plano. Completa o cancela cualquier edición pendiente antes de exportar.
 
 El libro mantiene el orden de las tarjetas, las escenas detectadas y todos los campos técnicos. Las partes de un mismo plano no se duplican dentro de una escena. Si un plano abarca varias escenas, figura en cada una con el mismo nombre. El mensaje de descarga cuenta planos únicos. No exporta color, página ni tipo de marca como columnas.
 
@@ -486,9 +482,7 @@ El cambio afecta todos los tramos de cada plano seleccionado, incluso resaltados
 
 ### Miniaturas de la biblioteca
 
-`script-preview.js` genera una imagen JPEG pequeña de la primera página original (hasta 180 × 252 px y 20 KB), sin anotaciones ni efectos del tema. Se guarda en el payload privado de la cuenta. La migración `20261022223701_library_previews.sql`, ya instalada, incluye solo esa miniatura en el listado, junto a los metadatos del archivo; no envía las anotaciones ni descarga los PDF completos para mostrar tarjetas.
-
-Los guiones anteriores sin miniatura se preparan uno a uno en segundo plano al visitar el inicio. Esa primera preparación requiere descargar el PDF una vez. Se guarda conservando el resto del payload y comprobando su revisión; un conflicto no sobrescribe las notas de otro dispositivo. Si falla, permanece una tarjeta de documento y se puede abrir el guion normalmente. Las siguientes visitas recuperan la miniatura con el listado. La caché de imágenes es solo de memoria y se limpia al cambiar de cuenta; no hay PDF ni miniaturas en localStorage. Si las notas rozan el límite de 350 KB, se omite la miniatura para priorizar el guardado del trabajo.
+`screenplay.js` dibuja la portada del guion editable como una miniatura JPEG de hasta 20 KB. El listado de proyectos devuelve las miniaturas guardadas junto con los datos de cada tarjeta. Si falta una, la biblioteca puede prepararla en segundo plano desde la portada editable. El guardado prioriza el guion y sus planos cuando el proyecto se acerca a su límite de espacio.
 
 `tests/cloud.cjs` verifica biblioteca, miniaturas entre dispositivos sin nueva descarga del PDF, preparación de guiones anteriores, renombrado desde inicio/editor, validación del nombre, botón +, apertura, separación de cuentas y móvil. `tests/stages-and-colors.cjs` comprueba la expansión de las filas y de los campos de texto con sonido largo, además de la edición, el historial y la persistencia existentes.
 
@@ -506,7 +500,7 @@ Con **clic derecho en Guion técnico → Abrir en otra ventana** se abre la mism
 
 ### Correcciones de redacción
 
-La herramienta **Correcciones**, junto a Línea y Resaltar, también se activa con **R**. Muestra la indicación de seleccionar el texto y lo marca con un **subrayado rojo en zigzag**, respetando las palabras y los saltos de línea. La selección con ratón se guarda al soltar; con teclado o selección táctil se puede usar **Marcar corrección**. **Terminar**, **V** o Esc vuelve a Seleccionar. No intenta detectar ni sustituir automáticamente las palabras del PDF.
+El redactor ofrece revisión de ortografía, redacción y puntuación. Cobertura puede mostrar las correcciones existentes y permite localizarlas o quitarlas desde el panel de anotaciones.
 
 Cada selección es una única corrección, incluso si abarca varias páginas. El apartado **Correcciones** del panel muestra su texto y páginas; permite localizarla y quitarla. En Seleccionar, un clic en el subrayado también ofrece **Quitar corrección**. Las correcciones tienen su propio registro y no consumen la numeración ni aparecen en la tabla o el Excel de planos. Comparten el historial de deshacer/rehacer con la cobertura y se guardan en la cuenta, en las copias JSON y en el PDF con cobertura, donde se dibujan como trazos vectoriales. La importación conserva lo existente y evita duplicados por identificador.
 
@@ -558,7 +552,7 @@ El panel **Escenas** permite saltar a cada encabezado. Al escribir uno se ofrece
 
 **Exportar proyecto**, en el redactor o en el menú, descarga un `.plano` completo: JSON versionado `{format:"plano.project",version:1,project:{name,documentName,payload}}`. Conserva el título del proyecto, el nombre de archivo, portada, autores, personajes, formato, líneas, resaltados, colores, posiciones, fichas técnicas, orden, notas, correcciones, equipo, preferencias de revisión y vista. Al importarlo en otra cuenta se crea una copia independiente con nuevos identificadores de documento/servidor y los mismos datos de producción. No incluye credenciales, identidad de cuenta, fingerprint, revisiones del servidor ni el PDF binario. También se abren los `.plano` antiguos de escritura (`plano.screenplay`); la copia completa `.json` permanece disponible como recuperación del proyecto abierto.
 
-Los PDF nuevos se leen localmente con progreso accesible y animación compatible con movimiento reducido. Se guarda únicamente el documento editable; los PDF de lectura, cobertura y exportación se generan en memoria. El campo opcional `sourceLayout` conserva texto y posiciones de la importación inicial, sin bytes PDF, imágenes ni fuentes adjuntas. Las páginas giradas se normalizan y las marcas antiguas se transforman con ellas. Si alguna página es una imagen sin texto, o la conversión no puede validarse, se informa de que necesita OCR y no se elimina el original.
+Los PDF nuevos se leen localmente con progreso accesible. Redacción y cobertura usan el documento editable, y el PDF se genera al exportar. El campo opcional `sourceLayout` conserva texto y posiciones de la importación inicial. Las páginas giradas se normalizan y las marcas antiguas se transforman con ellas. Una conversión fallida conserva el original de un proyecto antiguo.
 
 Al abrir un proyecto antiguo, la operación `convert_editable` guarda primero el texto, las fichas y los vínculos, con comprobación de propietario y revisión. El servidor impide que esa conversión pierda fichas, equipo o correcciones manuales. Solo después intenta borrar el objeto del bucket privado. `pdf_cleanup_pending` conserva de forma durable una limpieza fallida y se reintenta al abrirlo; el editable sigue disponible. Reabrir un documento ya convertido no descarga ningún PDF. Los límites gratuitos permanecen conservadores: 350 KB de JSON, 10 proyectos por cuenta y 80 globales; no se activa facturación. El servidor rechaza nuevas subidas PDF y guardados de clientes antiguos que omitan el protocolo editable.
 

@@ -334,7 +334,14 @@ const root=path.resolve(__dirname,'..'),base='https://rodvelsantiago-777.github.
   await writerDevice.page.evaluate(()=>{state.annotations=validateNotes([{id:'native-line',shotName:'P1',type:'line',page:2,color:'#e8b83f',start:{x:.8,y:.2},end:{x:.8,y:.5}}]);changed();});await writerDevice.page.locator('#stage-tabs [data-stage=writing]').click();await writerDevice.page.evaluate(()=>{const view=PlanoWriter.view();view.dispatch(view.state.tr.insertText('REVISIÓN ',1));});await writerDevice.page.evaluate(()=>PlanoCloud.flush());
   const writtenBackup=(await rpc('ana','read',nativeId,{})).payload;await writerDevice.page.evaluate(()=>{const view=PlanoWriter.view();view.dispatch(view.state.tr.insertText('OTRO BORRADOR ',1));});await writerDevice.page.evaluate(()=>PlanoCloud.flush());
   assert.equal(writtenBackup.screenplay.edition,2);assert.equal(writtenBackup.projectInfo.completed,false);assert.deepEqual(writtenBackup.screenplayVersions,remoteInfo.payload.screenplayVersions);
-  await writerDevice.page.evaluate(data=>restoreWrittenBackup(data),writtenBackup);assert.deepEqual((await rpc('ana','read',nativeId,{})).payload.screenplay,writtenBackup.screenplay,'Restaurar conserva el texto completo de la copia en la cuenta');assert.deepEqual((await rpc('ana','read',nativeId,{})).payload.projectInfo,writtenBackup.projectInfo);assert.equal((await rpc('ana','read',nativeId,{})).payload.screenplayCoverage,undefined,'La restauración usa el texto actual y sus vínculos');assert.equal(await writerDevice.page.evaluate(()=>state.annotations[0].shotName),'P1');
+  const legacyFile=Buffer.from(JSON.stringify({...writtenBackup,app:'PLANO'}));
+  await writerDevice.page.locator('#backup-input').setInputFiles({name:'respaldo-antiguo.json',mimeType:'application/json',buffer:legacyFile});
+  await writerDevice.page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('restaurados desde la copia'));
+  const restoredBackup=(await rpc('ana','read',nativeId,{})).payload;
+  assert.deepEqual(restoredBackup.screenplay,writtenBackup.screenplay,'Restaurar conserva el texto completo de la copia en la cuenta');
+  assert.deepEqual(restoredBackup.projectInfo,writtenBackup.projectInfo);
+  assert.equal(restoredBackup.screenplayCoverage,undefined,'La restauración usa el texto actual y sus vínculos');
+  assert.equal(await writerDevice.page.evaluate(()=>state.annotations[0].shotName),'P1');
   await writerDevice.page.evaluate(()=>PlanoCloud.flush());const latest=await rpc('ana','read',nativeId,{});await rpc('ana','delete_begin',nativeId,{revision:latest.revision});await rpc('ana','delete_finish',nativeId,{});files.delete('ana/'+nativeId);await writerDevice.context.close();
   assert.deepEqual(errors,[]);
   console.log('OK navegador: subida, autoguardado, biblioteca con miniaturas entre dispositivos y guiones antiguos, sin copias locales, renombrado desde inicio/editor, +, apertura, desconexión/recuperación, conflicto sin sobrescritura, copia JSON, borrado, aislamiento entre cuentas y móvil.');

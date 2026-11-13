@@ -33,5 +33,40 @@ const {chromium}=require('./runtime-deps.cjs').load('playwright'),root=path.reso
  const title=exported[0].find(item=>item.text==='MI PELÍCULA');assert(title);assert.equal(title.size,12);assert(Math.abs(title.x+title.width/2-306)<2);assert(exported[0].some(item=>item.text==='María Ruiz'));assert(exported[0].some(item=>item.text==='+57 300 1234567'));assert(!exported[0].some(item=>/^\d+\.$/.test(item.text)));assert(exported[1].some(item=>item.text==='1'&&Math.abs(item.x-54)<1));assert(exported[1].some(item=>item.text==='1'&&Math.abs(item.x-564)<1));assert(exported.flat().every(item=>Math.abs(item.size-12)<.01));
  const phone=exported[0].find(item=>item.text==='+57 300 1234567'),copyright=exported[0].find(item=>item.text==='Copyright © 2026'),edition=exported[0].find(item=>item.text==='v3');
  assert.equal(phone.x,72);assert(Math.abs(copyright.x+copyright.width-540)<1);assert(Math.abs(edition.x+edition.width-540)<1);assert(phone.y>copyright.y&&copyright.y>edition.y);
+ await page.locator('#writer-body-tab').click();
+ const margins=await page.evaluate(()=>{
+  const view=PlanoWriter.view(),P=PlanoProseMirror,row='El pasillo está vacío.\n';
+  const paragraph=(id,kind,text)=>({type:'paragraph',attrs:{id,kind},content:[{type:'text',text}]});
+  const script=view.state.schema.nodeFromJSON({type:'doc',content:[
+   paragraph('margins-first','action',row.repeat(50)+row.trimEnd()),
+   paragraph('margins-scene','scene','INT. SALA - NOCHE'),
+   paragraph('margins-action','action','Se apaga la luz.')
+  ]});
+  view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,script.content));
+  const read=()=>{
+   const flow=PlanoScreenplay.layout(view.state.doc.toJSON()),block=flow.blocks[1],sheet=document.querySelectorAll('.writer-page-outline')[1];
+   const pageTop=sheet.getBoundingClientRect().top,numberTop=sheet.firstElementChild.getBoundingClientRect().top;
+   const textTop=view.coordsAtPos(block.lines[0].pos+1).top;
+   const gap=view.dom.querySelector('[data-writer-gap="margins-scene-before"]');
+   return {page:block.page,number:sheet.firstElementChild.textContent,header:numberTop-pageTop,text:textTop-pageTop,gap:gap.getBoundingClientRect().height};
+  };
+  const before=read();view.dispatch(view.state.tr.delete(1,1+row.length));const shorter=read();
+  view.dispatch(view.state.tr.insertText(row,1));const restored=read();
+  return {before,shorter,restored};
+ });
+ assert.equal(margins.before.page,1);
+ assert.equal(margins.shorter.page,1);
+ assert.equal(margins.shorter.number,'2.');
+ assert(Math.abs(margins.shorter.header-48)<2);
+ assert(Math.abs(margins.shorter.text-96)<2);
+ assert.equal(margins.shorter.gap-margins.before.gap,16);
+ assert.deepEqual(margins.restored,margins.before);
+ await page.evaluate(()=>{
+  const view=PlanoWriter.view(),block=PlanoScreenplay.layout(view.state.doc.toJSON()).blocks[1];
+  view.dispatch(view.state.tr.setSelection(PlanoProseMirror.TextSelection.create(view.state.doc,block.pos+1)));
+  const scroll=document.querySelector('#writer-scroll'),sheet=document.querySelectorAll('.writer-page-outline')[1];
+  scroll.scrollTop+=sheet.getBoundingClientRect().top-scroll.getBoundingClientRect().top-24;
+ });
+ await page.screenshot({path:path.join(out,'screenplay-format-page-break.png')});
  fs.writeFileSync(path.join(out,'screenplay-format-metrics.json'),JSON.stringify({metrics,cover,coveragePreserved:true,pdfFontSize:12},null,2));assert.deepEqual(errors,[]);console.log('OK: Courier Prime 12 pt/Carta, línea sencilla de 12 pt, separación de párrafos y escenas, sangrías, numeración fuera del texto, portada centrada/autores/contactos, PDF coherente y migración de cobertura.');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

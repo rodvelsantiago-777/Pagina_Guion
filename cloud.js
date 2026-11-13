@@ -58,8 +58,8 @@
  function schedule(payload){
   if(!configured||!current)return;
   pending=copy(payload);sequence++;remember();clearTimeout(timer);
-  if(error?.code==='CONFLICT'){notify('conflict');return;}
-  error=null;notify('pending');timer=setTimeout(()=>flush().catch(()=>{}),1500);
+  if(error?.code==='CONFLICT')return;
+  error=null;if(status!=='pending')notify('pending');timer=setTimeout(()=>flush().catch(()=>{}),1500);
  }
  async function savePayload(project,payload){
   // El título queda en el guion aunque falle la actualización del listado.
@@ -88,9 +88,14 @@
   if(error?.code==='CONFLICT')throw error;
   const expectedEpoch=epoch,projectId=current.id;
   const work=(async()=>{
+   const encoder=new TextEncoder(),bytes=value=>encoder.encode(JSON.stringify(value)).length;
    while(pending&&current?.id===projectId&&epoch===expectedEpoch){
     const snapshot=copy(pending),savedSequence=sequence;
-    if(new TextEncoder().encode(JSON.stringify(snapshot)).length>PAYLOAD_LIMIT)throw failure('TOO_LARGE','El guion y sus notas superan 350 KB. Descarga una copia antes de continuar.');
+    if(bytes(snapshot)>PAYLOAD_LIMIT){
+     if(!snapshot.thumbnail)throw failure('TOO_LARGE','El guion y sus notas superan 350 KB. Descarga una copia antes de continuar.');
+     delete snapshot.thumbnail;
+     if(bytes(snapshot)>PAYLOAD_LIMIT)throw failure('TOO_LARGE','El guion y sus notas superan 350 KB. Descarga una copia antes de continuar.');
+    }
     error=null;notify('saving');
     await savePayload(current,snapshot);
     if(epoch!==expectedEpoch)return;

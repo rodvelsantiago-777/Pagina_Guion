@@ -1,5 +1,5 @@
 /* La biblioteca y la carpeta comparten el encabezado y los controles. */
-body:not(.is-editing) .workspace-toolbar { display: none; }
+
 body:not(.is-editing) .script-workspace { background: transparent; border: 0; box-shadow: none; overflow: visible; }
 body:not(.is-editing) #upload-view { padding: 0; }
 body:not(.is-editing) .page-heading { display: block; margin: 0 0 26px; }
