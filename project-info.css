@@ -5,6 +5,33 @@
 .project-info-dialog h2{font:650 26px/1.3 var(--sans);letter-spacing:-.6px;margin:5px 0 8px}.project-info-lead{font:12px/1.6 var(--sans);color:var(--muted);margin:0;max-width:48ch}
 .project-info-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px;padding:24px 28px}.project-info-fields>label{display:grid;gap:7px;font:600 12px/1.5 var(--sans);min-width:0}.project-info-unit{display:inline;font-weight:400;color:var(--muted)}.project-info-wide{grid-column:1/-1}
 .project-info-fields input,.project-info-fields select{display:block;width:100%;min-width:0;min-height:40px;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface-alt);color:var(--ink);padding:9px 11px;font:14px/1.5 var(--sans)}
+.project-genre-field { display: grid; gap: 7px; min-width: 0; font: 600 12px/1.5 var(--sans); }
+.project-genre-input { position: relative; }
+.project-genre-input input { padding-right: 40px; }
+.project-genre-input button {
+  position: absolute;
+  inset: 3px 3px 3px auto;
+  display: grid;
+  place-items: center;
+  width: 33px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+}
+.project-genre-input button:hover { background: var(--surface-hover); color: var(--ink); }
+.project-genre-input svg { width: 16px; height: 16px; }
+.project-genre-options {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  max-height: min(235px, 42dvh);
+  padding: 4px;
+  list-style: none;
+  font: 14px/1.4 var(--sans);
+}
+.project-genre-options li { padding: 7px 9px; border-radius: 3px; cursor: pointer; }
+.project-genre-options li:is(:hover, [aria-selected=true]) { background: var(--accent-soft); color: var(--accent); }
 .project-identity{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px 12px;min-width:0}
 .project-identity>label,.project-icon-field{display:grid;gap:7px;font:600 12px/1.5 var(--sans)}
 .project-icon-field button{display:grid;place-items:center;width:44px;height:40px;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface-alt);color:var(--accent)}

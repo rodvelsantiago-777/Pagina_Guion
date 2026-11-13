@@ -7,7 +7,6 @@ body:not(.is-editing) .page-heading { display: block; margin: 0 0 26px; }
 
 [data-genre-accent=drama] { --genre-hue: 24; }
 [data-genre-accent=comedy] { --genre-hue: 44; }
-[data-genre-accent=horror] { --genre-hue: 354; }
 [data-genre-accent=thriller] { --genre-hue: 198; }
 [data-genre-accent=scifi] { --genre-hue: 230; }
 [data-genre-accent=documentary] { --genre-hue: 145; }
@@ -29,6 +28,16 @@ body:not(.is-editing) .page-heading { display: block; margin: 0 0 26px; }
   --genre-soft: color-mix(in srgb, var(--genre-fill) 38%, var(--paper));
   --genre-line: color-mix(in srgb, var(--genre-ink) 20%, var(--line));
   --genre-secondary-ink: color-mix(in srgb, var(--genre-ink) 65%, #b7c9e2);
+}
+[data-genre-accent=horror] {
+  --genre-fill: #2c3037;
+  --genre-ink: #343b45;
+  --genre-secondary-fill: #41464e;
+}
+[data-theme=dark] [data-genre-accent=horror] {
+  --genre-fill: #292d34;
+  --genre-ink: #c2c9d2;
+  --genre-secondary-fill: #3c424b;
 }
 [data-genre-accent] .workspace-banner[data-view=project] { border-color: var(--genre-line); }
 [data-genre-accent] .workspace-banner[data-view=project] .workspace-banner-visual { background: var(--genre-fill); color: white; }

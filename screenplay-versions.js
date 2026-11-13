@@ -73,9 +73,22 @@
 
   // Los identificadores de párrafo se conservan en el redactor. La subsecuencia
   // ascendente mantiene alineados los bloques que siguen en el mismo orden.
-  function anchors(left, right) {
-    const positions = new Map(right.map((item, index) => [item.key, index]));
-    const candidates = left.flatMap((item, index) => positions.has(item.key) ? [[index, positions.get(item.key)]] : []);
+  function anchors(left, right, key = item => item.key) {
+    const positions = new Map();
+    for (const [index, item] of right.entries()) {
+      const value = key(item);
+      if (value) positions.set(value, positions.has(value) ? -1 : index);
+    }
+    const seen = new Set(), duplicates = new Set();
+    for (const item of left) {
+      const value = key(item);
+      if (seen.has(value)) duplicates.add(value);
+      seen.add(value);
+    }
+    const candidates = left.flatMap((item, index) => {
+      const value = key(item), position = positions.get(value);
+      return position >= 0 && !duplicates.has(value) ? [[index, position]] : [];
+    });
     const tails = [], parents = [];
     for (const [i, pair] of candidates.entries()) {
       let lo = 0, hi = tails.length;
@@ -91,6 +104,9 @@
     for (let i = tails.at(-1); i >= 0; i = parents[i]) matches.push(candidates[i]);
     return matches.reverse();
   }
+
+  const normalized = text => text.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
+  const contentKey = item => item.kind && item.text.trim() ? item.kind + ':' + normalized(item.text) : '';
 
   function fragments(left, right) {
     const tokenize = text => text.match(/[\p{L}\p{M}\p{N}]+|\s+|[^\s\p{L}\p{M}\p{N}]/gu) || [];
@@ -150,17 +166,52 @@
         text: [author.name, author.email, author.phone, author.contact].filter(Boolean).join('\n')
       })),
       { key: 'copyright', name: 'Copyright', text: copyright },
-      { key: 'characters', name: 'Personajes registrados', text: script.characters.join(', ') }
+      { key: 'characters', name: 'Personajes', text: screenplay.analyze(script).characters.map(item => item.name).join(', ') }
     ];
     return metadata.filter(row => row.text).concat(script.doc.content.map(node => {
       let offset = 0;
-      const marks = [];
+      const marks = [], references = screenplay.characterMarks(node);
       for (const piece of node.content || []) {
-        if (piece.marks?.length) marks.push({ from: offset, to: offset + piece.text.length, marks: piece.marks });
+        const end = offset + piece.text.length;
+        const valid = piece.marks?.filter(mark => mark.type !== 'character' ||
+          references.some(ref => ref.from <= offset && ref.to >= end &&
+            screenplay.characterKey(ref.name) === screenplay.characterKey(mark.attrs.name)));
+        if (valid?.length) marks.push({ from: offset, to: end, marks: valid });
         offset += piece.text.length;
       }
-      return { key: 'body:' + node.attrs.id, name: screenplay.kinds[node.attrs.kind], text: screenplay.plain(node), marks };
+      const kind = node.attrs.kind;
+      return { key: 'body:' + node.attrs.id, kind, name: screenplay.kinds[kind], text: screenplay.plain(node), marks };
     }));
+  }
+
+  function paired(previous, next) {
+    const changed = previous.text !== next.text;
+    const styles = item => JSON.stringify(changed ? item.marks?.map(run => run.marks) : item.marks);
+    const format = styles(previous) !== styles(next) || previous.name !== next.name;
+    return {
+      before: previous, after: next,
+      type: changed || format ? 'changed' : 'same',
+      format, fragments: changed ? fragments(previous.text, next.text) : null
+    };
+  }
+
+  function appendGap(result, left, right) {
+    let i = 0, j = 0;
+    for (const [a, b] of [...anchors(left, right, contentKey), [left.length, right.length]]) {
+      while (i < a || j < b) {
+        const before = i < a ? left[i] : null, after = j < b ? right[j] : null;
+        if (before?.kind && after?.kind) {
+          // En un tramo reescrito se ven las dos lecturas a la vez, sin inventar coincidencias de palabras.
+          result.push(contentKey(before) && contentKey(before) === contentKey(after) ? paired(before, after) : { before, after, type: 'replaced' });
+          i++; j++;
+        } else if (before && (!after || !before.kind)) {
+          result.push({ before, type: 'removed' });i++;
+        } else {
+          result.push({ after, type: 'added' });j++;
+        }
+      }
+      if (a < left.length && b < right.length) result.push(paired(left[i++], right[j++]));
+    }
   }
 
   function compare(before, after) {
@@ -169,18 +220,10 @@
     const right = rows(after), result = [];
     let i = 0, j = 0;
     for (const [a, b] of [...anchors(left, right), [left.length, right.length]]) {
-      while (i < a) result.push({ before: left[i++], type: 'removed' });
-      while (j < b) result.push({ after: right[j++], type: 'added' });
+      if (i < a || j < b) appendGap(result, left.slice(i, a), right.slice(j, b));
+      i = a; j = b;
       if (i === left.length || j === right.length) break;
-      const previous = left[i++], next = right[j++];
-      const changed = previous.text !== next.text;
-      const styles = item => JSON.stringify(changed ? item.marks?.map(run => run.marks) : item.marks);
-      const format = styles(previous) !== styles(next) || previous.name !== next.name;
-      result.push({
-        before: previous, after: next,
-        type: changed || format ? 'changed' : 'same',
-        format, fragments: changed ? fragments(previous.text, next.text) : null
-      });
+      result.push(paired(left[i++], right[j++]));
     }
     return result;
   }

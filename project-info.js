@@ -52,6 +52,7 @@
   use.setAttribute('href','#i-folder');svg.append(use);container.replaceChildren(svg);
  };
  api.editor=function({owner,create,save,loadEmojis}){
+  const genres=['Drama','Comedia','Terror','Suspenso','Ciencia ficción','Documental','Acción','Romance','Fantasía','Animación'];
   const dialog=document.createElement('dialog');dialog.id='new-script-dialog';dialog.className='project-info-dialog';dialog.setAttribute('aria-labelledby','new-script-title');
   dialog.innerHTML=`<form id="project-info-form"><header><div><p class="dialog-eyebrow" id="project-info-eyebrow">TU PRÓXIMA HISTORIA</p><h2 id="new-script-title">Nuevo proyecto</h2><p class="project-info-lead">Define la ficha de tu historia. Podrás completarla o ajustarla después.</p></div><button id="cancel-new-script" class="shot-close" type="button" aria-label="Cerrar ficha del proyecto">×</button></header>
    <div class="project-info-fields"><div class="project-identity project-info-wide"><div class="project-icon-field"><span>Icono</span><button id="project-icon-button" type="button" title="Elegir icono del proyecto" aria-label="Elegir icono del proyecto" aria-expanded="false" aria-controls="project-emoji-picker" popovertarget="project-emoji-picker"><span id="project-icon-preview" aria-hidden="true"></span></button></div><label>Nombre del proyecto<input id="project-info-name" required maxlength="120" autocomplete="off" placeholder="Título del proyecto"></label>
@@ -61,7 +62,13 @@
     <div class="project-emoji-heading"><h3 id="project-emoji-title">Caras y emociones</h3><button id="project-emoji-tones" type="button" aria-pressed="false" hidden>Tonos de piel</button></div>
     <div id="project-emoji-scroll" class="project-emoji-scroll"><p id="project-emoji-status" role="status" hidden></p><div id="project-emoji-grid" class="project-emoji-grid" role="group" aria-labelledby="project-emoji-title"></div></div>
     <footer class="project-emoji-footer"><button id="project-emoji-reset" type="button"><svg aria-hidden="true"><use href="#i-folder"/></svg>Usar carpeta</button></footer>
-   </section></div><label>Género<input id="project-info-genre" maxlength="120" list="project-genre-options" placeholder="Por ejemplo, terror"><datalist id="project-genre-options"><option>Drama</option><option>Comedia</option><option>Terror</option><option>Suspenso</option><option>Ciencia ficción</option><option>Documental</option><option>Acción</option><option>Romance</option><option>Fantasía</option><option>Animación</option></datalist></label><label>Formato<select id="project-info-format"><option value="short">Cortometraje</option><option value="feature">Largometraje</option></select></label>
+   </section></div>
+   <div class="project-genre-field">
+    <label for="project-info-genre">Género</label>
+    <div class="project-genre-input"><input id="project-info-genre" type="text" maxlength="120" placeholder="Elige o escribe un género" autocomplete="off" writingsuggestions="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="project-genre-options"><button id="project-genre-toggle" type="button" tabindex="-1" popovertarget="project-genre-options" aria-label="Mostrar géneros"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4"/></svg></button></div>
+    <ul id="project-genre-options" class="compact-popover project-genre-options" popover="auto" data-align="start" role="listbox" aria-label="Géneros"></ul>
+   </div>
+   <label>Formato<select id="project-info-format" autocomplete="off"><option value="short">Cortometraje</option><option value="feature">Largometraje</option></select></label>
    <fieldset class="project-info-wide project-info-authors"><legend>Autor o autores</legend><div id="project-info-authors"></div><button id="project-add-author" class="project-info-text-button" type="button">+ Añadir autor</button><p class="project-info-hint">Se usarán también en la portada del guion.</p></fieldset>
    <label><span>Duración estimada <span class="project-info-unit">(minutos)</span></span><input id="project-info-duration" type="number" inputmode="decimal" min="0.1" max="1440" step="any" placeholder="Por ejemplo, 10"></label><label>Target / público objetivo<input id="project-info-target" maxlength="160" placeholder="Por ejemplo, adolescentes"></label><label>País de origen<input id="project-info-country" maxlength="80" placeholder="Por ejemplo, Colombia"></label><label>Idioma original<input id="project-info-language" maxlength="80" placeholder="Por ejemplo, español (latino)"></label></div>
    <section id="project-attachment" class="project-attachment"><div><strong>Guion existente <span>(opcional)</span></strong><p id="project-file-name">Si ya lo tienes escrito, puedes adjuntarlo aquí.</p></div><button id="project-attach-script" type="button">Adjuntar guion</button><button id="project-remove-script" class="project-info-text-button" type="button" hidden>Quitar</button><input id="project-info-file" type="file" hidden></section>
@@ -84,6 +91,65 @@
   $('#project-emoji-categories').append(...categoryButtons);
   let symbol='',category=categories[0][0],catalog=null,allEmojis=[],matches=[];
   const searchKey=value=>value.normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('es');
+  const genreInput=$('#project-info-genre'),genreToggle=$('#project-genre-toggle'),genreList=$('#project-genre-options');
+  let activeGenre=-1;
+  function hideGenres(){
+   root.PlanoPopover.hide(genreList);
+   genreInput.removeAttribute('aria-activedescendant');
+   activeGenre=-1;
+  }
+  function showGenres(filter=''){
+   const query=searchKey(filter.trim()),options=genres.filter(genre=>searchKey(genre).includes(query));
+   if(!options.length){hideGenres();return;}
+   activeGenre=-1;genreInput.removeAttribute('aria-activedescendant');
+   genreList.replaceChildren(...options.map((genre,index)=>{
+    const option=document.createElement('li');option.id='project-genre-option-'+index;
+    option.setAttribute('role','option');option.setAttribute('aria-selected','false');option.textContent=genre;
+    return option;
+   }));
+   genreList.style.width=genreInput.getBoundingClientRect().width+'px';
+   if(genreList.matches(':popover-open'))root.PlanoPopover.place(genreList);
+   else root.PlanoPopover.show(genreList,genreInput);
+  }
+  function selectGenre(option){
+   genreInput.value=option.textContent;
+   hideGenres();genreInput.focus({preventScroll:true});
+  }
+  genreToggle.addEventListener('click',event=>{
+   event.preventDefault();genreInput.focus({preventScroll:true});
+   if(genreList.matches(':popover-open'))hideGenres();
+   else showGenres();
+  });
+  genreInput.addEventListener('input',event=>{if(!event.isComposing)showGenres(genreInput.value);});
+  genreInput.addEventListener('click',()=>{if(!genreList.matches(':popover-open'))showGenres();});
+  genreInput.addEventListener('blur',event=>{if(event.relatedTarget!==genreToggle)hideGenres();});
+  genreList.addEventListener('toggle',()=>{
+   if(!genreList.matches(':popover-open')){genreInput.removeAttribute('aria-activedescendant');activeGenre=-1;}
+  });
+  genreList.addEventListener('mousedown',event=>event.preventDefault());
+  genreList.addEventListener('click',event=>{
+   const option=event.target.closest('[role=option]');
+   if(option)selectGenre(option);
+  });
+  genreInput.addEventListener('keydown',event=>{
+   if(event.isComposing)return;
+   if(event.key==='Enter'&&genreList.matches(':popover-open')){
+    event.preventDefault();
+    if(activeGenre>=0)selectGenre(genreList.children[activeGenre]);
+    else hideGenres();
+    return;
+   }
+   if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
+   event.preventDefault();
+   if(!genreList.matches(':popover-open'))showGenres();
+   const count=genreList.childElementCount;
+   if(!count)return;
+   genreList.children[activeGenre]?.setAttribute('aria-selected','false');
+   activeGenre=event.key==='ArrowDown'?(activeGenre+1)%count:activeGenre<=0?count-1:activeGenre-1;
+   const option=genreList.children[activeGenre];
+   option.setAttribute('aria-selected','true');genreInput.setAttribute('aria-activedescendant',option.id);
+   option.scrollIntoView({block:'nearest'});
+  });
   function setIcon(value){
    symbol=emoji(value);api.paintIcon($('#project-icon-preview'),symbol);
    iconButton.setAttribute('aria-label',symbol?'Cambiar icono del proyecto '+symbol:'Elegir icono del proyecto');
@@ -155,7 +221,7 @@
    event.target.tabIndex=-1;grid.children[target].tabIndex=0;grid.children[target].focus();
   });
   $('#project-emoji-reset').addEventListener('click',()=>selectIcon(''));
-  dialog.addEventListener('close',()=>{hidePicker();current=null;form.reset();$('#project-info-authors').replaceChildren();});
+  dialog.addEventListener('close',()=>{hidePicker();hideGenres();current=null;form.reset();$('#project-info-authors').replaceChildren();});
   function close(){if(!saving)dialog.close();}
   function authorRow(author){
    const row=document.createElement('div');row.className='project-author-row';row.dataset.id=author.id;row._author={...author};
@@ -189,7 +255,7 @@
     const duration=$('#project-info-duration').value;
     const info=validate({version:1,emoji:symbol,...Object.fromEntries(['genre','format','target','country','language'].map(key=>[key,$('#project-info-'+key).value])),estimatedMinutes:duration===''?null:Number(duration),completed:Boolean(current.info?.completed)});
     const file=$('#project-info-file').files[0];if(file&&/\.plano$/i.test(file.name))throw Error('Para recuperar un proyecto .plano completo, usa Importar en Inicio.');
-    saving=true;hidePicker();$('#project-info-error').hidden=true;for(const el of form.elements)el.disabled=true;$('#create-project').textContent='Guardando…';
+    saving=true;hidePicker();hideGenres();$('#project-info-error').hidden=true;for(const el of form.elements)el.disabled=true;$('#create-project').textContent='Guardando…';
     const creating=!current.project,result=await(current.project?save({...current,name,info,authors,updated:value=>Object.assign(current,value)}):create({name,info,authors,file}));if(result!==false&&current?.owner===owner()?.id){dialog.close();if(creating)document.querySelector('#writer-project-title')?.focus();}
    }catch(error){if(current?.owner===owner()?.id){$('#project-info-error').textContent=error.message||'No se pudo guardar la ficha.';$('#project-info-error').hidden=false;}}
    finally{saving=false;for(const el of form.elements)el.disabled=false;authorButtons();if(current)$('#create-project').textContent=current.project?'Guardar ficha':'Crear proyecto';}

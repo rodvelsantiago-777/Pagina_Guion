@@ -15,15 +15,47 @@ const comparisonBase=S.create('Prueba de comparación');
 comparisonBase.doc.content=[p('action','La puerta está abierta.','text'),p('action','Una acción anterior.','removed'),p('action','Silencio.','format')];
 const comparisonNext={...comparisonBase,doc:{type:'doc',content:[p('action','La puerta está cerrada.','text'),p('action','Una nueva acción.','added'),p('dialogue','Silencio.','format')]}};
 const differences=V.compare(comparisonBase,comparisonNext);
-assert.deepEqual(differences.map(row=>row.type),['same','changed','removed','added','changed']);
+assert.deepEqual(differences.map(row=>row.type),['same','changed','replaced','changed']);
 assert.equal(differences[1].fragments[0].find(run=>run.changed).text,'abierta');
 assert.equal(differences[1].fragments[1].find(run=>run.changed).text,'cerrada');
 assert(differences.at(-1).format);
+assert.equal(differences[2].before.text,'Una acción anterior.');
+assert.equal(differences[2].after.text,'Una nueva acción.');
+const oldScript={...S.create('Reimportación'),characters:['ÁNGELA','ANGÉLICA'],doc:{type:'doc',content:[
+ p('scene','INT. CUARTO - NOCHE'),p('action','La habitación está desordenada.'),
+ p('character','JUAN PABLO'),p('dialogue','Ya voy.'),p('scene','EXT. PATIO - DÍA'),
+ p('action','El patio está vacío.')
+]}};
+const newScript={...oldScript,doc:{type:'doc',content:[
+ p('scene','INT. HABITACIÓN - NOCHE'),p('action','Hay ropa por todo el suelo.'),
+ p('character','JUAN PABLO'),p('dialogue','Ya voy.'),p('scene','EXT. PATIO - DÍA'),
+ p('action','El patio está vacío.'),p('action','Empieza a llover.')
+]}};
+const reimported=V.compare(oldScript,newScript);
+assert.equal(reimported.find(row=>row.before?.name==='Personajes').before.text,'JUAN PABLO');
+assert.equal(reimported.find(row=>row.after?.name==='Personajes').after.text,'JUAN PABLO');
+assert.deepEqual(reimported.filter(row=>row.before?.kind||row.after?.kind).map(row=>row.type),['replaced','replaced','same','same','same','same','added']);
+assert.equal(reimported.find(row=>row.before?.text==='Ya voy.').after.text,'Ya voy.');
+assert.equal(reimported.at(-1).before,undefined);
+assert(!JSON.stringify(V.compare(oldScript)).includes('ANGÉLICA'));
 assert.equal(V.nextDraft({...comparisonBase,revision:1},comparisonBase,[{number:1}]).edition,undefined);
 const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
 (async()=>{const browser=await require('./editor-auth-fixture.cjs').launch(chromium,{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true});try{
  const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});await page.goto(pathToFileURL(path.join(root,'index.html')).href);await page.locator('#upload-button').click();assert.equal(await page.locator('#new-script-write,#new-script-import').count(),0);
  await page.locator('#project-info-name').fill('¿Quién es?');for(const [key,value]of Object.entries({genre:'Terror',duration:'10',target:'Adolescentes',country:'Colombia',language:'Español (latino)'}))await page.locator('#project-info-'+key).fill(value);
+ const genre=page.getByRole('combobox',{name:'Género'}),genreList=page.getByRole('listbox',{name:'Géneros'});
+ assert.equal(await genre.getAttribute('autocomplete'),'off');
+ assert.equal(await genre.getAttribute('list'),null);
+ assert.equal(await page.locator('#project-info-form').getAttribute('autocomplete'),null);
+ assert.equal(await page.locator('#project-info-target').getAttribute('autocomplete'),null);
+ await page.getByRole('button',{name:'Mostrar géneros'}).click();
+ assert.equal(await genreList.getByRole('option').count(),10);
+ await genreList.getByRole('option',{name:'Ciencia ficción',exact:true}).click();
+ assert.equal(await genre.inputValue(),'Ciencia ficción');
+ await genre.fill('terr');await genre.press('ArrowDown');await genre.press('Enter');
+ assert.equal(await genre.inputValue(),'Terror');
+ assert(await genreList.isHidden());
+ assert(await page.locator('#new-script-dialog').isVisible());
  assert.equal(await page.locator('#project-icon-preview use').getAttribute('href'),'#i-folder');
  const picker=page.locator('#project-emoji-picker'),emojiGrid=picker.locator('#project-emoji-grid');
  await page.locator('#project-icon-button').click();await emojiGrid.locator('button').first().waitFor();
@@ -113,6 +145,11 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
  assert.equal(await page.locator('#version-history-left').inputValue(),'1');
  assert.equal(await page.locator('#version-history-right').inputValue(),'2');
  await page.locator('#version-history-result mark.version-removed').first().waitFor();
+ const versionRow=page.locator('.version-history-row').filter({has:page.locator('.version-cell[data-kind=scene]')}).first();
+ assert.equal(await versionRow.locator('.version-cell[data-kind=scene]').count(),2);
+ const cells=await versionRow.locator('.version-cell').evaluateAll(items=>items.map(item=>{const box=item.getBoundingClientRect();return {left:box.left,top:box.top,width:box.width};}));
+ assert.equal(cells[0].top,cells[1].top);
+ assert(cells[0].left<cells[1].left&&Math.abs(cells[0].width-cells[1].width)<1);
  assert.match((await page.locator('#version-history-result mark.version-added').allTextContents()).join(''),/cerrada.*La cámara/s);
  await page.locator('#version-history-changes').check();
  await page.locator('#version-history-result mark.version-added').first().waitFor();
@@ -121,6 +158,16 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
  await page.locator('#version-history-right').selectOption('');
  await page.locator('.version-history-single .version-cell').first().waitFor();
  assert.equal(await page.locator('#version-history-result mark').count(),0);
+ await page.getByRole('button',{name:'Cerrar historial'}).click();
+ await page.waitForFunction(()=>document.querySelector('#version-history-left').options.length===0);
+ await page.evaluate(async ({oldScript,newScript})=>{
+  const versions=await Promise.all([PlanoScreenplayVersions.archive({...oldScript,edition:1}),PlanoScreenplayVersions.archive({...newScript,edition:2})]);
+  PlanoVersionHistory.open({name:'Reimportación',versions});
+ },{oldScript,newScript});
+ const rewritten=page.locator('.version-history-row').filter({hasText:'INT. CUARTO - NOCHE'});
+ await rewritten.locator('.version-added').waitFor();
+ assert.equal(await rewritten.locator('.version-added').textContent(),'INT. HABITACIÓN - NOCHE');
+ assert(!(await page.locator('#version-history-result').textContent()).match(/ÁNGELA|ANGÉLICA/));
  await page.getByRole('button',{name:'Cerrar historial'}).click();
  await page.locator('[data-project-stage=writing]').click();
 
@@ -147,6 +194,10 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
  assert.equal(await page.locator('#file-name').textContent(),'Mi querida Amalia');
  // Ficha en móvil, cierre sin guardar y archivo de guion opcional sin otro selector.
  await page.locator('#editor-home').click();await page.setViewportSize({width:390,height:844});await page.locator('#upload-button').click();await page.locator('#project-info-name').fill('Importado');assert(await page.locator('#new-script-dialog').evaluate(e=>e.scrollWidth<=e.clientWidth));await page.screenshot({path:path.join(out,'ficha-proyecto-movil.png')});
+ await page.getByRole('button',{name:'Mostrar géneros'}).click();
+ assert(await genreList.evaluate(list=>{const r=list.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;}));
+ await page.screenshot({path:path.join(out,'selector-genero-movil.png')});
+ await genre.press('Escape');assert(await genreList.isHidden());assert(await page.locator('#new-script-dialog').isVisible());
  await page.evaluate(()=>PlanoAppearance.choose({mode:'dark'}));
  await page.locator('#project-icon-button').click();await emojiGrid.locator('button').first().waitFor();assert(await page.locator('#new-script-dialog').evaluate(e=>e.scrollWidth<=e.clientWidth));assert(await picker.evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;}));await page.screenshot({path:path.join(out,'selector-emoji-movil-oscuro.png')});await page.keyboard.press('Escape');assert(await picker.isHidden());assert(await page.locator('#new-script-dialog').isVisible());
  await page.locator('#project-info-file').setInputFiles({name:'Original.txt',mimeType:'text/plain',buffer:Buffer.from('INT. ESTUDIO - DÍA\n\nUna historia nueva.')});await page.locator('#create-project').click();await page.waitForFunction(()=>state.localProjectName==='Importado'&&!state.busy&&!!state.screenplay);assert.equal(await page.evaluate(()=>state.screenplay.authors[0].name),'Prueba');assert.equal(await page.evaluate(()=>state.projectInfo.completed),false);

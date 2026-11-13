@@ -98,7 +98,7 @@
  }
  function chrome(){if(!layoutCache)return;if(view)view.dom.style.minHeight=layoutCache.totalHeight+'px';const parent=$('#writer-page-chrome');while(parent.children.length>layoutCache.pageCount)parent.lastElementChild.remove();for(let page=parent.children.length;page<layoutCache.pageCount;page++){const sheet=document.createElement('div');sheet.className='writer-page-outline';sheet.style.top=page*1084+'px';if(page){const number=document.createElement('span');number.textContent=(page+1)+'.';sheet.append(number);}parent.append(sheet);}}
  function schemaFor(P){return new P.Schema({nodes:{doc:{attrs:{screenplaySyntax:{default:1}},content:'paragraph+'},paragraph:{content:'text*',group:'block',attrs:{kind:{default:'action'},id:{default:null}},parseDOM:[{tag:'p',getAttrs:dom=>({kind:Object.hasOwn(S.kinds,dom.dataset.kind)?dom.dataset.kind:'action',id:S.id()})},{tag:'div',getAttrs:()=>({kind:'action',id:S.id()})}],toDOM:node=>['p',{'data-kind':node.attrs.kind,'data-block-id':node.attrs.id},0]},text:{group:'inline'}},marks:{bold:{parseDOM:[{tag:'strong'},{tag:'b',getAttrs:node=>node.style.fontWeight!=='normal'&&null},{style:'font-weight=700'}],toDOM:()=>['strong',0]},italic:{parseDOM:[{tag:'i'},{tag:'em'}],toDOM:()=>['em',0]},underline:{parseDOM:[{tag:'u'},{style:'text-decoration=underline'}],toDOM:()=>['u',0]},character:{attrs:{name:{}},inclusive:false,parseDOM:[{tag:'span[data-writer-character]',getAttrs:dom=>({name:dom.dataset.writerCharacter.slice(0,80)})}],toDOM:mark=>['span',{'data-writer-character':mark.attrs.name},0]}}});}
- async function prepare(){await Promise.all([!root.PlanoWriterReview?hooks.load('writer-review.js'):null,!root.PlanoWriterFind?hooks.load('writer-find.js'):null]);if(!root.PlanoProseMirror){enginePromise||=hooks.load('vendor/writer-engine.js').catch(error=>{enginePromise=null;throw error;});await enginePromise;}return root.PlanoProseMirror;}
+ async function prepare(){await Promise.all([!root.PlanoWriterReview?hooks.load('writer-review.js'):null,!root.PlanoWriterFind?hooks.load('writer-find.js'):null,!root.PlanoTxt?hooks.load('txt-script.js').catch(()=>{}):null]);if(!root.PlanoProseMirror){enginePromise||=hooks.load('vendor/writer-engine.js').catch(error=>{enginePromise=null;throw error;});await enginePromise;}return root.PlanoProseMirror;}
  function pageDecorations(doc,P){
   layoutCache=S.layout(doc.toJSON());const decorations=[];
   const gap=(pos,height,key,continuation=null,left=144)=>P.Decoration.widget(pos,()=>{const span=document.createElement('span');span.className='writer-page-gap';span.style.height=height+'px';span.style.marginLeft=-left+'px';span.dataset.writerGap=key;if(continuation){for(const [text,x,top]of [['(MÁS)',345.6,0],[continuation.speaker,355.2,236]]){const label=document.createElement('span');label.className='writer-continuation';label.textContent=text;label.style.left=x+'px';label.style.top=top+'px';span.append(label);}}return span;},{side:-1,key:'gap-'+key,ignoreSelection:true});
@@ -122,21 +122,46 @@
  // El autocompletado necesita nombres, no todas las menciones y los diálogos del índice lateral.
  function knownCharacters(){
   if(namesCache?.id===draft.id&&namesCache.revision===draft.revision)return namesCache.names;
-  const names=new Map(draft.characters.map(name=>[S.characterKey(name),S.cue(name)])),active=new Map();let speaker='';
-  const add=value=>{const name=S.cue(value);if(!name||name.length>80||!/[\p{L}]/u.test(name))return;const key=S.characterKey(name),previous=active.get(key)||names.get(key);if(!previous||name.normalize('NFD').length>name.length&&previous.normalize('NFD').length===previous.length)active.set(key,name);else if(!active.has(key))active.set(key,previous);};
-  for(const node of draft.doc.content){const kind=node.attrs.kind;if(kind==='scene')speaker='';if(kind==='character')speaker=S.cue(S.plain(node));else if(kind==='dialogue'&&speaker&&S.plain(node).trim())add(speaker);else if(!['dialogue','parenthetical'].includes(kind))speaker='';for(const mark of S.characterMarks(node))add(mark.name);}
-  for(const [key,name]of active)names.set(key,name);
-  const list=[...names.values()];namesCache={id:draft.id,revision:draft.revision,names:list};return list;
+  const list=S.characterRoster(draft);namesCache={id:draft.id,revision:draft.revision,names:list};return list;
  }
  function knownCharacter(text){const key=foldCharacter(S.cue(text));return knownCharacters().find(name=>foldCharacter(S.cue(name))===key);}
  function characterMatches(text){const prefix=foldCharacter(text),names=knownCharacters();return names.filter(name=>foldCharacter(name).startsWith(prefix)).sort((a,b)=>Number(foldCharacter(b)===prefix)-Number(foldCharacter(a)===prefix));}
  function applyKind(kind){if(!view||part!=='body'||!Object.hasOwn(S.kinds,kind))return;closeMenus();menuSuppressed=false;const P=root.PlanoProseMirror;P.setBlockType(view.state.schema.nodes.paragraph,{kind,id:paragraph()?.attrs.id||S.id()})(view.state,view.dispatch,view);view.focus();}
  function enter(state,dispatch){
   const P=root.PlanoProseMirror;
-  const current=state.selection.$from.parent,cueName=current.attrs.kind==='action'&&state.selection.empty&&state.selection.$from.parentOffset===current.content.size?knownCharacter(current.textContent):null,previous=cueName?'character':current.attrs.kind;
+  const current=state.selection.$from.parent;
+  const candidate=current.attrs.kind==='action'&&state.selection.empty&&state.selection.$from.parentOffset===current.content.size?knownCharacter(current.textContent):null;
+  const cueName=candidate&&S.characterRoster(draft,current.attrs.id).includes(candidate)?candidate:null;
+  const previous=cueName?'character':current.attrs.kind;
   if(!current.textContent&&previous!=='action'){P.setBlockType(state.schema.nodes.paragraph,{kind:previous==='parenthetical'?'dialogue':'action',id:current.attrs.id})(state,dispatch);return true;}
   const next={scene:'action',character:'parenthetical',parenthetical:'dialogue',dialogue:'action',transition:'scene',insert:'action',section:'action'}[previous]||'action';
   return P.splitBlock(state,tr=>{if(cueName){const start=state.selection.$from.start();tr.setNodeMarkup(start-1,null,{...current.attrs,kind:'character'});tr.removeMark(start,start+current.content.size,state.schema.marks.character);const text=S.cue(current.textContent)===S.canonical(current.textContent)?cueName:S.canonical(current.textContent);tr.insertText(text,start,start+current.content.size);}tr.setNodeMarkup(tr.selection.$from.before(),null,{kind:next,id:S.id()});dispatch(tr);});
+ }
+ function pasteScreenplay(editor,event,slice){
+  if(!root.PlanoTxt||part!=='body')return false;
+  const {state}=editor,{selection,schema}=state,original=[];
+  slice.content.forEach(node=>original.push(node));
+  if(original.some(node=>node.type!==schema.nodes.paragraph||node.attrs.kind!=='action'))return false;
+  const html=event.clipboardData?.getData('text/html')||'';
+  // Respeta los tipos y las referencias al copiar desde el propio redactor.
+  if(/\bdata-pm-slice\s*=/.test(html)&&/\bdata-block-id\s*=/.test(html))return false;
+  const rich=original.some(node=>{let marked=false;node.forEach(child=>{if(child.marks.length)marked=true;});return marked;});
+  const plainText=event.clipboardData?.getData('text/plain');
+  const text=!rich&&plainText?plainText:original.map(node=>node.textContent).join('\n\n');
+  if(!text||text.length>220000)return false;
+  let blocks;
+  try{blocks=root.PlanoTxt.parseClipboard(text,knownCharacters());}catch{return false;}
+  if(!blocks.some(block=>block.attrs.kind!=='action'))return false;
+  // Una línea suelta pegada dentro de un párrafo sigue siendo texto de ese párrafo.
+  const {$from,$to}=selection;
+  if(blocks.length===1&&($from.parentOffset!==0||$to.parentOffset!==$to.parent.content.size))return false;
+  if(rich&&(blocks.length!==original.length||blocks.some((block,index)=>S.plain(block)!==original[index].textContent)))return false;
+  const nodes=blocks.map((block,index)=>rich?schema.nodes.paragraph.create(block.attrs,original[index].content):schema.nodeFromJSON(block));
+  // El slice cerrado conserva el tipo del primer párrafo incluso al pegar en una línea vacía.
+  const P=root.PlanoProseMirror,pasted=new slice.constructor(P.Fragment.fromArray(nodes),0,0);
+  closeMenus();menuSuppressed=true;
+  editor.dispatch(P.closeHistory(state.tr.replaceSelection(pasted)).setMeta('paste',true).setMeta('uiEvent','paste').scrollIntoView());
+  return true;
  }
  async function mount(token){
   const P=await prepare();if(token!==generation||!draft)return false;const schema=schemaFor(P);analysisCache=null;if(view)view.destroy();
@@ -158,7 +183,7 @@
    if(result.transactions.some(tr=>tr.docChanged)){
     draft.doc=view.state.doc.toJSON();revision({beforeDoc,transactions:result.transactions});chrome();clearTimeout(outlineTimer);outlineTimer=setTimeout(renderOutline,180);
    }syncToolbar();queueMicrotask(updateSuggestions);
-  },handleKeyDown(editor,event){
+  },handlePaste:pasteScreenplay,handleKeyDown(editor,event){
    if(paragraph()?.attrs.kind==='parenthetical'&&editor.state.selection.empty&&((event.key==='Backspace'&&editor.state.selection.$from.parentOffset===0)||(event.key==='Delete'&&editor.state.selection.$from.parentOffset===paragraph().content.size)))return true;
    if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
    if(!selected.hidden){

@@ -88,6 +88,7 @@
       name.append(' ', change);
     }
     const text = document.createElement('p');
+    if (item.kind) cell.dataset.kind = item.kind;
     const runs = fragments || [{ text: item.text, changed: Boolean(style) }];
     for (const run of visibleRuns(runs, onlyChanges)) appendRun(text, run, item.marks || [], style);
     cell.append(name, text);
@@ -107,7 +108,7 @@
     output.replaceChildren();
     output.scrollTop = 0;
     if (!left) {
-      status.textContent = 'Marca el guion como finalizado en su ficha para guardar la primera versión.';
+      status.textContent = 'Finaliza el guion desde el redactor para guardar la primera versión.';
       return;
     }
     status.textContent = 'Cargando el guion…';
@@ -140,8 +141,8 @@
         if (right && filter.checked && row.type === 'same') continue;
         const element = document.createElement('div');
         element.className = 'version-history-row';
-        const leftStyle = ['removed', 'changed'].includes(row.type) ? 'removed' : '';
-        const rightStyle = ['added', 'changed'].includes(row.type) ? 'added' : '';
+        const leftStyle = ['removed', 'changed', 'replaced'].includes(row.type) ? 'removed' : '';
+        const rightStyle = ['added', 'changed', 'replaced'].includes(row.type) ? 'added' : '';
         const onlyChanges = right && filter.checked;
         element.append(cell(row.before, row.fragments?.[0], row.format && !row.fragments ? 'format' : leftStyle, row.format, onlyChanges));
         if (right) element.append(cell(row.after, row.fragments?.[1], row.format && !row.fragments ? 'format' : rightStyle, row.format, onlyChanges));

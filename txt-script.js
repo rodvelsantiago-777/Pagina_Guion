@@ -63,28 +63,33 @@
     const name=text.replace(/\s*\([^)]*\)\s*$/,'');
     return name.length<=80&&/^[\p{L}\p{N} .’'\-]+$/u.test(name)&&!/[.!?:;,]$/.test(name)&&!heading(text)&&!insert(text)&&!transition(text);
   }
-  function parse(text,{name='Sin título.txt',user={}}={}){
+  function textRows(text){
     if(typeof text!=='string'||text.length>maxBytes)throw Error('El TXT supera el tamaño admitido.');
     text=text.replace(/^\ufeff/,'').replace(/\r\n?|\u2028|\u2029|\v/g,'\n').replace(/\u00a0/g,' ');
     if(!text.trim())throw Error('El TXT está vacío.');
     if(/[\u0000-\u0008\u000e-\u001f\u007f]/.test(text))throw Error('El archivo contiene datos binarios; selecciona un TXT de texto.');
     const raw=text.replace(/\f/g,'\n\f\n').split('\n');if(raw.length>30000)throw Error('El TXT contiene demasiadas líneas.');
-    const rows=raw.map(row),firstScene=rows.findIndex(r=>heading(r.text)),firstBreak=rows.findIndex(r=>r.text==='\f');
-    const beforeScene=firstScene>0?rows.slice(0,firstScene):[],strongCover=beforeScene.some(r=>writtenBy(r.text)||/^(?:escrito por|written by|autor(?:a)?|t[ií]tulo|title):/i.test(r.text));
-    const separateCover=firstBreak>=0&&rows.slice(0,firstBreak).some(r=>writtenBy(r.text));
-    const start=separateCover?firstBreak+1:strongCover?firstScene:0;
-    const fallback=name.replace(/\.txt$/i,'')||'Sin título',portada=start?cover(rows.slice(0,start-Number(separateCover)),fallback,user):{title:fallback,authors:S.create(fallback,user).authors};
-    const script=S.create(portada.title,user);script.title=portada.title;script.authors=portada.authors;
-    const body=rows.slice(start),significant=body.filter(r=>r.text&&r.text!=='\f'),baseline=significant.length?Math.min(...significant.map(r=>r.indent)):0;
+    return raw.map(row);
+  }
+  function parseBody(body,{clipboard=false,characters=[]}={}){
+    const significant=body.filter(r=>r.text&&r.text!=='\f'),baseline=significant.length?Math.min(...significant.map(r=>r.indent)):0;
+    const hasScene=clipboard&&significant.some(r=>heading(r.text)),names=new Set(characters.map(S.characterKey));
+    const structural=text=>heading(text)||insert(text)||transition(text)||/^#{1,6}\s+/.test(text);
+    const shortDirection=text=>/^(?:(?:molest|enojad|asustad|nervios|sorprendid|preocupad|confundid|enfadad|burlon|cansad|seri|tranquil)[oa]s?|susurrando|gritando|entre dientes|(?:en voz|con voz|sin mirar|mirando a)\s+[\p{L}\p{M} ]+)$/iu.test(text);
     const next=Array(body.length).fill(-1);let following=-1;
     for(let i=body.length-1;i>=0;i--){next[i]=following;if(body[i].text&&body[i].text!=='\f')following=i;}
     const blocks=[];let previous='',lastLine=-2;
     function isCue(index){const item=body[index],after=next[index]>=0?body[next[index]]:null;if(!cueCandidate(item.text))return false;
       if(item.indent-baseline>=18)return true;
       if(!after)return false;
-      if(heading(after.text)||insert(after.text)||transition(after.text))return false;
+      if(structural(after.text))return false;
       if(item.indent>baseline+2&&(after.indent<item.indent||after.text.startsWith('(')))return true;
-      return item.indent===baseline&&next[index]===index+1&&after.indent>=baseline&&!cueCandidate(after.text)&&(index===0||!body[index-1].text||previous==='scene');
+      if(item.indent!==baseline||after.indent<baseline||cueCandidate(after.text))return false;
+      const isolated=index===0||!body[index-1].text||previous==='scene';
+      const shortCue=item.text.split(/\s+/).length<=5;
+      const standaloneExchange=index===0&&shortCue&&significant.length===2&&/[.!?…]$/.test(after.text);
+      if(clipboard&&(names.has(S.characterKey(S.cue(item.text)))||isolated&&shortCue&&(hasScene||standaloneExchange||/^[¿¡(]/.test(after.text)||shortDirection(after.text))))return true;
+      return isolated&&next[index]===index+1;
     }
     function add(kind,parts,index){
       const value=parts.join(' ').trim();if(!value)return;
@@ -106,10 +111,24 @@
         }
         add('parenthetical',parts,i);continue;
       }
-      const kind=inDialogue&&(item.indent>baseline||['character','parenthetical'].includes(previous)&&i===lastLine+1)?'dialogue':'action';
-      while(i+1<body.length){const following=body[i+1];if(!following.text||following.text==='\f'||following.indent!==item.indent||heading(following.text)||insert(following.text)||transition(following.text)||/^#{1,6}\s+/.test(following.text)||isCue(i+1)||kind==='dialogue'&&following.text.startsWith('('))break;parts.push(following.text);i++;}
+      if(clipboard&&previous==='character'&&shortDirection(value)){
+        add('parenthetical',parts,i);continue;
+      }
+      const startsSpeech=previous==='character'||previous==='parenthetical';
+      const kind=inDialogue&&(item.indent>baseline||startsSpeech&&(clipboard||i===lastLine+1))?'dialogue':'action';
+      while(i+1<body.length){const following=body[i+1];if(!following.text||following.text==='\f'||following.indent!==item.indent||structural(following.text)||isCue(i+1)||kind==='dialogue'&&following.text.startsWith('('))break;parts.push(following.text);i++;}
       add(kind,parts,i);
     }
+    return blocks;
+  }
+  function parse(text,{name='Sin título.txt',user={}}={}){
+    const rows=textRows(text),firstScene=rows.findIndex(r=>heading(r.text)),firstBreak=rows.findIndex(r=>r.text==='\f');
+    const beforeScene=firstScene>0?rows.slice(0,firstScene):[],strongCover=beforeScene.some(r=>writtenBy(r.text)||/^(?:escrito por|written by|autor(?:a)?|t[ií]tulo|title):/i.test(r.text));
+    const separateCover=firstBreak>=0&&rows.slice(0,firstBreak).some(r=>writtenBy(r.text));
+    const start=separateCover?firstBreak+1:strongCover?firstScene:0;
+    const fallback=name.replace(/\.txt$/i,'')||'Sin título',portada=start?cover(rows.slice(0,start-Number(separateCover)),fallback,user):{title:fallback,authors:S.create(fallback,user).authors};
+    const script=S.create(portada.title,user);script.title=portada.title;script.authors=portada.authors;
+    const blocks=parseBody(rows.slice(start));
     if(blocks.length)script.doc.content=blocks;
     else if(!start)throw Error('El TXT no contiene texto de guion.');
     return S.validate(script);
@@ -136,5 +155,5 @@
     }
     return '\ufeff'+lines.join('\r\n').trimEnd()+'\r\n';
   }
-  const api={read,parse,decode,write};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoTxt=api;
+  const api={read,parse,decode,write,parseClipboard:(text,characters)=>parseBody(textRows(text),{clipboard:true,characters})};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoTxt=api;
 })(globalThis);

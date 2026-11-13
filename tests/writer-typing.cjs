@@ -3,16 +3,24 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {chromium}=require(path.join(process.env.PLANO_RUNTIME_MODULES,'playwright'));
 const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');
 async function reset(page,kind,text=''){
- await page.evaluate(({kind,text})=>{const v=PlanoWriter.view(),P=PlanoProseMirror,node=v.state.schema.nodeFromJSON({type:'doc',content:[{type:'paragraph',attrs:{id:crypto.randomUUID(),kind},...(text?{content:[{type:'text',text}]}:{})}]}),tr=v.state.tr.replaceWith(0,v.state.doc.content.size,node.content);tr.setSelection(P.TextSelection.atEnd(tr.doc));v.dispatch(tr);v.focus();},{kind,text});
+ await page.evaluate(({kind,text})=>{const v=PlanoWriter.view(),P=PlanoProseMirror,node=v.state.schema.nodeFromJSON({type:'doc',content:[{type:'paragraph',attrs:{id:crypto.randomUUID(),kind},...(text?{content:[{type:'text',text}]}:{})},{type:'paragraph',attrs:{id:'cast-fixture',kind:'action'},content:[{type:'text',text:'ANA, ALICIA y LUIS esperan.'}]}]}),tr=v.state.tr.replaceWith(0,v.state.doc.content.size,node.content);tr.setSelection(P.TextSelection.create(tr.doc,tr.doc.firstChild.nodeSize-1));v.dispatch(tr);v.focus();},{kind,text});
 }
 const current=page=>page.evaluate(()=>{const s=PlanoWriter.view().state.selection;return{kind:s.$from.parent.attrs.kind,text:s.$from.parent.textContent,offset:s.$from.parentOffset};});
+const shape=page=>page.evaluate(()=>state.screenplay.doc.content.filter(node=>node.attrs.id!=='cast-fixture').map(node=>[node.attrs.kind,PlanoScreenplay.plain(node)]));
+async function paste(page,text,html=''){
+ await page.locator('.writer-editor').evaluate((editor,{text,html})=>{
+  const clipboardData=new DataTransfer();clipboardData.setData('text/plain',text);
+  if(html)clipboardData.setData('text/html',html);
+  editor.dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));
+ },{text,html});
+}
 (async()=>{
  const browser=await require('./editor-auth-fixture.cjs').launch(chromium,process.env.PLANO_BROWSER==='brave'?{executablePath:'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe',headless:true}:{channel:'msedge',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.context().route('**/*',route=>/^https?:/.test(route.request().url())?route.abort():route.continue());
   await page.goto(pathToFileURL(path.join(root,'index.html')).href);await page.waitForFunction(()=>globalThis.PlanoWriter&&globalThis.PlanoCloudLibrary);
-  await page.evaluate(async()=>{const script=PlanoScreenplay.create('La próxima toma',PlanoAccounts.getUser());script.characters=['ANA','ALICIA','LUIS'];await createNativeScript(script);});
+  await page.evaluate(async()=>{const script=PlanoScreenplay.create('La próxima toma',PlanoAccounts.getUser());script.characters=['ANA','ALICIA','LUIS','ÁNGELA','ANGÉLICA'];await createNativeScript(script);});
   assert.equal(await page.locator('#writer-kind').count(),0,'Se elimina el selector desplegable');
   assert.equal(await page.locator('[data-writer-kind]').count(),8);
   assert.equal(await page.locator('[data-writer-kind]:disabled').count(),8,'Los tipos se reservan para el cuerpo del guion');
@@ -51,6 +59,10 @@ const current=page=>page.evaluate(()=>{const s=PlanoWriter.view().state.selectio
   assert(await page.evaluate(()=>state.screenplay.characters.includes('EXTRA')));assert.equal((await current(page)).kind,'action');
   await reset(page,'action');await page.keyboard.insertText('OTRO');await page.locator('#writer-suggestions').waitFor({state:'visible'});await page.keyboard.press('Enter');
   assert(!await page.evaluate(()=>state.screenplay.characters.includes('OTRO')),'Enter sin elegir una propuesta continúa escribiendo');
+  await reset(page,'character');await page.keyboard.insertText('Áng');
+  assert(!/ÁNGELA|ANGÉLICA/.test((await page.locator('#writer-suggestions [role=option]').allTextContents()).join(' ')));
+  await reset(page,'action');await page.keyboard.insertText('ÁNGELA');await page.keyboard.press('Enter');
+  assert.equal((await shape(page))[0][0],'action','Un registro antiguo no convierte un párrafo nuevo en diálogo');
   await reset(page,'action','Bea entra en la habitación.');
   await page.evaluate(()=>{const v=PlanoWriter.view();v.dispatch(v.state.tr.setSelection(PlanoProseMirror.TextSelection.create(v.state.doc,1,4)));});
   await page.locator('#writer-selection-actions').waitFor({state:'visible'});await page.keyboard.press('ArrowDown');
@@ -59,6 +71,40 @@ const current=page=>page.evaluate(()=>{const s=PlanoWriter.view().state.selectio
   assert(await page.evaluate(()=>state.screenplay.doc.content[0].content.some(piece=>piece.text==='Bea'&&piece.marks?.some(mark=>mark.type==='character'&&mark.attrs.name==='BEA'))));
   await reset(page,'action','La cámara espera.');await page.keyboard.press('Control+z');await page.keyboard.press('Control+Shift+z');
   assert.equal((await current(page)).text,'La cámara espera.','Se conserva el historial de escritura');
+  await reset(page,'action');
+  await paste(page,'INT. CASA DE JUAN PABLO, HABITACIÓN - NOCHE\r\n\r\nLa puerta de la habitación se abre.\r\nJUAN PABLO entra con su uniforme.\r\n\r\nJUAN PABLO\r\n\r\n¡Voy!\r\n\r\nJUAN PABLO toma su teléfono.\r\n\r\nEXT. CASA - NOCHE\r\n\r\nJUAN PABLO\r\n\r\nmolesto\r\n\r\n¿Quién es?\r\n\r\nANGÉLICA\r\n\r\n(en voz baja)\r\n\r\nSoy yo.\r\n\r\nCORTE A NEGRO.');
+  const pasted=[
+   ['scene','INT. CASA DE JUAN PABLO, HABITACIÓN - NOCHE'],
+   ['action','La puerta de la habitación se abre. JUAN PABLO entra con su uniforme.'],
+   ['character','JUAN PABLO'],['dialogue','¡Voy!'],['action','JUAN PABLO toma su teléfono.'],
+   ['scene','EXT. CASA - NOCHE'],['character','JUAN PABLO'],['parenthetical','molesto'],
+   ['dialogue','¿Quién es?'],['character','ANGÉLICA'],['parenthetical','en voz baja'],['dialogue','Soy yo.'],
+   ['transition','CORTE A NEGRO.']
+  ];
+  assert.deepEqual(await shape(page),pasted);
+  await page.waitForFunction(()=>document.querySelector('#writer-scene-count').textContent==='2');
+  assert.equal(await page.locator('#writer-character-count').textContent(),'5');
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(await shape(page),[['action','']]);
+  await page.keyboard.press('Control+Shift+z');
+  assert.deepEqual(await shape(page),pasted);
+
+  await reset(page,'action');
+  await paste(page,'BEATRIZ\n\nHola.');
+  assert.deepEqual(await shape(page),[['character','BEATRIZ'],['dialogue','Hola.']]);
+  await reset(page,'action','La escena anterior acaba aquí.');
+  await paste(page,'EXT. JARDÍN - DÍA\n\nEmpieza a llover.');
+  assert.deepEqual(await shape(page),[['action','La escena anterior acaba aquí.'],['scene','EXT. JARDÍN - DÍA'],['action','Empieza a llover.']]);
+  await reset(page,'action');
+  await paste(page,'INT. SALA - DÍA\nLa puerta se abre.','<p><b>INT. SALA - DÍA</b></p><p><em>La puerta</em> se abre.</p>');
+  assert.deepEqual(await shape(page),[['scene','INT. SALA - DÍA'],['action','La puerta se abre.']]);
+  assert.equal(await page.locator('.writer-editor [data-kind=action] em').textContent(),'La puerta');
+  await reset(page,'dialogue','Escucha: ');
+  await paste(page,'INT. SALA - DÍA');
+  assert.deepEqual(await shape(page),[['dialogue','Escucha: INT. SALA - DÍA']]);
+  await reset(page,'action');
+  await paste(page,'  Primer párrafo.\n\nSegundo párrafo.');
+  assert.deepEqual((await shape(page)).map(([kind,text])=>[kind,text.trim()]),[['action','Primer párrafo.'],['action','Segundo párrafo.']]);
   await page.locator('#writer-title-tab').click();assert.equal(await page.locator('[data-writer-kind]:disabled').count(),8);
   await page.locator('#writer-body-tab').click();await page.locator('[data-writer-kind="dialogue"]').click();
   await page.evaluate(()=>{document.querySelector('#writer-scroll').scrollTop=0;});

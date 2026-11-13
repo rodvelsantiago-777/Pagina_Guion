@@ -1,7 +1,7 @@
 .version-history-dialog {
   display: flex;
   flex-direction: column;
-  width: min(1120px, calc(100vw - 28px));
+  width: min(1400px, calc(100vw - 28px));
   max-height: calc(100dvh - 36px);
   height: min(800px, calc(100dvh - 36px));
   border: 1px solid var(--line-strong);
@@ -57,6 +57,11 @@
 .version-cell-empty { background: var(--surface-alt); }
 .version-row-label { display: block; color: var(--muted); font: 11px/1.6 var(--sans); }
 .version-cell p { margin: 4px 0 0; white-space: pre-wrap; font: 13px/1.55 "PLANO Courier", "Courier New", monospace; }
+.version-cell:is([data-kind=scene],[data-kind=section]) p { font-weight: 700; }
+.version-cell[data-kind=character] p { margin-inline-start: 34%; }
+.version-cell[data-kind=parenthetical] p { margin-inline: 25% 18%; }
+.version-cell[data-kind=dialogue] p { margin-inline: 16%; }
+.version-cell[data-kind=transition] p { text-align: right; }
 .version-text-bold { font-weight: 700; }
 .version-text-italic { font-style: italic; }
 .version-text-underline { text-decoration: underline; }
