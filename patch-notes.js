@@ -1,10 +1,10 @@
 /* Avisos de publicación por cuenta. Solo el recibo mínimo se cachea en el equipo. */
 (function(root){
  'use strict';
- const categories={new:'Novedades',improved:'Mejoras',fixed:'Correcciones'};
- const topics={writing:'Redactor de guion',projects:'Proyectos, importación y exportación',account:'Cuenta y seguridad',production:'Cobertura y guion técnico',review:'Corrector de español',performance:'Rendimiento y estabilidad',interface:'Interfaz y navegación',releases:'Notas de versión'};
+ const categories=['new','improved','fixed'];
+ const topics=['writing','projects','account','production','review','performance','interface','releases'];
  function editorialMetadata(value){
-  if(!value||!Object.hasOwn(topics,value.topic))return{};
+  if(!value||!topics.includes(value.topic))return{};
   return{topic:value.topic,order:Number.isInteger(value.order)&&value.order>=0&&value.order<=1000?value.order:500,...(typeof value.id==='string'&&/^[a-zA-Z0-9._-]{1,100}$/.test(value.id)?{id:value.id}:{})};
  }
  function receipt(value){
@@ -26,15 +26,23 @@
   return details.length?{text:value.text.trim().slice(0,200),details,...meta}:meta.topic?{text:value.text.trim().slice(0,500),...meta}:null;
  }
  function organize(release){
-  const groups=new Map(),keys=Object.keys(topics),seen=new Set();let position=0;
+  const notes=[],seen=new Set(),detailNotes=new Map();
   for(const section of release.sections||[])for(const raw of section.items||[]){
    const note=noteItem(raw);if(!note)continue;
-   const signature=typeof note==='string'?note:note.text+(note.details?.length?'\n'+note.details.join('\n'):'');if(seen.has(signature))continue;seen.add(signature);
-   const topic=typeof note==='object'&&note.topic,key=topic||section.category;
-   if(!groups.has(key))groups.set(key,{id:key,title:topics[topic]||categories[section.category]||'Otros cambios',rank:topic?keys.indexOf(topic):keys.length+Object.keys(categories).indexOf(section.category),items:[]});
-   groups.get(key).items.push({note,order:typeof note==='object'&&Number.isInteger(note.order)?note.order:500,position:position++});
+   if(note.details?.length){
+    const key=note.text,existing=detailNotes.get(key);
+    if(existing){existing.details=[...new Set([...existing.details,...note.details])];continue;}
+    detailNotes.set(key,note);
+   }else{
+    const text=typeof note==='string'?note:note.text;
+    if(seen.has(text))continue;
+    seen.add(text);
+   }
+   const topic=topics.indexOf(note.topic);
+   const rank=topic<0?topics.length+categories.indexOf(section.category):topic;
+   notes.push({note,rank,order:note.order??500});
   }
-  return [...groups.values()].sort((a,b)=>a.rank-b.rank).map(({id,title,items})=>({id,title,items:items.sort((a,b)=>a.order-b.order||a.position-b.position).map(item=>item.note)}));
+  return notes.sort((a,b)=>a.rank-b.rank||a.order-b.order).map(item=>item.note);
  }
  function releases(value){
   if(value?.schema!==1||!Array.isArray(value.releases))return [];
@@ -49,7 +57,7 @@
    if(Date.parse(item.publishedAt)>Date.parse(group.publishedAt)){group.publishedAt=item.publishedAt;group.commit=commit;}
    if(version&&(!group.version||compare(version,group.version)>0))group.version=version;
    for(const section of item.sections.slice(0,3)){
-    if(!Object.hasOwn(categories,section?.category)||!Array.isArray(section.items))continue;
+    if(!categories.includes(section?.category)||!Array.isArray(section.items))continue;
     let target=group.sections.find(part=>part.category===section.category);
     if(!target){target={category:section.category,items:[]};group.sections.push(target);}
     for(const raw of section.items.slice(0,200)){
@@ -60,7 +68,7 @@
     }
    }
   }
-  const ordered=[...days.values()].map(item=>({...item,sections:item.sections.filter(section=>section.items.length).sort((a,b)=>Object.keys(categories).indexOf(a.category)-Object.keys(categories).indexOf(b.category))})).filter(item=>item.sections.length).sort((a,b)=>a.day.localeCompare(b.day));
+  const ordered=[...days.values()].map(item=>({...item,sections:item.sections.filter(section=>section.items.length).sort((a,b)=>categories.indexOf(a.category)-categories.indexOf(b.category))})).filter(item=>item.sections.length).sort((a,b)=>a.day.localeCompare(b.day));
   let previous=null,previousDay='';
   for(const item of ordered){
    const milestone=config.milestones.filter(mark=>mark.day<=item.day&&mark.day>previousDay).at(-1);
@@ -72,18 +80,36 @@
   }
   return ordered.reverse().slice(0,200);
  }
+ function historyEntries(feed){
+  if(!feed.length)return [];
+  const series=version=>version.split('.').slice(0,2).join('.');
+  const current=series(feed[0].version),entries=[],archives=new Map();
+  for(let i=feed.length-1;i>=0;i--){
+   const release=feed[i],version=series(release.version);
+   if(version===current){entries.push(release);continue;}
+   let archive=archives.get(version);
+   if(!archive){
+    archive={id:'series-'+version,version,firstPublishedAt:release.publishedAt,sections:[]};
+    archives.set(version,archive);entries.push(archive);
+   }
+   archive.publishedAt=release.publishedAt;
+   archive.sections.push(...release.sections);
+  }
+  return entries.reverse();
+ }
  function unseen(feed,seen){
   if(!seen)return feed.slice(0,1);
   return feed.filter(item=>item.id!==seen.releaseId&&Date.parse(item.publishedAt)>Date.parse(seen.publishedAt));
  }
- root.PlanoPatchNotes={releases,unseen,releaseDay,versionConfig,organize,editorialMetadata,noteItem};
+ root.PlanoPatchNotes={releases,historyEntries,unseen,releaseDay,versionConfig,organize,editorialMetadata,noteItem};
  if(typeof module==='object'&&module.exports)module.exports=root.PlanoPatchNotes;
  if(typeof document==='undefined')return;
  const $=selector=>document.querySelector(selector),dialog=$('#patch-notes-dialog'),cloud=root.PlanoCloud,key=uid=>'plano-release-seen-v1:'+encodeURIComponent(uid);
+ const displayDate=new Intl.DateTimeFormat('es',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric'});
  let owner='',epoch=0,current=null,feed=[],feedPromise=null,feedStatus='idle',displayed=null,automatic=false;
  let publishedVersion='';
  function paintVersion(value){
-  const meta=document.querySelector('meta[name="plano-version"]');publishedVersion=semver(value)?value:semver(meta?.content)?meta.content:'0.2.1';
+  const meta=document.querySelector('meta[name="plano-version"]');publishedVersion=semver(value)?value:semver(meta?.content)?meta.content:'0.3.0';
   if(meta)meta.content=publishedVersion;
   for(const label of document.querySelectorAll('[data-app-version]'))label.textContent='v'+publishedVersion;
  }
@@ -123,40 +149,52 @@
   if(current.seen?.releaseId===next.releaseId||Date.parse(current.seen?.publishedAt)>=Date.parse(next.publishedAt))return;
   current.seen=next;current.pending=next;remember();flush();
  }
- function render(items){
-  const content=$('#patch-notes-content');content.replaceChildren();
+ function render(releaseFeed){
+  const items=historyEntries(releaseFeed),content=$('#patch-notes-content');content.replaceChildren();
   for(const item of items){
    const section=document.createElement('section');section.className='patch-release';section.dataset.releaseId=item.id;
    const meta=document.createElement('div');meta.className='patch-release-meta';
    const version=document.createElement('strong');version.textContent=item.version;
-   const date=document.createElement('time');date.dateTime=item.publishedAt;date.textContent=new Date(item.publishedAt).toLocaleDateString('es',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric'});meta.append(version,date);section.append(meta);
-   for(const group of organize(item)){
-    const area=document.createElement('div');area.className='patch-topic';area.dataset.topic=group.id;
-    const heading=document.createElement('h3');heading.textContent=group.title;
-    const list=document.createElement('ul');for(const note of group.items){const li=document.createElement('li');li.textContent=typeof note==='string'?note:note.text;if(typeof note==='object'){if(note.id)li.dataset.noteId=note.id;if(note.details?.length){const details=document.createElement('ul');for(const text of note.details){const detail=document.createElement('li');detail.textContent=text;details.append(detail);}li.append(details);}}list.append(li);}area.append(heading,list);section.append(area);
+   const period=item.firstPublishedAt&&item.firstPublishedAt!==item.publishedAt;
+   const date=document.createElement(period?'span':'time'),end=new Date(item.publishedAt);
+   if(period)date.textContent=displayDate.formatRange(new Date(item.firstPublishedAt),end);
+   else{date.dateTime=item.publishedAt;date.textContent=displayDate.format(end);}
+   meta.append(version,date);section.append(meta);
+   const list=document.createElement('ul');list.className='patch-release-list';
+   for(const note of organize(item)){
+    const li=document.createElement('li');li.textContent=typeof note==='string'?note:note.text;
+    if(note.id)li.dataset.noteId=note.id;
+    if(note.details?.length){
+     const details=document.createElement('ul');
+     for(const text of note.details){const detail=document.createElement('li');detail.textContent=text;details.append(detail);}
+     li.append(details);
+    }
+    list.append(li);
    }
-   content.append(section);
+   section.append(list);content.append(section);
   }
   $('#patch-notes-description').textContent=items.length>1?'Historial de actualizaciones, de la más reciente a la más antigua.':'Las mejoras de esta actualización.';
+  return items.length;
  }
+ const entryLabel=count=>count===1?'1 entrada disponible':count+' entradas disponibles';
  function show(manual=false){
   if(manual){openHistory();return;}
   if(!owner||!current||!feed.length||root.PlanoAccounts.getUser()?.id!==owner||document.body.classList.contains('auth-locked'))return;
   if(dialog.open||document.querySelector('dialog[open],[popover]:popover-open:not(#report-launch)')||$('.app-shell').inert)return;
   if(!current.ready||library.hidden||document.body.classList.contains('is-editing'))return;
   if(!unseen(feed,current.seen).length)return;
-  automatic=true;render(feed);displayed={owner,release:feed[0]};
+  automatic=true;const count=render(feed);displayed={owner,release:feed[0]};
   $('#patch-notes-title').textContent='Lo nuevo en PLANO';$('#patch-notes-eyebrow').textContent='EL ESTUDIO, AL DÍA';$('#patch-notes-state').hidden=true;
-  $('#patch-notes-footer').textContent=`${feed.length} ${feed.length===1?'publicación disponible':'publicaciones disponibles'}`;$('#accept-patch-notes').textContent='Entendido';
+  $('#patch-notes-footer').textContent=entryLabel(count);$('#accept-patch-notes').textContent='Entendido';
   dialog.showModal();dialog.scrollTop=0;$('#accept-patch-notes').focus({preventScroll:true});
  }
  function renderHistory(){
-  render(feed);$('#patch-notes-title').textContent='Notas de parche';$('#patch-notes-eyebrow').textContent='HISTORIAL DEL ESTUDIO';
-  $('#patch-notes-description').textContent='Consulta cada publicación, de la más reciente a la más antigua.';
+  const count=render(feed);$('#patch-notes-title').textContent='Notas de parche';$('#patch-notes-eyebrow').textContent='HISTORIAL DEL ESTUDIO';
+  $('#patch-notes-description').textContent='Historial de actualizaciones, de la más reciente a la más antigua.';
   $('#accept-patch-notes').textContent='Cerrar';$('#patch-notes-state').hidden=Boolean(feed.length);
   $('#patch-notes-state-message').textContent=feedStatus==='loading'?'Cargando las notas de parche…':feedStatus==='error'?'No pudimos cargar las notas. Puedes volver a intentarlo.':'Todavía no hay notas de parche publicadas.';
   $('#retry-patch-notes').hidden=feedStatus==='loading';
-  $('#patch-notes-footer').textContent=feed.length?`${feed.length} ${feed.length===1?'publicación disponible':'publicaciones disponibles'}`:'Historial de actualizaciones';
+  $('#patch-notes-footer').textContent=count?entryLabel(count):'Historial de actualizaciones';
   displayed=feed.length?{owner,release:feed[0]}:null;
  }
  async function openHistory(refresh=true){

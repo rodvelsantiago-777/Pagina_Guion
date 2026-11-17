@@ -18,7 +18,14 @@
   button.addEventListener('pointerdown',event=>event.preventDefault());button.addEventListener('click',()=>applyKind(kind));$('#writer-kind-toolbar').append(button);
  }
  markSelection.id='writer-mark-character';markSelection.setAttribute('role','option');markSelection.setAttribute('aria-selected','false');selected.setAttribute('role','listbox');selected.setAttribute('aria-label','Personaje del texto seleccionado');
- function analysis(){if(!analysisCache||analysisCache.id!==draft.id||analysisCache.revision!==draft.revision)analysisCache={id:draft.id,revision:draft.revision,result:S.analyze(draft)};return analysisCache.result;}
+ const profiles=()=>hooks.profiles?.()||[];
+ function analysis(){
+  const roster=profiles();
+  if(!analysisCache||analysisCache.id!==draft.id||analysisCache.revision!==draft.revision||analysisCache.roster!==roster){
+   analysisCache={id:draft.id,revision:draft.revision,roster,result:S.analyze(draft,roster)};
+  }
+  return analysisCache.result;
+ }
  function revision(change){
   if(!draft)return;
   draft.revision++;
@@ -137,8 +144,11 @@
  const foldCharacter=text=>S.canonical(text).normalize('NFD').replace(/\p{M}/gu,'');
  // El autocompletado necesita nombres, no todas las menciones y los diálogos del índice lateral.
  function knownCharacters(){
-  if(namesCache?.id===draft.id&&namesCache.revision===draft.revision)return namesCache.names;
-  const list=S.characterRoster(draft);namesCache={id:draft.id,revision:draft.revision,names:list};return list;
+  const roster=profiles();
+  if(namesCache?.id===draft.id&&namesCache.revision===draft.revision&&namesCache.roster===roster)return namesCache.names;
+  const list=S.characterRoster(draft,undefined,roster);
+  namesCache={id:draft.id,revision:draft.revision,roster,names:list};
+  return list;
  }
  function knownCharacter(text){const key=foldCharacter(S.cue(text));return knownCharacters().find(name=>foldCharacter(S.cue(name))===key);}
  function characterMatches(text){const prefix=foldCharacter(text),names=knownCharacters();return names.filter(name=>foldCharacter(name).startsWith(prefix)).sort((a,b)=>Number(foldCharacter(b)===prefix)-Number(foldCharacter(a)===prefix));}
@@ -147,7 +157,7 @@
   const P=root.PlanoProseMirror;
   const current=state.selection.$from.parent;
   const candidate=current.attrs.kind==='action'&&state.selection.empty&&state.selection.$from.parentOffset===current.content.size?knownCharacter(current.textContent):null;
-  const cueName=candidate&&S.characterRoster(draft,current.attrs.id).includes(candidate)?candidate:null;
+  const cueName=candidate&&S.characterRoster(draft,current.attrs.id,profiles()).includes(candidate)?candidate:null;
   const previous=cueName?'character':current.attrs.kind;
   if(!current.textContent&&previous!=='action'){P.setBlockType(state.schema.nodes.paragraph,{kind:previous==='parenthetical'?'dialogue':'action',id:current.attrs.id})(state,dispatch);return true;}
   const next={scene:'action',character:'parenthetical',parenthetical:'dialogue',dialogue:'action',transition:'scene',insert:'action',section:'action'}[previous]||'action';
@@ -235,7 +245,13 @@
    if(!before||/^(?:I|IN|INT\.?|E|EX|EXT\.?|INT\.?\/?E?X?T?\.?)$/i.test(before)){for(const value of ['INT. ','EXT. ','INT./EXT. '])if(value.startsWith(before.toUpperCase()))items.push({label:value,value});}
    else if(before.includes(' - ')){from=start+before.lastIndexOf(' - ')+3;const prefix=before.slice(before.lastIndexOf(' - ')+3).toUpperCase();for(const value of ['DÍA','NOCHE','TARDE','MAÑANA','MADRUGADA','AMANECER','ATARDECER','CONTINUO','MÁS TARDE'])if(fold(value).startsWith(fold(prefix))&&value!==prefix)items.push({label:value,value});}
    if(!items.length&&before.length>2)for(const scene of analysis().scenes)if(scene.id!==node.attrs.id&&scene.title.toUpperCase().startsWith(before.toUpperCase())&&scene.title!==before)items.push({label:scene.title,value:scene.title});
-  }else if(node.attrs.kind==='character'){const prefix=S.canonical(before),key=fold(prefix);for(const name of knownCharacters())if(fold(name).startsWith(key)&&name!==prefix)items.push({label:name,value:name});}
+  }else if(node.attrs.kind==='character'){
+   const names=knownCharacters(),prefix=S.characterKey(before),typed=S.canonical(before);
+   namesCache.speakers??=S.characterSpeakers(names,profiles());
+   for(const {value,keys}of namesCache.speakers){
+    if(value!==typed&&keys.some(key=>key.startsWith(prefix)))items.push({label:value,value});
+   }
+  }
   else if(node.attrs.kind==='action'){
    if(!/[\p{L}\p{M}'’-]$/u.test(before)||/[\p{L}\p{M}]/u.test(text[offset]||'')){closeMenus();return;}
    const words=[...before.matchAll(/[\p{L}][\p{L}\p{M}'’-]*/gu)].slice(-6);
@@ -248,6 +264,7 @@
  function renderOutline(){
   if(!draft||host.hidden)return;const result=analysis(),container=$('#writer-outline');$('#writer-scene-count').textContent=result.scenes.length;$('#writer-character-count').textContent=result.characters.length;
   const expanded=new Set([...container.querySelectorAll('details[open]')].map(item=>item.dataset.character));
+  renderCastPicker();
   container.replaceChildren();
   const item=(text,id,range)=>{const button=document.createElement('button');button.type='button';button.textContent=text;button.addEventListener('click',()=>jump(id,range));return button;};
   if(panel==='scenes')for(const scene of result.scenes){const button=item(scene.title,scene.id),number=document.createElement('span');number.className='writer-scene-number';number.textContent=String(scene.number).padStart(2,'0');button.prepend(number);container.append(button);}
@@ -259,6 +276,7 @@
    summary.append(count);details.append(summary);details.open=expanded.has(character.name);container.append(details);
    function renderReferences(){
     if(details.children.length>1)return;
+    if(!character.mentions.length&&!character.dialogues.length){const empty=document.createElement('p');empty.className='writer-outline-empty';empty.textContent='Aún no tiene menciones ni diálogos.';details.append(empty);return;}
     for(const [label,rows]of [['Menciones',character.mentions],['Diálogos',character.dialogues]]){
      if(!rows.length)continue;
      const heading=document.createElement('strong');heading.className='writer-reference-heading';heading.textContent=label;details.append(heading);
@@ -274,6 +292,51 @@
   const words=draft.doc.content.reduce((sum,node)=>sum+(S.plain(node).match(/\S+/g)||[]).length,0);$('#writer-statistics').textContent=`${words.toLocaleString('es')} palabras`;
  }
  function markCharacter(){if(!view||view.state.selection.empty)return;const {from,to}=view.state.selection,text=view.state.doc.textBetween(from,to),name=knownCharacter(text)||S.canonical(text);if(!name||name.length>80||!draft.characters.includes(name)&&draft.characters.length>=500||view.state.doc.rangeHasMark(from,to,view.state.schema.marks.character))return;if(!draft.characters.includes(name))draft.characters.push(name);const tr=view.state.tr.addMark(from,to,view.state.schema.marks.character.create({name}));tr.setSelection(root.PlanoProseMirror.TextSelection.create(tr.doc,to));view.dispatch(tr);closeMenus();menuSuppressed=true;view.focus();}
+ const castPicker=document.createElement('form');
+ castPicker.className='writer-cast-picker';castPicker.hidden=true;
+ castPicker.innerHTML='<label for="writer-cast-select">Personajes del proyecto</label><select id="writer-cast-select"></select><button class="workspace-button" type="submit" disabled>Insertar</button>';
+ const castSelect=castPicker.querySelector('select'),castInsert=castPicker.querySelector('button');
+ let castProfiles;
+ function renderCastPicker(){
+  const roster=profiles();
+  castPicker.hidden=panel!=='characters'||!roster.length;
+  if(castPicker.hidden||roster===castProfiles)return;
+  castProfiles=roster;
+  castSelect.replaceChildren(new Option('Elegir personaje',''),...roster.map(profile=>{
+   const name=S.characterName(profile),label=profile.primaryAlias?profile.primaryAlias+' · '+name:name;
+   return new Option(label,profile.id);
+  }));
+  castInsert.disabled=true;
+ }
+ castSelect.addEventListener('change',()=>{castInsert.disabled=!castSelect.value;});
+ castPicker.addEventListener('submit',event=>{
+  event.preventDefault();
+  const profile=profiles().find(item=>item.id===castSelect.value);
+  if(!view||!profile||host.hidden)return;
+  findTool?.close();
+  setPart('body');
+  const P=root.PlanoProseMirror,state=view.state,{doc,schema,selection}=state;
+  const at=selection.$to.depth?selection.$to:P.TextSelection.atEnd(doc).$to;
+  const current=at.parent,following=new Set(['parenthetical','dialogue']);
+  let end=at.after();
+  for(let index=at.index(0)+1;index<doc.childCount&&following.has(doc.child(index).attrs.kind);index++){
+   end+=doc.child(index).nodeSize;
+  }
+  const reuse=end===at.after()&&selection.empty&&!current.textContent.trim()&&['scene','action','character'].includes(current.attrs.kind);
+  const start=reuse?at.before():end;
+  const cue=schema.nodes.paragraph.create({kind:'character',id:reuse?current.attrs.id:S.id()},schema.text(S.characterSpeaker(profile)));
+  const dialogue=schema.nodes.paragraph.create({kind:'dialogue',id:S.id()});
+  const tr=P.closeHistory(state.tr.replaceWith(start,end,[cue,dialogue]));
+  tr.setSelection(P.TextSelection.create(tr.doc,start+cue.nodeSize+1));
+  if(innerWidth<800){
+   host.classList.remove('writer-panel-mobile-open');
+   $('#writer-panel-toggle').setAttribute('aria-expanded','false');
+  }
+  closeMenus();menuSuppressed=true;
+  view.dispatch(tr.scrollIntoView());view.focus();
+  castSelect.value='';castInsert.disabled=true;
+ });
+ $('#writer-outline').before(castPicker);
  markSelection.addEventListener('pointerdown',event=>event.preventDefault());markSelection.addEventListener('click',markCharacter);
  for(const button of host.querySelectorAll('[data-writer-mark]')){button.addEventListener('pointerdown',event=>event.preventDefault());button.addEventListener('click',()=>{if(view)root.PlanoProseMirror.toggleMark(view.state.schema.marks[button.dataset.writerMark])(view.state,view.dispatch,view);view?.focus();});}
  $('#writer-find-button').addEventListener('click',()=>findTool?.open());

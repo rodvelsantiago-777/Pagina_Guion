@@ -8,6 +8,7 @@
     {"id": "retired-home-ui", "category": "improved", "text": "Retirados componentes y estilos sin uso del inicio anterior.", "topic": "performance", "order": 55},
     {"id": "long-script-interactions", "category": "improved", "text": "Menos trabajo al escribir y dibujar líneas en guiones largos. El redactor empieza a cargar al elegir su etapa.", "topic": "performance", "order": 56},
     {"id": "screenplay-scenes-characters", "category": "new", "text": "Navegación por escenas, lista de personajes y sugerencias al escribir.", "topic": "writing", "order": 30},
+    {"id": "project-character-profiles", "category": "new", "text": "Fichas de personajes con apodos, campos opcionales y relaciones. El redactor agrupa sus menciones y usa el apodo principal al insertarlos en un diálogo.", "topic": "writing", "order": 31},
     {"id": "writer-type-toolbar", "category": "improved", "text": "Botones y atajos para los tipos de texto. Enter propone el siguiente elemento del guion.", "topic": "writing", "order": 40},
     {"id": "generated-dialogue-syntax", "category": "improved", "text": "CONT'D automático y paréntesis fijos en las acotaciones.", "topic": "writing", "order": 50},
     {"id": "writer-find-and-character-mentions", "category": "new", "text": "Buscar y reemplazar con Ctrl+F y Ctrl+H. Mejor detección de menciones de personajes.", "topic": "writing", "order": 60},
@@ -97,6 +98,6 @@
     {"id": "patch-history-in-notice", "category": "improved", "text": "Historial de parches, del más reciente al más antiguo.", "topic": "releases", "order": 10},
     {"id": "daily-release-versions", "category": "improved", "text": "Los cambios de un mismo día se agrupan en una sola versión.", "topic": "releases", "order": 20},
     {"id": "concise-release-notes", "category": "improved", "text": "Notas de parche más breves, formatos agrupados y versiones numeradas desde 0.1.0.", "topic": "releases", "order": 30},
-    {"id": "logical-release-order", "category": "improved", "text": "Notas de parche agrupadas por tema, con las novedades principales antes que sus ajustes.", "topic": "releases", "order": 40}
+    {"id": "logical-release-order", "category": "improved", "text": "Los cambios relacionados aparecen juntos y cada serie anterior reúne sus parches en una sola entrada.", "topic": "releases", "order": 40}
   ]
 }

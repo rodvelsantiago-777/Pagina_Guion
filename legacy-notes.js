@@ -42,6 +42,7 @@ async function restore(data){
   const generated=await generateScreenplayPdf(coverage||screenplay),pageCount=generated.titlePages+generated.pages;
   const payload={version:1,fingerprint:state.fingerprint,annotations:validateNotes(data.annotations,pageCount),corrections:PlanoCorrections.validate(data.corrections,pageCount),crew:PlanoCrew.validate(data.crew),proofreading:PlanoSpelling.validate(data.proofreading),screenplay,view:{scene:'all',stage:'writing'}};
   if(info)payload.projectInfo=info;
+  if(state.characterProfiles.length)payload.characterProfiles=state.characterProfiles;
   if(versions.length)payload.screenplayVersions=versions;
   if(coverage)payload.screenplayCoverage=coverage;
   const different=JSON.stringify({text:state.screenplay,notes:state.annotations,corrections:state.corrections,crew:state.crew})!==JSON.stringify({text:screenplay,coverage,notes:payload.annotations,corrections:payload.corrections,crew:payload.crew});

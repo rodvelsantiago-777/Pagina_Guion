@@ -40,22 +40,23 @@ El `release-notes.json` vacío de la carpeta de trabajo es intencional: un cambi
 
 ## Numeración de versiones
 
-El historial publicado queda así:
+Primeros hitos de la numeración:
 
 - 22 de octubre de 2026: **0.1.0**.
 - 23 de octubre: **0.1.1**.
 - 2 de noviembre, incorporación del redactor: **0.2.0**.
 - 3 de noviembre: **0.2.1**.
+- 17 de noviembre, hito preparado para las fichas de personajes y los ajustes del historial: **0.3.0**.
 
-Cada jornada nueva incrementa solo el último número: 0.2.2, 0.2.3, etc. Los pushes de una misma jornada no incrementan la versión. Las fechas siguen mostrándose por separado. Se conservan los identificadores diarios y los recibos de lectura de las cuentas.
+Cada jornada nueva incrementa el último número. Los pushes de una misma jornada comparten versión. En el historial se muestran los parches de la serie actual por separado y se reúnen los de cada serie anterior bajo un solo número, como **0.2**. Se conservan los identificadores diarios y los recibos de lectura de las cuentas.
 
-**El propietario decide los saltos de versión.** `release-notes.config.json` contiene `initialVersion` y los hitos explícitos de `milestones`. Para un salto elegido, añade la fecha de Colombia y la versión correspondiente, por ejemplo `{ "day": "2026-12-10", "version": "0.3.0" }`. Es solo un ejemplo: ese hito no está activado. El generador nunca decide por el tamaño del cambio si debe subir la versión intermedia o principal.
+**El propietario decide los saltos de versión.** Registra la fecha en Colombia y la versión correspondiente en `milestones`, dentro de `release-notes.config.json`. El generador usa ese hito para numerar la siguiente publicación.
 
 Al publicar esta actualización se reescribe también el historial anterior con los textos breves del catálogo. Los formatos se agrupan por día y el orden de versiones se mantiene de reciente a antiguo. La migración no presenta las funciones antiguas como nuevas.
 
 ## Lectura por cuenta
 
-Después de iniciar sesión con correo verificado, el inicio muestra un aviso cuando hay una jornada nueva. Los pushes posteriores de ese mismo día actualizan sus notas sin crear otro aviso diario. La ventana incluye todo el historial disponible: la jornada más reciente arriba y cada día anterior debajo, con su fecha y sus cambios, también para cuentas nuevas. El historial antiguo por push se agrupa automáticamente por fecha. Al cerrarla se registra como leída la versión más reciente; las antiguas siguen disponibles y no vuelven a provocar avisos. No interrumpe una edición ni se superpone a otro diálogo.
+Después de iniciar sesión con correo verificado, el inicio muestra un aviso cuando hay una jornada nueva. Los pushes posteriores de ese mismo día actualizan sus notas. La ventana incluye todo el historial disponible y muestra arriba el parche más reciente. Al cerrarla se registra como leída la publicación más reciente. El aviso aparece en Inicio cuando el estudio está disponible.
 
 **Entendido**, la cruz o **Esc** registran la lectura. El recibo se guarda por UID en Supabase y se recupera desde otro navegador o equipo. Una pestaña antigua no puede retroceder la fecha de lectura de una versión más reciente. **Notas de parche**, en el inicio, y en la barra lateral, abre el historial con todas las versiones conservadas, sus fechas y sus cambios, aunque ya se hayan leído. Cada apertura consulta el historial publicado y comienza por la versión más reciente. Este acceso sigue visible cuando el historial está vacío o falla la carga; muestra un mensaje y permite volver a cargarlo con **Actualizar**.
 

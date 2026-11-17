@@ -96,23 +96,128 @@
   }return{blocks,pages,endRows:row,pageCount:pages.length,totalHeight:pages.length*1056+(pages.length-1)*28,tail:format.lines-row};
  }
  const characterKey=text=>cue(text).normalize('NFD').replace(/\p{M}/gu,'').replace(/[’‘]/g,"'");
+ const characterRoles=['Protagonista','Personaje principal','Antagonista','Deuteragonista','Tritagonista','Personaje secundario','Personaje recurrente','Personaje incidental','Otro'];
+ const characterSexes=['Femenino','Masculino','Intersexual','Otro'];
+ const characterAboutLimit=300;
+ const characterName=profile=>[profile.givenNames,profile.surnames].filter(Boolean).join(' ');
+ const characterSpeaker=profile=>cue(profile.primaryAlias||characterName(profile));
+ function characterForms(profile){
+  const forms=new Map();
+  for(const form of [characterName(profile),profile.givenNames,...profile.aliases]){
+   const key=characterKey(form);
+   if(key&&!forms.has(key))forms.set(key,form);
+  }
+  return [...forms.values()];
+ }
+ const CharacterDetails=typeof module==='object'&&module.exports?require('./character-details.js'):root.PlanoCharacterDetails;
+ function validateProfiles(value){
+  if(value===undefined)return [];
+  if(!Array.isArray(value)||value.length>500)throw Error('El proyecto admite hasta 500 fichas de personaje.');
+  const ids=new Set(),primary=new Set(),forms=new Map();
+  const field=(text,limit)=>{
+   if(typeof text!=='string'||text.length>limit||/[\u0000-\u001f\u007f]/.test(text))throw Error('Hay datos de personaje inválidos o demasiado largos.');
+   return text.trim().replace(/\s+/g,' ').normalize('NFC');
+  };
+  const profiles=value.map(item=>{
+   if(!item||typeof item.id!=='string'||!/^[-\w]{1,80}$/.test(item.id)||ids.has(item.id))throw Error('Hay identificadores de personaje inválidos.');
+   ids.add(item.id);
+   const givenNames=field(item.givenNames,80),surnames=field(item.surnames,80),age=field(item.age,32);
+   const sex=field(item.sex,32),role=field(item.role,40);
+   if(!/[\p{L}\p{N}]/u.test(givenNames)||sex&&!characterSexes.includes(sex)||role&&!characterRoles.includes(role)||!Array.isArray(item.aliases)||item.aliases.length>24)throw Error('Revisa el nombre, las opciones y el límite de 24 apodos por personaje.');
+   const profile={id:item.id,givenNames,surnames,age,sex,role,aliases:[]},name=characterName(profile),key=characterKey(name);
+   if(item.about!==undefined){
+    if(typeof item.about!=='string')throw Error('La descripción del personaje debe ser texto.');
+    const about=item.about.replace(/\r\n?/g,'\n');
+    if(about.length>characterAboutLimit)throw Error('La descripción admite hasta '+characterAboutLimit+' caracteres.');
+    if(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(about))throw Error('La descripción contiene caracteres inválidos.');
+    if(about.trim())profile.about=about.trim();
+   }
+   if(canonical(name).length>80)throw Error('El nombre completo admite hasta 80 caracteres.');
+   if(primary.has(key))throw Error('Ya existe un personaje con ese nombre completo.');
+   primary.add(key);
+   const own=new Set([key,characterKey(givenNames)]);
+   for(const entry of item.aliases){const alias=field(entry,80),aliasKey=characterKey(alias);if(!/[\p{L}\p{N}]/u.test(aliasKey)||canonical(alias).length>80)throw Error('Escribe un apodo válido.');if(!own.has(aliasKey)){own.add(aliasKey);profile.aliases.push(alias);}}
+   if(item.primaryAlias!==undefined&&item.primaryAlias!==''){
+    const wanted=characterKey(field(item.primaryAlias,80));
+    const alias=profile.aliases.find(value=>characterKey(value)===wanted);
+    if(!alias)throw Error('Elige uno de los apodos de este personaje.');
+    profile.primaryAlias=alias;
+   }
+   for(const form of own){if(!forms.has(form))forms.set(form,new Set());forms.get(form).add(profile.id);}
+   return profile;
+  });
+  for(const profile of profiles)for(const alias of profile.aliases)if(forms.get(characterKey(alias)).size>1)throw Error(`«${alias}» ya se usa como nombre o apodo de otro personaje.`);
+  for(const [index,profile]of profiles.entries()){
+   const details=CharacterDetails.validate(value[index].details,ids,profile.id);
+   if(details)profile.details=details;
+  }
+  return profiles;
+ }
+ function profileNames(profiles){
+  const exact=new Map(),first=new Map();
+  for(const profile of profiles){
+   const name=characterName(profile),key=characterKey(profile.givenNames);
+   exact.set(characterKey(name),{name,form:name});
+   for(const form of profile.aliases)exact.set(characterKey(form),{name,form});
+   first.set(key,first.has(key)?null:{name,form:profile.givenNames});
+  }
+  for(const [key,entry]of first)if(entry&&!exact.has(key))exact.set(key,entry);
+  return exact;
+ }
+ function characterSpeakers(names,profiles){
+  const forms=profileNames(profiles);
+  const entries=new Map(profiles.map(profile=>[characterName(profile),{value:characterSpeaker(profile),keys:[]}]));
+  for(const [key,{name}]of forms)entries.get(name).keys.push(key);
+  const detected=names.map(value=>({value,keys:[characterKey(value)]})).filter(({keys})=>!forms.has(keys[0]));
+  return [...entries.values(),...detected];
+ }
  const nameTokens=text=>[...text.matchAll(/[\p{L}\p{M}\p{N}]+(?:['’‘-][\p{L}\p{M}\p{N}]+)*/gu)].map(match=>({key:characterKey(match[0]),from:match.index,to:match.index+match[0].length}));
  function characterMatcher(names){
-  const trie=new Map();for(const name of names){const words=nameTokens(name);if(!words.length)continue;let branch=trie;for(const word of words){if(!branch.has(word.key))branch.set(word.key,new Map());branch=branch.get(word.key);}branch.name=name;}
-  return text=>{const words=nameTokens(text),matches=[];for(let i=0;i<words.length;i++){let branch=trie,last=null;for(let j=i;j<words.length;j++){if(j>i&&!/^\s+$/.test(text.slice(words[j-1].to,words[j].from)))break;branch=branch.get(words[j].key);if(!branch)break;if(branch.name)last={name:branch.name,from:words[i].from,to:words[j].to,end:j};}if(last){matches.push({name:last.name,from:last.from,to:last.to});i=last.end;}}return matches;};
+  const trie=new Map();
+  const edge=(text,words,i)=>text.slice(words[i-1].to,words[i].from).replace(/\s+/g,' ')+words[i].key;
+  for(const name of names){
+   const text=cue(name),words=nameTokens(text);
+   if(!words.length)continue;
+   let branch=trie;
+   for(let i=0;i<words.length;i++){
+    const key=i===0?words[i].key:edge(text,words,i);
+    if(!branch.has(key))branch.set(key,new Map());
+    branch=branch.get(key);
+   }
+   (branch.forms||=[]).push({name,before:text.slice(0,words[0].from),after:text.slice(words.at(-1).to)});
+  }
+  if(!trie.size)return()=>[];
+  return text=>{
+   const words=nameTokens(text),matches=[];
+   for(let i=0;i<words.length;i++){
+    let branch=trie,last=null;
+    for(let j=i;j<words.length;j++){
+     branch=branch.get(j===i?words[j].key:edge(text,words,j));
+     if(!branch)break;
+     for(const {name,before,after}of branch.forms||[]){
+      const from=words[i].from-before.length,to=words[j].to+after.length;
+      if(from<0||before&&text.slice(from,words[i].from)!==before||after&&text.slice(words[j].to,to)!==after)continue;
+      if(!last||to-from>last.to-last.from)last={name,from,to,end:j};
+     }
+    }
+    if(last){matches.push({name:last.name,from:last.from,to:last.to});i=last.end;}
+   }
+   return matches;
+  };
  }
  function characterMarks(node){
   const groups=[];let offset=0;for(const piece of node.content||[]){const name=(piece.marks||[]).find(mark=>mark.type==='character')?.attrs.name,previous=groups.at(-1);if(name){if(previous?.to===offset&&characterKey(previous.name)===characterKey(name)){previous.text+=piece.text;previous.to+=piece.text.length;}else groups.push({name,text:piece.text,from:offset,to:offset+piece.text.length});}offset+=piece.text.length;}
   return groups.filter(group=>characterKey(group.text)===characterKey(group.name));
  }
- function characterRoster(script,exceptMention){
+ function characterRoster(script,exceptMention,profiles=[]){
   const candidates=new Map(),active=new Set();
-  function add(value){
-   const name=cue(value);if(!name||name.length>80||!/\p{L}/u.test(name))return '';
+  function add(value,explicit=false){
+   const name=cue(value);if(!name||name.length>80||!(explicit?/[\p{L}\p{N}]/u:/\p{L}/u).test(name))return '';
    const key=characterKey(name),prior=candidates.get(key);
    if(!prior||name.normalize('NFD').length>name.length&&prior.normalize('NFD').length===prior.length)candidates.set(key,name);
    return key;
   }
+  for(const {form}of profileNames(profiles).values()){const key=add(form,true);if(key)active.add(key);}
   for(const name of script.characters)add(name);
   for(const node of script.doc.content){
    if(node.attrs.kind==='character'){const key=add(plain(node));if(key)active.add(key);}
@@ -128,21 +233,32 @@
   }
   return names.filter(name=>active.has(characterKey(name)));
  }
- function analyze(value){
-  const screenplay=validate(value),scenes=[],characters=new Map(),records=[];let scene=null,speaker='';
-  const ensure=name=>{name=cue(name);if(!name||name.length>80||!/[\p{L}]/u.test(name))return null;const key=characterKey(name);if(!characters.has(key))characters.set(key,{name,mentions:[],dialogues:[]});const item=characters.get(key);if(name.normalize('NFD').length>name.length&&item.name.normalize('NFD').length===item.name.length)item.name=name;return item;};
+ function analyze(value,profiles=[],{includeUnusedProfiles=false}={}){
+  const screenplay=validate(value),scenes=[],characters=new Map(),cues=new Set(),records=[],forms=profileNames(profiles),formsToMatch=new Map(forms);let scene=null,speaker='';
+  const resolve=name=>forms.get(characterKey(name))?.name||cue(name);
+  const ensure=(form,profile=null)=>{
+   const formKey=characterKey(form),name=profile?characterName(profile):resolve(form);
+   if(!name||!profile&&!forms.has(formKey)&&(name.length>80||!/[\p{L}]/u.test(name)))return null;
+   const key=characterKey(name);
+   if(!characters.has(key))characters.set(key,{name,mentions:[],dialogues:[],...(profile?{profile}: {})});
+   const item=characters.get(key);
+   if(!item.profile&&name.normalize('NFD').length>name.length&&item.name.normalize('NFD').length===item.name.length)item.name=name;
+   if(!forms.has(formKey))formsToMatch.set(formKey,{form:item.name});
+   return item;
+  };
+  for(const profile of profiles)ensure(characterName(profile),profile);
   for(const name of screenplay.characters)ensure(name);
   for(const node of screenplay.doc.content){const text=plain(node),kind=node.attrs.kind,marks=characterMarks(node);
    if(kind==='scene'){speaker='';if(text.trim()){scene={id:node.attrs.id,number:scenes.length+1,title:text};scenes.push(scene);}}
-   if(kind==='character'){speaker=cue(text);}
+   if(kind==='character'){speaker=cue(text);const item=ensure(speaker);if(item)cues.add(item);}
    else if(kind==='dialogue'&&speaker&&text.trim())ensure(speaker)?.dialogues.push({id:node.attrs.id,text,scene:scene?.title||'Sin escena'});
    else if(!['dialogue','parenthetical'].includes(kind))speaker='';
    for(const mark of marks)ensure(mark.name);records.push({node,text,scene:scene?.title||'Sin escena',marks});
   }
-  const match=characterMatcher([...characters.values()].map(item=>item.name));
-  for(const {node,text,scene,marks}of records){const found=['action','dialogue','parenthetical','insert'].includes(node.attrs.kind)?match(text):[],groups=new Map();for(const mention of [...found,...marks]){const key=characterKey(mention.name);if(!groups.has(key))groups.set(key,[]);const ranges=groups.get(key);if(!ranges.some(range=>range.from===mention.from&&range.to===mention.to))ranges.push({from:mention.from,to:mention.to});}for(const [key,ranges]of groups)characters.get(key)?.mentions.push({id:node.attrs.id,text,scene,ranges:ranges.sort((a,b)=>a.from-b.from)});}
+  const match=characterMatcher([...formsToMatch.values()].map(entry=>entry.form));
+  for(const {node,text,scene,marks}of records){const found=['action','dialogue','parenthetical','insert'].includes(node.attrs.kind)?match(text):[],groups=new Map();for(const mention of [...found,...marks]){const key=characterKey(resolve(mention.name));if(!groups.has(key))groups.set(key,[]);const ranges=groups.get(key);if(!ranges.some(range=>range.from===mention.from&&range.to===mention.to))ranges.push({from:mention.from,to:mention.to});}for(const [key,ranges]of groups)characters.get(key)?.mentions.push({id:node.attrs.id,text,scene,ranges:ranges.sort((a,b)=>a.from-b.from)});}
   // Un nombre histórico sin texto ni diálogo asociado no es un personaje activo.
-  return{scenes,characters:[...characters.values()].filter(item=>item.mentions.length||item.dialogues.length)};
+  return{scenes,characters:[...characters.values()].filter(item=>includeUnusedProfiles&&item.profile||cues.has(item)||item.mentions.length||item.dialogues.length)};
  }
  function runs(node,from,to){const result=[];let offset=0;for(const piece of node.content||[]){const a=Math.max(from-offset,0),b=Math.min(to-offset,piece.text.length);if(a<b)result.push({text:piece.text.slice(a,b),marks:piece.marks||[]});offset+=piece.text.length;}return result;}
  function normalizeSyntax(value){
@@ -337,5 +453,5 @@
   for(const entry of titleFooter(value).entries)if(entry.page===0)context.fillText(entry.text,entry.x*scale,entry.top*scale);
   const result=canvas.toDataURL('image/jpeg',.72);canvas.width=canvas.height=0;return result.length<=20000?result:null;
  }
- const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,characterRoster,create,projectTitle,validate,wrap,layout,analyze,runs,pagePlan,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail,coverDetails,titleFooter};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
+ const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,characterRoster,characterRoles,characterSexes,characterAboutLimit,characterName,characterForms,characterSpeaker,characterSpeakers,validateProfiles,create,projectTitle,validate,wrap,layout,analyze,runs,pagePlan,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail,coverDetails,titleFooter};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
 })(globalThis);

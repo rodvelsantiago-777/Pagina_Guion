@@ -17,7 +17,7 @@ const root=path.resolve(__dirname,'..');
  assert.equal(await page.locator('#report-launch').evaluate(e=>getComputedStyle(e).backgroundColor),homeSide);
  const version=page.locator('.page-footer [data-app-version]');
  assert(await version.isVisible());
- assert.equal(await version.textContent(),'v0.2.1');
+ assert.equal(await version.textContent(),'v0.3.0');
  await page.screenshot({path:'tests/.output/paridad-inicio-claro.png'});
  await page.evaluate(()=>{PlanoAccounts.setProfileName=()=>{};PlanoAccounts.setProfilePhoto=()=>{};PlanoAccountSession.request=async()=>({profile:{name:'Elena Ríos',avatar:'',birthDate:'',company:'Estudio Horizonte'},email:'elena@example.invalid',capabilities:{password:true,deletion:true},sessions:[],sessionId:''});PlanoAccountCenter.open();});await page.waitForFunction(()=>document.querySelector('#center-profile-name').value==='Elena Ríos');assert.equal(await page.locator('.account-center-nav').evaluate(e=>getComputedStyle(e).backgroundColor),homeSide);assert.equal(await page.locator('.account-center-header').evaluate(e=>getComputedStyle(e).backgroundColor),homeSide);await page.screenshot({path:'tests/.output/paridad-cuenta-claro.png'});await page.locator('#center-back').click();
  await page.locator('.script-card-open').click();

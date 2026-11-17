@@ -9,6 +9,7 @@
   const raw=value.payload,screenplay=S.validate(raw?.screenplay);if(!screenplay||!Array.isArray(raw.annotations)||!Array.isArray(raw.corrections)||raw.annotations.length>10000||raw.corrections.length>1000)throw Error('El archivo no contiene un proyecto completo válido.');
   const payload={version:1,documentFormat:2,screenplay,annotations:structuredClone(raw.annotations),corrections:structuredClone(raw.corrections),crew:structuredClone(raw.crew||{}),proofreading:structuredClone(raw.proofreading||{})};
   const info=Info.validate(raw.projectInfo);if(info)payload.projectInfo=info;
+  const profiles=S.validateProfiles(raw.characterProfiles);if(profiles.length)payload.characterProfiles=profiles;
   const versions=Versions.validate(raw.screenplayVersions);if(versions.length)payload.screenplayVersions=versions;
   if(raw.view&&['writing','coverage','technical'].includes(raw.view.stage)&&typeof raw.view.scene==='string'&&raw.view.scene.length<150)payload.view={stage:raw.view.stage,scene:raw.view.scene};
   if(typeof raw.thumbnail==='string'&&raw.thumbnail.length<=20000&&/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(raw.thumbnail))payload.thumbnail=raw.thumbnail;

@@ -2,7 +2,7 @@
 (function(root){
  'use strict';
  const $=selector=>document.querySelector(selector),cloud=root.PlanoCloud;
- let hooks={},working=false,loadingVersion=0,projects=[],previewWork=null,renameTarget=null,renaming=false,libraryRequest=null,accountOwner='',selectedProject=null,lastLoaded=0;
+ let hooks={},working=false,loadingVersion=0,projects=[],previewWork=null,renameTarget=null,renaming=false,libraryRequest=null,accountOwner='',selectedProject=null,lastLoaded=0,charactersOpen=false;
  const previews=new Map(),previewTried=new Set();
  let factsVersion=0;
  let storageLimits=null,storageLoaded=false,storageFailed=false;
@@ -119,20 +119,24 @@
  }
  function renderProject(){
   const selected=selectedProject;
+  if(!selected)closeCharacters();
   const inProject=Boolean(selected),facts=$('#project-facts');
   $('#drop-zone').hidden=inProject;
   $('.page-footer').hidden=inProject;
-  $('#project-overview').hidden=!inProject;
-  $('#project-breadcrumb').hidden=!inProject;
+  $('#project-overview').hidden=!inProject||charactersOpen;
+  $('#project-characters').hidden=!inProject||!charactersOpen;
+  $('#project-breadcrumb').hidden=!inProject||charactersOpen;
   $('#project-rename').hidden=!inProject;
-  $('#workspace-banner').dataset.view=inProject?'project':'library';
+  const banner=$('#workspace-banner');
+  banner.hidden=charactersOpen;
+  banner.dataset.view=inProject?'project':'library';
   const workspace=$('#main-content');
   paintGenre(workspace,selected?.project_genre);
   $('#library-banner-icon').hidden=inProject;
   $('#project-banner-preview').hidden=!inProject;
   $('#home-project-actions').hidden=inProject;
   $('#home-library-count').hidden=inProject||!projects.length;
-  facts.hidden=!inProject;
+  facts.hidden=!inProject||charactersOpen;
   $('#return-editor').hidden=!hooks.currentProject?.();
   $('#home-library-count').textContent=`${projects.length} ${projects.length===1?'proyecto':'proyectos'}${cloud.configured?' en tu cuenta':''}`;
   if(!selected){factsVersion++;facts.replaceChildren();$('#project-banner-preview').replaceChildren();}
@@ -141,6 +145,13 @@
   $('#page-title').textContent=selected?projectName(selected):'Mis proyectos';
   if(!selected)return;
   $('#project-overview').dataset.projectId=selected.id;
+  if(charactersOpen){
+   factsVersion++;
+   const name=projectName(selected);
+   $('#characters-project-name').textContent=name;
+   $('#characters-back').setAttribute('aria-label','Volver al proyecto '+name);
+   return;
+  }
   renderProjectCover(selected);
   const version=++factsVersion,owner=accountOwner;
   const loading=document.createElement('p');loading.className='project-facts-empty';loading.textContent='Cargando ficha del proyecto…';facts.replaceChildren(loading);
@@ -157,12 +168,31 @@
  }
  function showProject(project=hooks.currentProject?.()){
   if(!project)return showRoot();
+  closeCharacters();
   selectedProject=projects.find(item=>item.id===project.id)||project;
   if(hooks.currentProject?.()?.id!==selectedProject.id)cloud.prefetch?.(selectedProject)?.catch(()=>{});
   message();
   hooks.home();renderProject();
  }
- function showRoot(){selectedProject=null;message();hooks.home();renderProject();}
+ function closeCharacters(){
+  if(!charactersOpen)return;
+  charactersOpen=false;
+  root.PlanoProjectCharacters.close();
+ }
+ function showRoot(){closeCharacters();selectedProject=null;message();hooks.home();renderProject();}
+ function showCharacters(project=selectedProject){
+  if(!project||working)return;
+  const owner=root.PlanoAccounts.getUser()?.id;
+  if(!owner)return;
+  selectedProject=projects.find(item=>item.id===project.id)||project;
+  charactersOpen=true;
+  message();
+  hooks.home();renderProject();
+  return root.PlanoProjectCharacters.open({
+   load:()=>hooks.projectDetails(project),
+   commit:(record,profiles)=>hooks.saveCharacters(record,profiles,owner),
+  });
+ }
  function openStage(stage){
   if(!selectedProject)return false;
   const project=selectedProject;return task(()=>hooks.open(project.id,stage));
@@ -264,6 +294,7 @@
   }finally{renaming=false;queueMicrotask(pumpPreviews);}
  }
  function closeOnIdentity(){
+  closeCharacters();
   factsVersion++;
   loadingVersion++;lastLoaded=0;libraryRequest=null;projects=[];selectedProject=null;previews.clear();previewTried.clear();renameTarget=null;storageLimits=null;storageLoaded=false;storageFailed=false;
   renderHome();message();
@@ -272,6 +303,8 @@
  function init(options){
   hooks=options;cloud.subscribe(sync,{payload:false});
   $('#project-root').addEventListener('click',showRoot);
+  $('#open-project-characters').addEventListener('click',()=>showCharacters());
+  $('#characters-back').addEventListener('click',()=>{if(!selectedProject)return;showProject(selectedProject);$('#open-project-characters').focus();});
   $('#project-rename').addEventListener('click',()=>renameFile(selectedProject,'project'));
   for(const entry of document.querySelectorAll('[data-project-stage]'))entry.addEventListener('click',()=>openStage(entry.dataset.projectStage));
   $('#home-refresh').addEventListener('click',()=>task(()=>refresh(true)));

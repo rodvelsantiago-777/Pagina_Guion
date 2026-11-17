@@ -1,0 +1,107 @@
+.project-characters { display: grid; gap: 20px; padding-block: 4px 36px; }
+.characters-breadcrumb { margin: 0; }
+#characters-project-name { overflow-wrap: anywhere; text-align: left; }
+.characters-heading {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 0 0 18px; border-bottom: 1px solid var(--line);
+}
+.characters-heading h1, .character-dialog h2 { margin: 0; color: var(--ink); font: 650 24px/1.2 var(--sans); }
+.characters-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+#character-add { white-space: nowrap; }
+#character-add span { font-size: 17px; line-height: 1; }
+.character-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 184px), 1fr)); gap: 12px; }
+.character-card {
+  min-width: 0; display: grid; justify-items: start; gap: 6px; padding: 18px;
+  border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+  background: var(--paper); text-align: left; overflow-wrap: anywhere;
+}
+.character-card:hover { border-color: var(--genre-ink, var(--accent)); background: var(--surface-hover); }
+.character-initials {
+  display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 6px;
+  border-radius: 50%; color: var(--genre-ink, var(--accent)); background: var(--genre-soft, var(--accent-soft));
+  font: 700 15px/1 var(--sans);
+}
+.character-card strong { font: 650 15px/1.35 var(--sans); }
+.character-role { color: var(--genre-ink, var(--accent)); font-size: 12px; }
+.character-card small, .character-empty, .character-aliases p { color: var(--muted); font-size: 12px; }
+.character-empty {
+  grid-column: 1 / -1; text-align: center; margin: 0; padding: 36px 16px;
+  border: 1px dashed var(--line-strong); border-radius: 7px;
+}
+.character-dialog {
+  width: min(500px, calc(100% - 28px)); max-height: calc(100dvh - 28px);
+  padding: 0; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+}
+.character-dialog::backdrop { background: var(--backdrop); }
+.character-dialog form { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100dvh - 30px); }
+.character-dialog header { padding: 24px 24px 0; }
+.character-dialog-body {
+  display: grid; gap: 18px; min-height: 0; padding: 18px 24px;
+  overflow: auto; overscroll-behavior: contain;
+}
+.character-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.character-fields label, .character-primary-alias { display: grid; gap: 5px; color: var(--ink); font: 600 12px/1.4 var(--sans); }
+.character-primary-alias { margin-top: 5px; }
+.character-primary-alias p { font-weight: 400; }
+.character-wide { grid-column: 1 / -1; }
+.character-about { display: grid; gap: 5px; min-width: 0; }
+.character-about-count { justify-self: end; color: var(--muted); font-size: 11px; }
+.character-dialog input, .character-dialog select, .character-dialog textarea {
+  width: 100%; min-width: 0; min-height: 36px; padding: 6px 9px;
+  border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink);
+  background: var(--surface-alt); font: 14px var(--sans);
+}
+.character-dialog textarea { resize: vertical; line-height: 1.45; max-height: 180px; }
+.character-aliases { display: grid; gap: 8px; min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.character-aliases legend { margin-bottom: 7px; padding: 0; font: 600 12px var(--sans); }
+.character-aliases p { margin: 0; }
+.character-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.character-tags:empty { display: none; }
+.character-tag {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--surface-alt); overflow-wrap: anywhere;
+  font: 12px/1.5 var(--sans);
+}
+.character-tag button { border: 0; background: none; color: var(--muted); padding: 0 3px; font-size: 16px; }
+.character-add-alias { display: grid; grid-template-columns: 1fr 36px; gap: 6px; }
+.character-add-alias button { font-size: 18px; padding: 0; }
+.character-extras { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.character-extras h3 { margin: 0; font: 650 13px/1.4 var(--sans); }
+#character-extra-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
+#character-extra-fields:empty { display: none; }
+.character-field-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.character-field-actions select { flex: 1 1 180px; }
+.character-extra-field, .character-custom-field, .character-relation-control { display: grid; gap: 5px; min-width: 0; }
+.character-extra-field-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 4px; }
+.character-extra-field label, .character-extra-field-heading strong { font: 600 12px/1.4 var(--sans); }
+.character-detail-remove {
+  display: grid; flex-shrink: 0; place-items: center; min-width: 24px; min-height: 24px; margin-top: -3px;
+  padding: 0; border: 0; border-radius: 4px; color: var(--muted); background: transparent; font-size: 18px;
+}
+.character-detail-remove:hover { color: var(--danger); background: var(--danger-soft); }
+.character-extra-field:has(.character-add-relation) { gap: 8px; }
+.character-relation-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; align-items: end; gap: 7px;
+  padding: 8px; border: 1px solid var(--line); border-radius: 5px;
+}
+.character-relation-row .character-detail-remove { margin-top: 0; min-height: 36px; }
+.character-add-relation { justify-self: start; }
+.character-relation-empty { margin: 0; color: var(--muted); font-size: 12px; }
+.character-dialog footer {
+  display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px;
+  padding: 12px 24px 16px; border-top: 1px solid var(--line);
+}
+.characters-error { margin: 0; color: var(--danger); font-size: 13px; }
+.character-dialog .characters-error { flex-basis: 100%; }
+@media (max-width: 500px) {
+  .character-dialog header { padding-top: 16px; }
+  .character-dialog header, .character-dialog-body, .character-dialog footer { padding-inline: 16px; }
+  .character-dialog input, .character-dialog select, .character-dialog textarea { font-size: 16px; }
+  .characters-heading h1 { font-size: 20px; }
+}
+@media (max-width: 420px) {
+  .character-relation-row { grid-template-columns: minmax(0, 1fr) 24px; }
+  .character-relation-control { grid-column: 1; }
+  .character-relation-row .character-detail-remove { grid-column: 2; grid-row: 1; }
+}

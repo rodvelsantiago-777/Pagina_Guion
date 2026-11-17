@@ -1,6 +1,7 @@
 {
   "initialVersion": "0.1.0",
   "milestones": [
-    { "day": "2026-11-02", "version": "0.2.0" }
+    { "day": "2026-11-02", "version": "0.2.0" },
+    { "day": "2026-11-17", "version": "0.3.0" }
   ]
 }
