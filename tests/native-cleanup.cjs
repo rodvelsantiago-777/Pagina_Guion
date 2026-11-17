@@ -6,8 +6,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  assert(!fs.existsSync(path.join(out,'script-preview.js')));assert(fs.existsSync(path.join(out,'legacy-notes.js')));for(const file of ['screenplay-fonts.js','spanish-spelling.js','pdf.js','pdf.worker.js','pdf.worker.mjs','pdf-assets.js'])assert(fs.existsSync(path.join(out,'vendor',file)),'Importación y exportación conservan '+file);
  assert(fs.readdirSync(path.join(out,'vendor')).filter(n=>n.startsWith('LICENSE')).length>20);
  for(const html of ['index.html','technical-window.html']){const source=fs.readFileSync(path.join(out,html),'utf8');for(const [,asset] of source.matchAll(/(?:src|href)="([^"#]+\.(?:js|css))(?:\?[^"]*)?"/g))if(!/^https?:/.test(asset))assert(fs.existsSync(path.join(out,asset)),'Recurso publicado: '+asset);}
- const retired=/\b(?:local-badge|coming-next|workspace-toolbar|workspace-status|paper-illustration)\b/;
- for(const asset of ['index.html','styles.css','appearance.css','editor.css','library.css','header-ui.css','app.js','cloud-library.js']){
+ const retired=/\b(?:local-badge|coming-next|workspace-toolbar|workspace-status|paper-illustration|save-backup|account-launch|appearance-heading|panel-scene|patch-notes-launch)\b/;
+ for(const asset of ['index.html','styles.css','accounts.css','appearance.css','editor.css','library.css','header-ui.css','patch-notes.css','app.js','cloud-library.js']){
   assert(!retired.test(fs.readFileSync(path.join(out,asset),'utf8')),`La publicación no incluye componentes retirados en ${asset}`);
  }
  assert(!fs.existsSync(path.join(out,'outputs')));

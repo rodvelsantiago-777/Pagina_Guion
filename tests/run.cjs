@@ -296,9 +296,10 @@ async function assertLabelClearance(page) {
     await assertLabelClearance(page);
     await page.locator('#undo-button').click();
     await page.locator('#undo-button').click(); assert.equal(await page.locator('#annotation-count').textContent(),'2');
-    const download=page.waitForEvent('download'); await page.locator('#save-backup').evaluate(button=>button.click());
-    const backup=await download; const backupPath=path.join(output,'notas.json'); await backup.saveAs(backupPath);
-    const saved=JSON.parse(fs.readFileSync(backupPath,'utf8')); assert.equal(saved.annotations.length,2);
+    const exported=await require('./header-menu.cjs').exportProject(page);
+    const saved={app:'PLANO',version:1,fingerprint:await page.evaluate(()=>state.fingerprint),annotations:exported.annotations};
+    const backupPath=path.join(output,'notas.json');fs.writeFileSync(backupPath,JSON.stringify(saved));
+    assert.equal(saved.annotations.length,2);
     assert.equal(saved.annotations[0].shotName,'Plano 01 · Entrada de Ana');
     assert.equal(saved.annotations[1].shotName,'Plano 02 · Seguimiento');
     assert.equal(saved.annotations[1].color,'#c56861');

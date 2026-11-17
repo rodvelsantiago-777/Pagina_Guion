@@ -44,7 +44,7 @@ function busy(value) {
   refreshFinalizeButton();
 }
 
-function showScreen(screen) {
+function showScreen(screen, { refreshLibrary = true } = {}) {
   hideHighlightAction();
   const editing = screen === "editor" && Boolean(state.pdf);
   if (!editing && state.screen === "editor") state.viewAnchor = capturePosition();
@@ -59,7 +59,10 @@ function showScreen(screen) {
     if (state.stage === "coverage") { refreshAnnotations(); renderDocument({ anchor: state.viewAnchor }); }
     else if (state.stage === "writing") PlanoWriter.open(state.screenplay).catch(error => message(error.message, true));
     else refreshTechnicalScript();
-  } else { $("#panel-backdrop").hidden = true; PlanoCloudLibrary.showHome(); }
+  } else {
+    $("#panel-backdrop").hidden = true;
+    if (refreshLibrary) PlanoCloudLibrary.showHome();
+  }
   PlanoHeader.refresh();
 }
 function updateStageView() {
@@ -2168,8 +2171,6 @@ async function exportCoveragePdf(includeTechnical = false) {
     for (const id of ['#export-excel']) $(id).disabled = !state.annotations.length;
   }
 }
-$("#export-pdf").addEventListener("click", () => exportCoveragePdf());
-$("#export-all").addEventListener("click", () => exportCoveragePdf(true));
 let excelEngine;
 function prepareExcelExport() {
   if (!excelEngine) excelEngine = Promise.all([loadScript("vendor/exceljs.min.js"), loadScript("vendor/excel-template.js")]).catch(error => { excelEngine = null; throw error; });
@@ -2203,15 +2204,16 @@ async function exportTechnicalExcel() {
     state.exporting = false; busy(false); buttons.forEach(button => button.disabled = !state.annotations.length); $("#remove-button").disabled = false;
   }
 }
-for (const id of ["#export-excel"]) $(id).addEventListener("click", exportTechnicalExcel);
 // Las copias JSON previas se mantienen aisladas y solo se cargan al usarlas.
-async function legacyNotesAction(action,data){
-  const pdf=state.pdf,owner=PlanoAccounts.getUser()?.id;if(!pdf)return;
-  try{await loadScript('legacy-notes.js'+new URL($("script[src^='app.js']").src).search);if(state.pdf!==pdf||PlanoAccounts.getUser()?.id!==owner)return;return await PlanoLegacyNotes[action](data);}
-  catch(error){message('No se pudo abrir la copia antigua. '+error.message,true);if(data?.input)data.input.value='';return false;}
-}
-$("#save-backup").addEventListener('click',()=>legacyNotesAction('save'));
-$("#backup-input").addEventListener('change',event=>{const input=event.target;legacyNotesAction('importNotes',{input,file:input.files[0],pdf:state.pdf});});
+$("#backup-input").addEventListener('change',async event=>{
+  const input=event.target,file=input.files[0],pdf=state.pdf,owner=PlanoAccounts.getUser()?.id;
+  try{
+    if(!file||!pdf)return;
+    await loadScript('legacy-notes.js'+new URL($("script[src^='app.js']").src).search);
+    if(state.pdf===pdf&&PlanoAccounts.getUser()?.id===owner)await PlanoLegacyNotes.importNotes({file,pdf});
+  }catch(error){message('No se pudo abrir la copia antigua. '+error.message,true);}
+  finally{input.value='';}
+});
 document.addEventListener("keydown", event => {
   if (document.querySelector(".compact-popover:popover-open")) return;
   if (document.querySelector("dialog[open]")) return;
@@ -2301,7 +2303,7 @@ PlanoCloudLibrary.init({
   currentProject: currentLibraryProject,
   canRename: () => !state.busy && !state.exporting && !state.pending && !state.editing && !state.lineGesture && !state.highlightCorrection && !state.pasteHighlight && PlanoTechnicalScript.finishEditing(),
   preview: buildLibraryPreview,
-  home: () => showScreen("import"),
+  home: () => showScreen("import", { refreshLibrary: false }),
   open: async (id, stage = "coverage") => {
     if (state.busy || state.exporting || state.pending || state.editing || state.pasteHighlight || !PlanoTechnicalScript.finishEditing()) throw new Error("Termina la edición o exportación actual antes de abrir otro guion.");
     if (state.pdf && (id === state.cloudProject?.id || id === "local")) {
@@ -2688,8 +2690,6 @@ PlanoWriter.init({
       PlanoCloudLibrary.projectUpdated(currentLibraryProject());
     }catch(error){if(owner===PlanoAccounts.getUser()?.id&&state.fingerprint===project.fingerprint)message(error.message,true);}
   },
-  exportPdf:downloadWrittenPdf,
-  exportProject:exportProjectArchive,
 
 });
 
@@ -2704,7 +2704,6 @@ function exportProjectArchive(){
     PlanoEditableImport.download({name:currentLibraryProject().project_name,documentName:editableName(state.file.name),payload});message('Proyecto completo descargado como .plano.');
   }catch(error){message('No se pudo exportar el proyecto: '+error.message,true);}
 }
-$('#export-editable').addEventListener('click',exportProjectArchive);
 
 function downloadExport(bytes,type,name){
   const url=URL.createObjectURL(new Blob([bytes],{type})),link=document.createElement('a');
@@ -2732,7 +2731,7 @@ async function exportWrittenTxt(){
   try{await prepareTxt();const text=PlanoTxt.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'text/plain;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.txt');message('Guion TXT descargado. El texto plano conserva el contenido y las sangrías, sin formato de negrita o cursiva.');}
   catch(error){message('No se pudo exportar el TXT. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-function runExport(action='technical-excel'){
+function runExport(action){
   return ({'script-docx':exportWrittenDocx,'script-txt':exportWrittenTxt,'script-rtf':exportWrittenRtf,'script-html':exportWrittenHtml,'script-json':exportWrittenJson,'script-csv':exportWrittenCsv,'script-celtx':exportWrittenCeltx,'script-fdx':exportWrittenFdx,'script-wdz':exportWrittenWdz,'script-fountain':exportWrittenFountain,'script-pdf':downloadWrittenPdf,'coverage-pdf':exportCoveragePdf,'technical-pdf':exportTechnicalPdf,'technical-excel':exportTechnicalExcel,'combined-pdf':()=>exportCoveragePdf(true),project:exportProjectArchive})[action]?.();
 }
 async function exportWrittenRtf(){
@@ -2742,7 +2741,6 @@ async function exportWrittenRtf(){
   try{await prepareRtf();const text=PlanoRtf.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'application/rtf',(snapshot.title.trim()||'Sin título')+'.rtf');message('Guion RTF descargado, con portada y formato de escritura.');}
   catch(error){message('No se pudo exportar el RTF. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-docx').addEventListener('click',exportWrittenDocx);
 async function exportWrittenHtml(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2750,7 +2748,6 @@ async function exportWrittenHtml(){
   try{await prepareHtml();const html=PlanoHtml.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(html,'text/html;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.html');message('Guion HTML descargado, con portada y páginas; se abre sin conexión.');}
   catch(error){message('No se pudo exportar el HTML. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-html').addEventListener('click',exportWrittenHtml);
 async function exportWrittenJson(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2758,7 +2755,6 @@ async function exportWrittenJson(){
   try{await prepareJson();const text=PlanoJson.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'application/json;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.json');message('Guion JSON descargado, sin datos de producción.');}
   catch(error){message('No se pudo exportar el JSON. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-json').addEventListener('click',exportWrittenJson);
 async function exportWrittenCsv(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2766,7 +2762,6 @@ async function exportWrittenCsv(){
   try{await prepareCsv();const text=PlanoCsv.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'text/csv;charset=utf-8;header=present',(snapshot.title.trim()||'Sin título')+'.csv');message('Guion CSV descargado, con cada elemento en su propia fila.');}
   catch(error){message('No se pudo exportar el CSV. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-csv').addEventListener('click',exportWrittenCsv);
 async function exportWrittenCeltx(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2774,7 +2769,6 @@ async function exportWrittenCeltx(){
   try{await prepareCeltx();const bytes=await PlanoCeltx.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(bytes,'application/x-celtx-project',(snapshot.title.trim()||'Sin título')+'.celtx');message('Guion Celtx descargado, solo escritura y portada.');}
   catch(error){message('No se pudo exportar Celtx. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-celtx').addEventListener('click',exportWrittenCeltx);
 async function exportWrittenFdx(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2782,7 +2776,6 @@ async function exportWrittenFdx(){
   try{await prepareFdx();const xml=PlanoFdx.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(xml,'application/xml;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.fdx');message('Guion Final Draft descargado, solo escritura y portada.');}
   catch(error){message('No se pudo exportar Final Draft. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-fdx').addEventListener('click',exportWrittenFdx);
 async function exportWrittenWdz(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2790,7 +2783,6 @@ async function exportWrittenWdz(){
   try{await prepareWdz();const bytes=await PlanoWdz.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(bytes,'application/zip',(snapshot.title.trim()||'Sin título')+'.wdz');message('Guion WriterDuet descargado, solo escritura y portada.');}
   catch(error){message('No se pudo exportar WriterDuet. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-wdz').addEventListener('click',exportWrittenWdz);
 async function exportWrittenFountain(){
   if(!canSelectShots()||!PlanoTechnicalScript.finishEditing())return;
   const snapshot=PlanoScreenplay.validate(state.screenplay),owner=PlanoAccounts.getUser()?.id;
@@ -2798,9 +2790,4 @@ async function exportWrittenFountain(){
   try{await prepareFountain();const text=await PlanoFountain.write(snapshot);if(PlanoAccounts.getUser()?.id!==owner)return;downloadExport(text,'text/plain;charset=utf-8',(snapshot.title.trim()||'Sin título')+'.fountain');message('Guion Fountain descargado, solo escritura y portada.');}
   catch(error){message('No se pudo exportar Fountain. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
-$('#export-script-fountain').addEventListener('click',exportWrittenFountain);
-$('#export-script-rtf').addEventListener('click',exportWrittenRtf);
-$('#export-script-txt').addEventListener('click',exportWrittenTxt);
-$('#export-script-pdf').addEventListener('click',downloadWrittenPdf);
-$('#export-technical-pdf').addEventListener('click',exportTechnicalPdf);
-const exportMenu=PlanoExportUI.init({button:$('#open-export'),dialog:$('#export-dialog'),beforeOpen:()=>canSelectShots()&&PlanoTechnicalScript.finishEditing(),hasShots:()=>state.annotations.length>0});
+const exportMenu=PlanoExportUI.init({button:$('#open-export'),dialog:$('#export-dialog'),beforeOpen:()=>canSelectShots()&&PlanoTechnicalScript.finishEditing(),hasShots:()=>state.annotations.length>0,run:runExport});

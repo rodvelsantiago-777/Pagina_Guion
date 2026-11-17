@@ -84,6 +84,11 @@
  }
  function renderHome(){
   renderStorage();
+  if(selectedProject){
+   selectedProject=projects.find(project=>project.id===selectedProject.id)||selectedProject;
+   renderProject();
+   return;
+  }
   const cards=[],openProjectInfo=hooks.currentProject?.(),pending=cloud.info(false).pending;
   for(const project of projects){
    const title=project.id===openProjectInfo?.id&&(pending||project.id==='local')?openProjectInfo.project_name:projectName(project);
@@ -113,7 +118,6 @@
    const empty=document.createElement('p');empty.className='home-empty-projects';empty.textContent='Aún no tienes proyectos.';
    grid.replaceChildren(empty);
   }
-  if(selectedProject)selectedProject=projects.find(project=>project.id===selectedProject.id)||selectedProject;
   renderProject();
   queueMicrotask(pumpPreviews);
  }
@@ -179,7 +183,7 @@
   charactersOpen=false;
   root.PlanoProjectCharacters.close();
  }
- function showRoot(){closeCharacters();selectedProject=null;message();hooks.home();renderProject();}
+ function showRoot(){closeCharacters();selectedProject=null;message();hooks.home();renderProject();return showHome();}
  function showCharacters(project=selectedProject){
   if(!project||working)return;
   const owner=root.PlanoAccounts.getUser()?.id;

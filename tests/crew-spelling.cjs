@@ -6,7 +6,7 @@ const {chromium}=load('playwright'),{PDFDocument,StandardFonts}=load('pdf-lib'),
 const out=path.join(__dirname,'.output');fs.mkdirSync(out,{recursive:true});
 const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document.querySelector('#render-status').hidden);
 const reviewed=page=>page.waitForFunction(()=>state.proofreading.dictionary===PlanoSpelling.version,null,{timeout:30000});
-async function download(page,button,name){const pending=page.waitForEvent('download');if(button==='#save-backup')await page.locator(button).evaluate(b=>b.click());else{await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator(button).click();}const file=await pending;const target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
+async function download(page,button,name){const pending=page.waitForEvent('download');await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator(button).click();const file=await pending;const target=path.join(out,name);await file.saveAs(target);await page.waitForFunction(()=>!state.exporting&&!state.busy);return fs.readFileSync(target);}
 (async()=>{
  assert.deepEqual(crew.validate(),{});assert.throws(()=>crew.validate({director:'a'.repeat(161)}));assert.throws(()=>crew.validate([]));
  const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Courier);
@@ -37,7 +37,7 @@ async function download(page,button,name){const pending=page.waitForEvent('downl
   const full=await download(page,'#export-all','equipo-guion-completo.pdf');
   const technical=await page.evaluate(async bytes=>{const pdf=await pdfjsLib.getDocument({data:new Uint8Array(bytes),isEvalSupported:false,useWasm:true,useSystemFonts:false,useWorkerFetch:false,BinaryDataFactory:LocalBinaryFactory}).promise;try{const text=await(await pdf.getPage(3)).getTextContent();return text.items.map(item=>item.str).join(' ').replace(/\s+/g,' ');}finally{await pdf.destroy();}},Array.from(full));
   for(const value of Object.values(team))assert(technical.includes(value),'El PDF incluye '+value);
-  const backup=JSON.parse(await download(page,'#save-backup','equipo-notas.json'));assert.deepEqual(backup.crew,savedTeam);assert.equal(backup.corrections[0].source,'spelling');
+  const backup=await require('./header-menu.cjs').exportProject(page);assert.deepEqual(backup.crew,savedTeam);assert.equal(backup.corrections[0].source,'spelling');
   await page.reload();await page.locator('#file-input').setInputFiles({name:'Equipo.pdf',mimeType:'application/pdf',buffer});await ready(page);await reviewed(page);assert.deepEqual(await page.evaluate(()=>state.crew),savedTeam);assert.equal(await page.evaluate(()=>state.corrections.length),2);assert.equal(await page.evaluate(()=>PlanoSpelling.mode),'basic','file:// usa el respaldo; una revisión básica no se confunde con una completa al reabrir');assert((await page.locator('#spelling-status').textContent()).includes('Revisión básica'));
   await page.locator('#scene-select').selectOption('print',{force:true});await ready(page);
   await page.screenshot({path:path.join(out,'ortografia-automatica-pdf.png')});

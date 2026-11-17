@@ -61,7 +61,7 @@ function makeRelease({root,before,after,previous,publishedAt=new Date().toISOStr
  if(!entries.length){
   const args=base?['diff','--name-only',base,after,'--']:['show','--format=','--name-only',after,'--'];
   const files=git(root,args).split('\n'),groups=[
-   [/^(cloud-library|library|script-preview)\./,'Actualización de la biblioteca de guiones.'],
+   [/^(cloud-library|library)\./,'Actualización de la biblioteca de guiones.'],
    [/^(app|coverage-lines|document-labels|label-layout|shot-)\b/,'Actualización de las herramientas de cobertura y anotaciones.'],
    [/^(technical-script|excel-export)\./,'Actualización del guion técnico y sus herramientas.'],
    [/^(appearance|styles|editor)\./,'Actualización del diseño y los controles del estudio.'],

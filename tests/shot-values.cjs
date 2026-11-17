@@ -92,15 +92,15 @@ async function importNotes(page,data) {await page.locator('#backup-input').setIn
     await beginLine(page); assert.equal(await page.locator('#shot-name-input').getAttribute('placeholder'),'2');
     assert.equal(await page.locator('#shot-angle-input').inputValue(),''); assert(await page.locator('#shot-angle-input-other').isDisabled());
     await finishLine(page); assert.equal((await notes(page))[1].shotName,'2');
-    const downloading=page.waitForEvent('download'); await page.locator('#save-backup').evaluate(button=>button.click());
-    const backupPath=path.join(output,'fichas-plano.json'); await (await downloading).saveAs(backupPath); const backup=JSON.parse(fs.readFileSync(backupPath,'utf8'));
+    const backup=await require('./header-menu.cjs').exportProject(page);
+    const legacyHeader={app:'PLANO',version:1,fingerprint:await page.evaluate(()=>state.fingerprint)};
     assert.equal(backup.annotations[0].description,description); assert.equal(backup.annotations[0].grip,production.grip);
     await page.reload(); await page.locator('#file-input').setInputFiles({name:'fichas.pdf',mimeType:'application/pdf',buffer}); await ready(page);
     assert.deepEqual((await notes(page))[0],edited,'Recupera todos los datos tras cerrar');
     const legacy={...edited,id:'legacy',shotId:'legacy',shotName:'Antiguo',shotAngle:'other',note:'Nota antigua'};
     for(const key of ['description','grip','sound','shotAngleOther','shotLensOther','shotMovementOther']) delete legacy[key];
     const grouped=[{...original,id:'group-1',shotId:'group',shotName:'Grupo'},{...original,id:'group-2',shotId:'group',shotName:'Grupo',page:2}];
-    await importNotes(page,{...backup,annotations:[legacy,...grouped]}); await page.waitForFunction(()=>document.querySelector('#annotation-count').textContent==='5');
+    await importNotes(page,{...legacyHeader,annotations:[legacy,...grouped]}); await page.waitForFunction(()=>document.querySelector('#annotation-count').textContent==='5');
     assert.equal((await notes(page)).find(item=>item.id==='legacy').note,'Nota antigua','Compatibilidad sin perder notas anteriores');
     await page.locator('.annotation-card[data-id="legacy"] .edit-annotation').click(); assert(await page.locator('#edit-shot-angle-other').isVisible());
     await page.locator('#edit-shot-form button[type="submit"]').click(); assert(await page.locator('#edit-shot-dialog').isVisible()); await page.locator('#cancel-edit-shot').click();
@@ -108,7 +108,7 @@ async function importNotes(page,data) {await page.locator('#backup-input').setIn
     await page.locator('#edit-shot-grip').fill('Trípode'); await page.locator('#edit-shot-info').fill('Nota compartida'); await save(page);
     assert((await notes(page)).filter(item=>item.shotId==='group').every(item=>item.grip==='Trípode'&&item.note==='Nota compartida'),'Todas las partes del plano se actualizan juntas');
     for(const [key,value,message] of [['shotLens','valor inválido','datos de óptica inválidos'],['shotAngleOther',{},'especificaciones de Otro inválidas'],['description','x'.repeat(4001),'datos de descripción inválidos']]) {
-      await importNotes(page,{...backup,annotations:[{...original,id:'invalid',[key]:value}]});
+      await importNotes(page,{...legacyHeader,annotations:[{...original,id:'invalid',[key]:value}]});
       await page.waitForFunction(message=>document.querySelector('#feedback').textContent.includes(message),message);
       assert.equal((await notes(page)).length,5);
     }

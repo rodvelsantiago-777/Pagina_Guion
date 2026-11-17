@@ -212,8 +212,7 @@ body:not(.is-editing) .privacy-note { justify-content: flex-start; padding: 14px
 .home-library-message { margin: 0 0 16px; font: 13px/1.6 var(--sans); color: var(--muted); }
 .home-library-message.is-error { color: var(--danger); }
 .home-library[aria-busy="true"] #home-refresh { opacity: .5; cursor: wait; }
-.editor-file .file-rename-button{display:grid;place-items:center;align-self:center;flex-shrink:0;border:0;border-radius:3px;width:25px;height:26px;padding:4px;background:transparent;color:var(--muted);cursor:pointer;margin-left:-8px}
-.file-rename-button svg{width:14px;height:14px}.editor-file .file-rename-button:hover{color:var(--ink);background:var(--surface-hover)}
+
 .rename-file-dialog{width:min(390px,calc(100vw - 28px));padding:23px;border:1px solid var(--line-strong);border-radius:6px;background:var(--paper);color:var(--ink);box-shadow:0 12px 40px var(--shadow)}
 .rename-file-dialog::backdrop{background:var(--backdrop)}
 .rename-file-dialog header{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:20px}

@@ -101,11 +101,7 @@ body.is-editing{height:100dvh;overflow:hidden}
 .annotation-flash{animation:annotation-flash .45s ease-in-out 3}
 @keyframes annotation-flash{50%{opacity:.15}}
 .annotations-panel{min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column}
-.panel-scene{padding:21px 18px 18px;border-bottom:1px solid var(--line)}
-.panel-label{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:11px}
-.panel-label label{font-size:8px;letter-spacing:1.5px;color:var(--muted)}
-.panel-label>span{font-size:9px;color:var(--muted)}
-.panel-scene select{display:block;width:100%;min-width:0;border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:10px 23px 10px 10px;font:12px var(--sans);color:var(--muted);text-overflow:ellipsis}
+
 .annotations-heading{display:flex;align-items:center;justify-content:space-between;padding:22px 18px 12px}
 .annotations-heading h2{font-family:var(--serif);font-weight:400;font-size:24px;margin:0}
 .annotations-heading h2 span{font:10px var(--sans);border-radius:20px;background:var(--surface-alt);padding:3px 7px;color:var(--muted);margin-left:6px;vertical-align:middle}
@@ -135,11 +131,9 @@ body.is-editing{height:100dvh;overflow:hidden}
 .annotation-jump:hover{text-decoration:underline}
 .delete-annotation{border:0;background:none;color:var(--faint);font-size:20px;width:24px;height:26px;flex-shrink:0}
 .delete-annotation:hover{color:var(--muted);background:var(--paper);border-radius:3px}
-.annotation-location{font-size:9px;color:var(--faint);line-height:1.7;display:block;margin:5px 0 10px;overflow-wrap:anywhere}
+
 .annotation-card blockquote{margin:0 0 14px;font:13px/1.7 var(--serif);color:var(--muted);max-height:110px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
-.shot-note-label{font-size:7px;letter-spacing:1.3px;display:block;color:var(--faint)}
-.shot-note-label textarea{display:block;width:100%;margin-top:6px;resize:vertical;min-height:52px;max-height:250px;padding:8px;border:1px solid var(--line);border-radius:3px;background:var(--paper);font:11px/1.6 var(--sans);color:var(--muted)}
-.shot-note-label textarea::placeholder{color:var(--faint)}
+
 .save-status{font-size:9px;line-height:1.6;padding:10px 18px 14px;margin:0;color:var(--muted);flex-shrink:0}
 .is-editing .message{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;max-width:min(580px,calc(100vw - 32px));width:max-content;margin:0;box-shadow:0 3px 18px var(--shadow);font-size:11px}
 .script-workspace.drag-over{outline:3px solid var(--accent);outline-offset:-3px}
@@ -175,9 +169,7 @@ body.is-editing{height:100dvh;overflow:hidden}
 .zoom-controls .tool{font-size:13px;min-height:32px}
 #page-label{font-size:12px}
 .sheet-label{font-size:11px;height:23px;line-height:18px;letter-spacing:1.2px;color:var(--muted)}
-.panel-label label{font-size:11px}
-.panel-label>span{font-size:12px;color:var(--muted)}
-.panel-scene select{font-size:16px;padding:11px 24px 11px 12px}
+
 .annotations-heading h2{font-size:27px}
 .annotations-heading h2 span{font-size:13px}
 .annotation-stats{font-size:14px;color:var(--muted)}
@@ -186,11 +178,9 @@ body.is-editing{height:100dvh;overflow:hidden}
 .annotation-jump{font-size:16px;line-height:1.45;overflow-wrap:anywhere;min-width:0}
 .annotation-card{padding:14px}
 .annotation-kind{display:block;font-size:12px;color:var(--muted);margin-top:3px}
-.annotation-location{font-size:12px;color:var(--muted)}
+
 .annotation-card blockquote{font-size:16px;max-height:135px}
-.shot-note-label{font-size:10px;color:var(--muted)}
-.shot-note-label textarea{font-size:15px;min-height:69px;color:var(--muted)}
-.shot-note-label textarea::placeholder{color:var(--muted)}
+
 .save-status{font-size:12px;color:var(--muted)}
 .is-editing .message{font-size:14px}
 .pending-annotation{opacity:.65}
@@ -214,7 +204,7 @@ body.is-editing{height:100dvh;overflow:hidden}
   .color-picker{margin-right:auto}
   .zoom-controls{flex-basis:100%;justify-content:flex-end;border-top:1px solid var(--line);padding-top:5px;margin-top:2px}
   .zoom-controls .tool{font-size:13px}
-  .shot-note-label textarea{font-size:16px}
+
   .shot-name-dialog{padding:25px 22px}
   .shot-name-dialog h2{font-size:28px}
 }
@@ -241,8 +231,7 @@ body.is-editing{height:100dvh;overflow:hidden}
 .edit-annotation{width:29px;height:29px;border:0;border-radius:4px;display:grid;place-items:center;flex-shrink:0;color:var(--muted);background:transparent;cursor:pointer}
 .edit-annotation svg{width:16px;height:16px}
 .edit-annotation:hover{color:var(--muted);background:var(--paper)}
-.annotation-swatch{position:absolute;left:-3px;top:0;bottom:0;width:7px;background:var(--annotation-color);border:0;border-radius:4px 0 0 4px;padding:0;cursor:pointer}
-.annotation-swatch:hover{filter:brightness(.85)}
+
 .edit-shot-dialog{width:min(500px,calc(100vw - 32px))}
 .edit-shot-meta{font-size:13px;color:var(--muted);margin:0 0 21px}
 .edit-shot-dialog textarea{width:100%;min-height:110px;max-height:240px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--ink);font:15px/1.6 var(--sans)}
@@ -397,10 +386,9 @@ body.is-editing{height:100dvh;overflow:hidden}
 .custom-color-button{display:block;width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--muted);font:15px var(--sans);cursor:pointer}
 #custom-color-fields{border:1px solid var(--line);padding:16px;border-radius:6px;margin:18px 0 0;min-width:0}
 #custom-color-fields legend{padding:0 6px;color:var(--muted);font-size:12px}
-.custom-color-main{display:flex;align-items:flex-end;gap:10px;min-width:0}
-.custom-color-main>div{flex:1;min-width:0}
-.color-picker-dialog .custom-color-main label,.color-picker-dialog .custom-color-rgb label{font-size:12px;margin-bottom:6px}
-.color-picker-dialog input#custom-color-native{display:block;width:48px;height:43px;padding:3px;border-radius:5px;cursor:pointer}
+
+.color-picker-dialog .custom-color-rgb label{font-size:12px;margin-bottom:6px}
+
 #custom-color-preview{display:block;width:12px;height:43px;border-radius:3px;flex-shrink:0}
 .color-picker-dialog input{padding:10px 8px;font-size:15px}
 .custom-color-rgb{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:15px}

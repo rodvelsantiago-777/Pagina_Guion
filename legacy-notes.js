@@ -1,18 +1,8 @@
 /* Compatibilidad con copias JSON antiguas. El flujo habitual de proyectos usa .plano. */
 (function(root){
  'use strict';
- function save(){
-  const payload = { app: "PLANO", version: 1, fingerprint: state.fingerprint, fileName: state.file.name, annotations: state.annotations, corrections: state.corrections, crew: state.crew, proofreading: state.proofreading };
-  if (state.screenplay) payload.screenplay = state.screenplay;
-  if (state.projectInfo) payload.projectInfo = state.projectInfo;
-  if (state.screenplayVersions.length) payload.screenplayVersions = state.screenplayVersions;
-  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
-  const link = document.createElement("a"); link.href = url; link.download = `${state.file.name.replace(/\.pdf$/i, "")}-notas-plano.json`; link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
- }
- async function importNotes({input,file,pdf}){
+ async function importNotes({file,pdf}){
   try {
-    if (!file) return;
     if (file.size > 10 * 1024 * 1024) throw new Error("La copia supera los 10 MB.");
     const data = JSON.parse(await file.text()); if (state.pdf !== pdf) return;
     if (data.app !== "PLANO" || data.version !== 1 || data.fingerprint !== state.fingerprint) throw new Error("Estas notas no corresponden al guion abierto.");
@@ -26,7 +16,6 @@
     if (importedWriter) { state.screenplay = importedWriter; PlanoWriter.close(); if (state.stage === "writing") await PlanoWriter.open(state.screenplay); }
     refreshSpelling(); changed(); message(`${added.length} anotaciones${newCorrections.length ? ` y ${newCorrections.length} correcciones` : ""} importadas. Las notas que ya tenías se conservaron.`);
   } catch (error) { message(`No se pudieron importar las notas: ${error.message}`, true); }
-  finally { input.value = ""; }
  }
 async function restore(data){
   const owner=PlanoAccounts.getUser()?.id,document=state.pdf,coverage=PlanoScreenplay.validate(data.screenplayCoverage);
@@ -56,5 +45,5 @@ async function restore(data){
   saveNotes();if(PlanoCloud.configured)await PlanoCloud.flush();message('Texto, portada y planos restaurados desde la copia.');
 }
 
- root.PlanoLegacyNotes={save,importNotes,restore};
+ root.PlanoLegacyNotes={importNotes};
 })(globalThis);

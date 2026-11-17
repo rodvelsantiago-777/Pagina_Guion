@@ -11,7 +11,18 @@
   if(kind==='parenthetical'){const a=text.search(/\S/),b=text.trimEnd().length;if(a>=0&&text[a]==='('&&text[b-1]===')'){let depth=0,whole=true;for(let i=a;i<b;i++){if(text[i]==='(')depth++;if(text[i]===')')depth--;if(depth===0&&i<b-1){whole=false;break;}}if(whole&&depth===0)return{from:a+1,to:b-1};}}
   return{from:0,to:text.length};
  }
- function continuations(doc){const result=new Map();let last='',speaker='';for(const node of doc.content){const kind=node.attrs.kind,text=plain(node);if(kind==='scene'||kind==='section'){last='';speaker='';}else if(kind==='character'){speaker=cue(text);result.set(node.attrs.id,Boolean(speaker&&speaker===last));}else if(kind==='dialogue'&&text.trim()){if(speaker)last=speaker;}else if(kind!=='parenthetical')speaker='';}return result;}
+ function continuations(doc){
+  const result=new Map();
+  let last='',speaker='';
+  for(const node of doc.content){
+   const kind=node.attrs.kind;
+   if(kind==='scene'||kind==='section'){last='';speaker='';}
+   else if(kind==='character'){speaker=cue(plain(node));result.set(node.attrs.id,Boolean(speaker&&speaker===last));}
+   else if(kind==='dialogue'&&plain(node).trim()){if(speaker)last=speaker;}
+   else if(kind!=='parenthetical')speaker='';
+  }
+  return result;
+ }
  function create(title,user={}){return{version:1,id:id(),revision:0,title:(title||'Sin título').slice(0,176),authors:[{id:id(),name:(user.name||'').slice(0,120),email:(user.email||'').slice(0,254),phone:'',contact:''}],characters:[],doc:{type:'doc',content:[{type:'paragraph',attrs:{kind:'scene',id:id()}}]}};}
  function projectTitle(value){
   if(typeof value!=='string')return '';
@@ -33,7 +44,7 @@
   const authorIds=new Set();for(const author of value.authors){if(!author||typeof author.id!=='string'||!/^[-\w]{1,80}$/.test(author.id)||authorIds.has(author.id))throw Error('Hay autores inválidos.');authorIds.add(author.id);const item={id:author.id};for(const [key,max]of Object.entries({name:120,email:254,phone:80,contact:300})){if(typeof author[key]!=='string'||author[key].length>max)throw Error('Los datos de un autor son demasiado largos.');item[key]=author[key].replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');}clean.authors.push(item);}
   const registry=new Set();for(const name of value.characters){if(typeof name!=='string'||!name.trim()||name.length>80)throw Error('Hay personajes inválidos.');registry.add(canonical(name));}clean.characters=[...registry];
   if(value.doc?.type!=='doc'||!Array.isArray(value.doc.content)||!value.doc.content.length||value.doc.content.length>8000)throw Error('El contenido del guion no es válido.');
-  const ids=new Set(),nodeLengths=new Map();let length=0;
+  const ids=new Set(),nodeLengths=value.sourceLayout?new Map():null;let length=0;
   for(const paragraph of value.doc.content){
    if(paragraph.type!=='paragraph'||!Object.hasOwn(types,paragraph.attrs?.kind)||typeof paragraph.attrs.id!=='string'||!/^[-\w]{1,80}$/.test(paragraph.attrs.id)||ids.has(paragraph.attrs.id))throw Error('Hay párrafos de guion inválidos.');ids.add(paragraph.attrs.id);
    const node={type:'paragraph',attrs:{kind:paragraph.attrs.kind,id:paragraph.attrs.id},content:[]};
@@ -41,7 +52,8 @@
     if(piece.type!=='text'||typeof piece.text!=='string'||!piece.text.length)throw Error('Hay texto de guion inválido.');length+=piece.text.length;if(length>220000)throw Error('Este guion supera el tamaño de texto admitido.');
     const item={type:'text',text:piece.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'')},seen=new Set();if(!item.text)continue;
     for(const mark of piece.marks||[]){if(!['bold','italic','underline','character'].includes(mark.type)||seen.has(mark.type))throw Error('Hay formato de texto inválido.');seen.add(mark.type);if(mark.type==='character'){const name=mark.attrs?.name;if(typeof name!=='string'||!name.trim()||name.length>80)throw Error('Hay referencias de personaje inválidas.');(item.marks||=[]).push({type:'character',attrs:{name:canonical(name)}});}else(item.marks||=[]).push({type:mark.type});}node.content.push(item);
-   }if(!node.content.length)delete node.content;clean.doc.content.push(node);nodeLengths.set(node.attrs.id,plain(node).length);
+   }if(!node.content.length)delete node.content;clean.doc.content.push(node);
+   if(nodeLengths)nodeLengths.set(node.attrs.id,plain(node).length);
   }
   if(value.sourceLayout){
    const source=value.sourceLayout;

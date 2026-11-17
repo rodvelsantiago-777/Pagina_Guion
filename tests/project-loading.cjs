@@ -6,6 +6,20 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  await page.locator('#stage-tabs [data-stage=coverage]').click();await page.waitForFunction(()=>state.rendered&&!state.busy);assert.equal(await page.evaluate(()=>textReads),0);assert.equal(await page.locator('.page-error').count(),0);
  await page.locator('#stage-tabs [data-stage=technical]').click();assert.equal(await page.evaluate(()=>pdfBuilds),0);
  // Una miniatura retenida no puede impedir abrir el proyecto que ya está en memoria.
- await page.locator('#editor-home').click();await page.evaluate(()=>{PlanoCloudLibrary.finishPreview=()=>new Promise(()=>{});});await page.locator('.script-card-open').click();await page.locator('[data-project-stage=writing]').click();await page.waitForFunction(()=>document.body.classList.contains('is-writing'),{},{timeout:3000});assert.equal(await page.evaluate(()=>pdfBuilds),0);assert.deepEqual(pdfAssets(),[]);
+ await page.locator('#editor-home').click();
+ await page.evaluate(()=>{
+  PlanoCloudLibrary.finishPreview=()=>new Promise(()=>{});
+  const card=document.querySelector('.script-card-open'),facts=document.querySelector('#project-facts'),replace=facts.replaceChildren;
+  let loading=0;
+  facts.replaceChildren=function(...nodes){
+   if(nodes.some(node=>node.textContent==='Cargando ficha del proyecto…'))loading++;
+   return replace.apply(this,nodes);
+  };
+  globalThis.readFolderOpening=()=>{delete facts.replaceChildren;return{loading,cardKept:card.isConnected};};
+ });
+ await page.locator('.script-card-open').click();
+ const opening=await page.evaluate(()=>readFolderOpening());
+ assert.deepEqual(opening,{loading:1,cardKept:true},'Abrir la carpeta carga su ficha una vez y conserva la biblioteca oculta');
+ await page.locator('[data-project-stage=writing]').click();await page.waitForFunction(()=>document.body.classList.contains('is-writing'),{},{timeout:3000});assert.equal(await page.evaluate(()=>pdfBuilds),0);assert.deepEqual(pdfAssets(),[]);
  const exportedPage=await page.evaluate(async()=>{const [bytes,page]=await Promise.all([state.file.arrayBuffer(),state.pdf.getPage(2)]);return{signature:new TextDecoder().decode(bytes.slice(0,5)),text:(await page.getTextContent()).items.map(i=>i.str).join(' '),width:page.getViewport({scale:1}).width};});assert.equal(exportedPage.signature,'%PDF-');assert(exportedPage.text.includes('INT. ESTUDIO'));assert.equal(exportedPage.width,612);assert.equal(await page.evaluate(()=>pdfBuilds),1,'Las dos solicitudes de exportación comparten la generación');assert.deepEqual(errors,[]);fs.writeFileSync('tests/.output/project-loading-metrics.json',JSON.stringify(metrics,null,2));console.log('OK: apertura sin motor PDF, caché de exportación y etapas sin esperar miniaturas. '+JSON.stringify(metrics));
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

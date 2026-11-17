@@ -35,7 +35,10 @@ const ready=page=>page.waitForFunction(()=>state.rendered&&!state.busy&&document
   await page.evaluate(()=>{const parts=state.pages.map((page,index)=>{const line=page.lines.find(l=>l.text.includes('Hay'));return{page:index+1,text:line.text,rects:[{x:line.x,y:line.y,width:line.width,height:line.height}]};});remember();state.corrections.push(PlanoCorrections.create(parts,state.pdf.numPages));changed();});
   assert.equal(await page.evaluate(()=>state.corrections.length),2);assert.deepEqual(await page.evaluate(()=>state.corrections[1].parts.map(part=>part.page)),[1,2]);
   const before=await page.evaluate(()=>structuredClone(state.corrections));
-  const backup=page.waitForEvent('download');await page.locator('#save-backup').evaluate(button=>button.click());const backupPath=path.join(output,'correcciones.json');await(await backup).saveAs(backupPath);const data=JSON.parse(fs.readFileSync(backupPath,'utf8'));assert.deepEqual(data.corrections,before);
+  const exportedProject=await require('./header-menu.cjs').exportProject(page);
+  assert.deepEqual(exportedProject.corrections,before);
+  const backupPath=path.join(output,'correcciones.json');
+  fs.writeFileSync(backupPath,JSON.stringify({app:'PLANO',version:1,fingerprint:await page.evaluate(()=>state.fingerprint),annotations:[],corrections:before}));
   // Exportación real con los zigzags vectoriales y el texto original conservado.
   const download=page.waitForEvent('download');await page.locator('#project-menu > summary').click();await page.locator('#open-export').click();await page.locator('#export-pdf').click();const pdfPath=path.join(output,'guion-con-correcciones.pdf');await(await download).saveAs(pdfPath);await page.waitForFunction(()=>!state.exporting);
   const exported=await PDFDocument.load(fs.readFileSync(pdfPath));assert.equal(exported.getPageCount(),2);
