@@ -8,20 +8,29 @@
   dialog.className = 'character-dialog';
   dialog.setAttribute('aria-labelledby', 'character-dialog-title');
   dialog.innerHTML = `<div class="character-profile-view" hidden>
-    <header class="character-profile-header">
-      <span class="character-initials" data-profile-initials aria-hidden="true"></span>
-      <div class="character-profile-identity"><h2 id="character-profile-title" tabindex="-1"></h2><p data-profile-references></p></div>
-      <button class="workspace-button character-profile-edit" type="button" data-profile-edit><svg aria-hidden="true"><use href="#i-edit"/></svg>Editar personaje</button>
-      <button class="workspace-button character-profile-close" type="button" data-profile-close aria-label="Cerrar ficha">×</button>
-    </header>
     <div class="character-profile-scroll">
-      <section class="character-profile-basics" aria-labelledby="character-profile-basics-title">
-        <h3 id="character-profile-basics-title">Datos básicos</h3><dl></dl>
-      </section>
-      <section class="character-profile-extras" aria-labelledby="character-profile-extras-title" hidden>
-        <h3 id="character-profile-extras-title">Información adicional</h3><dl></dl>
-      </section>
+      <div class="character-profile-side">
+        <span class="character-initials" data-profile-initials aria-hidden="true"></span>
+        <p class="character-profile-role" data-profile-role hidden></p>
+        <p class="character-profile-references" data-profile-references hidden></p>
+      </div>
+      <div class="character-profile-content">
+        <header class="character-profile-identity">
+          <h2 id="character-profile-title" tabindex="-1"></h2>
+          <div class="character-profile-alias-line" hidden><span>Apodos</span><ul class="character-profile-aliases" aria-label="Apodos"></ul></div>
+        </header>
+        <section class="character-profile-basics" aria-labelledby="character-profile-basics-title">
+          <h3 id="character-profile-basics-title">Datos básicos</h3><dl></dl>
+        </section>
+        <section class="character-profile-extras" aria-labelledby="character-profile-extras-title" hidden>
+          <h3 id="character-profile-extras-title">Información adicional</h3><dl></dl>
+        </section>
+      </div>
     </div>
+    <footer class="character-profile-actions">
+      <button class="workspace-button character-profile-edit" type="button" data-profile-edit><svg aria-hidden="true"><use href="#i-edit"/></svg>Editar personaje</button>
+      <button class="workspace-button" type="button" data-profile-close aria-label="Cerrar ficha">Cerrar</button>
+    </footer>
   </div>` + '<form autocomplete="off"><header><h2 id="character-dialog-title">Nuevo personaje</h2></header><div class="character-dialog-body">' +
     '<div class="character-edit-basics">' +
     '<div class="character-fields"><label>Nombre(s)<input name="givenNames" maxlength="80" required></label>' +
@@ -57,6 +66,7 @@
   const editTitle = form.querySelector('h2'), editBody = form.querySelector('.character-dialog-body');
   const reader = dialog.querySelector('.character-profile-view');
   const profileTitle = reader.querySelector('h2'), profileScroll = reader.querySelector('.character-profile-scroll');
+  const profileAliases = reader.querySelector('.character-profile-aliases');
   const basics = reader.querySelector('.character-profile-basics dl');
   const additional = reader.querySelector('.character-profile-extras'), optionalFields = additional.querySelector('dl');
   const tags = form.querySelector('.character-tag-list'), formError = form.querySelector('footer .characters-error');
@@ -158,10 +168,10 @@
     const profile = item.profile || { givenNames: item.name, aliases: [] };
     profileTitle.textContent = item.name;
     reader.querySelector('[data-profile-initials]').textContent = initials(item.name);
-    reader.querySelector('[data-profile-references]').textContent = references(item);
-    const names = document.createElement('ul');
-    names.className = 'character-profile-aliases';
-    for (const name of S.characterForms(profile)) {
+    message(reader.querySelector('[data-profile-role]'), profile.role);
+    const hasReferences = item.mentions.length || item.dialogues.length;
+    message(reader.querySelector('[data-profile-references]'), hasReferences ? references(item) : '');
+    profileAliases.replaceChildren(...profile.aliases.map(name => {
       const tag = document.createElement('li');
       tag.textContent = name;
       if (name === profile.primaryAlias) {
@@ -169,8 +179,9 @@
         label.textContent = 'Principal';
         tag.append(' ', label);
       }
-      names.append(tag);
-    }
+      return tag;
+    }));
+    profileAliases.parentElement.hidden = !profile.aliases.length;
     const gender = fieldRow('Género', profile.gender || '');
     const previous = previousGenderData(profile);
     if (previous) {
@@ -179,11 +190,8 @@
       note.textContent = previous;
       gender.querySelector('dd').append(note);
     }
-    basics.replaceChildren(
-      fieldRow('Nombre(s)', profile.givenNames || ''), fieldRow('Apellido(s)', profile.surnames || ''),
-      fieldRow('Edad', profile.age || ''), gender, fieldRow('Rol en la historia', profile.role || ''),
-      fieldRow('Apodos y formas de nombrarlo', names, true), fieldRow('Acerca de', profile.about || '', true)
-    );
+    basics.replaceChildren(fieldRow('Edad', profile.age || ''), gender);
+    if (profile.about) basics.append(fieldRow('Acerca de', profile.about, true));
     optionalFields.replaceChildren();
     const details = { ...profile.details };
     const relationships = Details.relationshipsFor(context.profiles, profile.id);

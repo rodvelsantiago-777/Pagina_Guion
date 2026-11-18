@@ -222,8 +222,19 @@ async function run() {
     const basics = ficha.getByRole('region', { name: 'Datos básicos' });
     const extra = ficha.getByRole('region', { name: 'Información adicional' });
     assert.equal(await ficha.getByRole('textbox').count(), 0);
-    assert.deepEqual(await basics.locator('dt').allTextContents(), ['Nombre(s)', 'Apellido(s)', 'Edad', 'Género', 'Rol en la historia', 'Apodos y formas de nombrarlo', 'Acerca de']);
-    assert.deepEqual(await basics.locator('dd').allTextContents(), ['Ángela', 'Gómez', '21', 'Mujer', 'Protagonista', 'Ángela GómezÁngelaCanelita Principal', about]);
+    assert.deepEqual(await basics.locator('dt').allTextContents(), ['Edad', 'Género', 'Acerca de']);
+    assert.deepEqual(await basics.locator('dd').allTextContents(), ['21', 'Mujer', about]);
+    assert.deepEqual(await ficha.getByRole('list', { name: 'Apodos', exact: true }).getByRole('listitem').allTextContents(), ['Canelita Principal']);
+    assert.equal(await ficha.locator('[data-profile-role]').textContent(), 'Protagonista');
+    assert(await ficha.evaluate(node => {
+      const bounds = selector => node.querySelector(selector).getBoundingClientRect();
+      return node.clientWidth > 760 && bounds('.character-profile-side').right < bounds('h2').left &&
+        bounds('[data-profile-role]').top > bounds('[data-profile-initials]').bottom &&
+        bounds('.character-profile-alias-line').top > bounds('h2').bottom &&
+        bounds('footer').top >= bounds('.character-profile-scroll').bottom &&
+        node.querySelector('footer').contains(node.querySelector('[data-profile-edit]')) &&
+        node.querySelector('footer').contains(node.querySelector('[data-profile-close]'));
+    }));
     assert.deepEqual(await extra.locator('dt').allTextContents(), ['Estado al inicio de la historia', 'Arco de personaje', '¿Qué quiere?', 'Relaciones', 'Orientación sexual', 'Tipo de personalidad (MBTI)', 'Altura']);
     assert.equal(await extra.locator('dl > div').filter({ hasText: 'Altura' }).locator('dd').textContent(), '—');
     assert.match(await extra.textContent(), /DOROTEA · Amistad/);
@@ -327,7 +338,15 @@ async function run() {
     await dialog.getByLabel('Edad', { exact: true }).fill('99');
     await dialog.getByRole('button', { name: 'Cancelar' }).click();
     assert.equal(await basics.getByText('21', { exact: true }).count(), 1);
-    assert(await ficha.evaluate(node => node.scrollWidth === node.clientWidth && node.getBoundingClientRect().bottom <= innerHeight));
+    assert(await ficha.evaluate(node => {
+      const viewport = node.querySelector('.character-profile-scroll');
+      const footer = node.querySelector('footer').getBoundingClientRect();
+      const close = node.querySelector('[data-profile-close]').getBoundingClientRect();
+      const report = node.querySelector('#report-launch')?.getBoundingClientRect();
+      return node.scrollWidth === node.clientWidth && viewport.scrollWidth === viewport.clientWidth &&
+        footer.top >= viewport.getBoundingClientRect().bottom && footer.bottom <= innerHeight &&
+        (!report || close.right <= report.left);
+    }));
     await page.screenshot({ path: path.join(out, 'ficha-personaje-movil.png') });
     await ficha.getByRole('button', { name: 'Editar personaje' }).click();
     assert.equal(await dialog.getByLabel('Edad', { exact: true }).inputValue(), '21');
