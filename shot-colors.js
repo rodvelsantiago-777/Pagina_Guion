@@ -16,6 +16,12 @@
     const rgb = x < 1 ? [c, second, 0] : x < 2 ? [second, c, 0] : x < 3 ? [0, c, second] : x < 4 ? [0, second, c] : x < 5 ? [second, 0, c] : [c, 0, second];
     return "#" + rgb.map(value => Math.round((value + m) * 255).toString(16).padStart(2, "0")).join("");
   }
+  function syncLaunch(launch) {
+    const input = document.getElementById(launch.dataset.colorTarget);
+    if (!input) return;
+    launch.style.setProperty("--color", input.value);
+    launch.title = `Elegir color · ${input.value.toUpperCase()}`;
+  }
   function setup() {
     const $ = selector => document.querySelector(selector), dialog = $("#color-picker-dialog"), spectrum = $("#color-spectrum");
     let target = null, draft = presets[0], recent = [], customMode = false, hsv = toHSV(draft);
@@ -46,10 +52,7 @@
     }
     function syncModel(next) { sync(fromHSV(next), next); }
     function syncLaunches() {
-      for (const launch of document.querySelectorAll(".color-launch")) {
-        const input = document.getElementById(launch.dataset.colorTarget);
-        launch.style.setProperty("--color", input.value); launch.title = `Elegir color · ${input.value.toUpperCase()}`;
-      }
+      document.querySelectorAll(".color-launch[data-color-target]").forEach(syncLaunch);
     }
     function apply(color) {
       if (!target) return;
@@ -64,15 +67,19 @@
       $("#color-picker-title").textContent = active ? "Editar color" : "Elige un color";
       PlanoPopover.place(dialog);
     }
-    for (const launch of document.querySelectorAll(".color-launch")) {
-      const input = document.getElementById(launch.dataset.colorTarget); input.addEventListener("input", syncLaunches);
-      launch.addEventListener("click", () => {
-        if (dialog.matches(":popover-open")) { PlanoPopover.hide(dialog, true); return; }
-        // Un selector abierto desde una ficha sigue siendo interactivo dentro de su modal.
-        (launch.closest("dialog") || document.body).append(dialog);
-        target = input; showCustom(false); sync(input.value); refresh(); PlanoPopover.show(dialog, launch); $("#choose-custom-color").focus({ preventScroll: true });
-      });
-    }
+    document.addEventListener("input", event => {
+      if (event.target instanceof HTMLInputElement && event.target.type === "color") syncLaunches();
+    }, true);
+    document.addEventListener("click", event => {
+      const launch = event.target.closest?.(".color-launch[data-color-target]");
+      if (!launch || launch.disabled) return;
+      const input = document.getElementById(launch.dataset.colorTarget);
+      if (!input) return;
+      if (dialog.matches(":popover-open")) { PlanoPopover.hide(dialog, true); return; }
+      // Un selector abierto desde una ficha sigue siendo interactivo dentro de su modal.
+      (launch.closest("dialog") || document.body).append(dialog);
+      target = input; showCustom(false); sync(input.value); refresh(); PlanoPopover.show(dialog, launch); $("#choose-custom-color").focus({ preventScroll: true });
+    });
     syncLaunches();
     $("#choose-custom-color").addEventListener("click", () => { showCustom(true); $("#custom-color-hex").focus(); });
     let pointer = null;
@@ -118,5 +125,5 @@
     dialog.addEventListener("toggle", event => { if (event.newState === "closed" && !dialog.matches(":popover-open")) { pointer = null; target = null; } });
     return { syncLaunches };
   }
-  root.PlanoColors = { presets, setup };
+  root.PlanoColors = { presets, setup, syncLaunch };
 })(globalThis);

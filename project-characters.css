@@ -41,6 +41,19 @@
 .character-dialog form:not([hidden]) { grid-template-rows: auto minmax(0, 1fr) auto; }
 .character-profile-view:not([hidden]) { grid-template-rows: minmax(0, 1fr) auto; }
 .character-dialog form > header { padding: 24px 28px 14px; border-bottom: 1px solid var(--line); }
+.character-edit-header { display: flex; align-items: center; gap: 13px; }
+.character-avatar-trigger {
+  position: relative; flex: 0 0 auto; padding: 0; border: 0;
+  border-radius: 50%; color: var(--genre-ink, var(--accent)); background: transparent;
+}
+.character-avatar-trigger .character-initials { margin: 0; border: 1px solid var(--line); }
+.character-avatar-pencil {
+  position: absolute; display: grid; place-items: center; inset: auto -3px -2px auto;
+  width: 19px; height: 19px; border: 1px solid var(--line); border-radius: 50%;
+  color: var(--ink); background: var(--paper);
+}
+.character-avatar-pencil svg { width: 11px; height: 11px; }
+.character-avatar-trigger:hover .character-avatar-pencil { color: var(--genre-ink, var(--accent)); border-color: currentColor; }
 .character-dialog-body, .character-profile-scroll {
   display: grid; align-content: start; min-height: 0;
   overflow: auto; overscroll-behavior: contain;

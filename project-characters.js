@@ -1,7 +1,8 @@
 /* Fichas por proyecto. El redactor y este panel comparten el índice de menciones. */
 (function (root) {
   'use strict';
-  const S = root.PlanoScreenplay, Details = root.PlanoCharacterDetails, $ = selector => document.querySelector(selector);
+  const S = root.PlanoScreenplay, Details = root.PlanoCharacterDetails, Avatar = root.PlanoCharacterAvatar;
+  const $ = selector => document.querySelector(selector);
   const list = $('#character-list'), add = $('#character-add');
   const status = $('#characters-summary'), error = $('#characters-error');
   const dialog = document.createElement('dialog');
@@ -31,7 +32,11 @@
       <button class="workspace-button character-profile-edit" type="button" data-profile-edit><svg aria-hidden="true"><use href="#i-edit"/></svg>Editar personaje</button>
       <button class="workspace-button" type="button" data-profile-close aria-label="Cerrar ficha">Cerrar</button>
     </footer>
-  </div>` + '<form autocomplete="off"><header><h2 id="character-dialog-title">Nuevo personaje</h2></header><div class="character-dialog-body">' +
+  </div>` + '<form autocomplete="off"><header class="character-edit-header">' +
+    '<button class="character-avatar-trigger" type="button" aria-haspopup="dialog" aria-label="Editar icono del personaje" title="Editar icono del personaje">' +
+    '<span class="character-initials" data-edit-avatar aria-hidden="true"></span>' +
+    '<span class="character-avatar-pencil" aria-hidden="true"><svg><use href="#i-edit"/></svg></span></button>' +
+    '<h2 id="character-dialog-title">Nuevo personaje</h2></header><div class="character-dialog-body">' +
     '<div class="character-edit-basics">' +
     '<div class="character-fields"><label>Nombre(s)<input name="givenNames" maxlength="80" required></label>' +
     '<label>Apellido(s)<input name="surnames" maxlength="80"></label>' +
@@ -64,6 +69,7 @@
   $('#project-characters').append(dialog);
   const form = dialog.querySelector('form'), fields = form.elements;
   const editTitle = form.querySelector('h2'), editBody = form.querySelector('.character-dialog-body');
+  const avatarTrigger = form.querySelector('.character-avatar-trigger'), editAvatar = avatarTrigger.querySelector('[data-edit-avatar]');
   const reader = dialog.querySelector('.character-profile-view');
   const profileTitle = reader.querySelector('h2'), profileScroll = reader.querySelector('.character-profile-scroll');
   const profileAliases = reader.querySelector('.character-profile-aliases');
@@ -80,6 +86,7 @@
     for (const choice of choices) fields[field].append(new Option(choice, choice));
   }
   let context, viewing, opener, editing, sourceName, relationshipTargets, saving = false, generation = 0;
+  let avatarEditor, editingAvatar = false;
   const properties = ['givenNames', 'surnames', 'age', 'gender', 'role', 'about'];
   const characterContext = ['givenNames', 'surnames'];
   const message = (node, text = '') => { node.textContent = text; node.hidden = !text; };
@@ -93,6 +100,15 @@
 
   function nameFields() {
     return Object.fromEntries(characterContext.map(key => [key, fields[key].value.trim().replace(/\s+/g, ' ')]));
+  }
+  function paintAvatar(slot, avatar, name) {
+    slot.classList.toggle('character-avatar-art', Boolean(avatar));
+    if (avatar) slot.innerHTML = Avatar.svg(avatar);
+    else if (name) slot.textContent = initials(name);
+    else slot.innerHTML = '<svg aria-hidden="true"><use href="#i-character"/></svg>';
+  }
+  function paintEditAvatar() {
+    paintAvatar(editAvatar, editing.avatar, S.characterName(nameFields()));
   }
   function automaticNames() {
     return S.characterForms({ ...nameFields(), aliases: sourceName ? [sourceName] : [] });
@@ -167,7 +183,7 @@
     opener = trigger;
     const profile = item.profile || { givenNames: item.name, aliases: [] };
     profileTitle.textContent = item.name;
-    reader.querySelector('[data-profile-initials]').textContent = initials(item.name);
+    paintAvatar(reader.querySelector('[data-profile-initials]'), profile.avatar, item.name);
     message(reader.querySelector('[data-profile-role]'), profile.role);
     const hasReferences = item.mentions.length || item.dialogues.length;
     message(reader.querySelector('[data-profile-references]'), hasReferences ? references(item) : '');
@@ -234,6 +250,7 @@
     closeAlias();
     form.reset();
     for (const key of properties) fields[key].value = editing[key] ?? '';
+    paintEditAvatar();
     message(genderPrevious, previousGenderData(editing));
     updateAboutCount();
     editTitle.textContent = item ? 'Editar personaje' : 'Nuevo personaje';
@@ -271,7 +288,7 @@
       if (item.profile) card.dataset.characterId = item.profile.id;
       avatar.className = 'character-initials';
       avatar.setAttribute('aria-hidden', 'true');
-      avatar.textContent = initials(item.name);
+      paintAvatar(avatar, item.profile?.avatar, item.name);
       const title = document.createElement('strong'), role = document.createElement('span'), summary = document.createElement('small');
       title.textContent = item.name;
       role.className = 'character-role';
@@ -300,6 +317,24 @@
     editProfile.focus({ preventScroll: true });
   }
   editProfile.addEventListener('click', () => edit(viewing));
+  avatarTrigger.addEventListener('click', async () => {
+    if (!context || saving || editingAvatar || !dialog.open) return;
+    avatarEditor ??= root.PlanoCharacterAvatarEditor.create(dialog.parentElement);
+    avatarTrigger.setAttribute('aria-controls', 'character-avatar-dialog');
+    const token = generation, scrollTop = editBody.scrollTop;
+    editingAvatar = true;
+    dialog.close();
+    const value = await avatarEditor.open(editing.avatar);
+    if (token !== generation) return;
+    editingAvatar = false;
+    if (value) {
+      editing.avatar = value;
+      paintEditAvatar();
+    }
+    dialog.showModal();
+    editBody.scrollTop = scrollTop;
+    avatarTrigger.focus({ preventScroll: true });
+  });
   reader.querySelector('[data-profile-close]').addEventListener('click', () => dialog.close());
   cancel.addEventListener('click', cancelEdit);
   dialog.addEventListener('cancel', event => {
@@ -307,12 +342,15 @@
     if (!saving && viewing && !form.hidden) cancelEdit();
   });
   dialog.addEventListener('close', () => {
-    if (dialog.open) return;
+    if (dialog.open || editingAvatar) return;
     if (context && opener?.isConnected) opener.focus();
     viewing = null;
     opener = null;
   });
-  for (const key of characterContext) fields[key].addEventListener('input', renderTags);
+  for (const key of characterContext) fields[key].addEventListener('input', () => {
+    renderTags();
+    if (!editing.avatar) paintEditAvatar();
+  });
   fields.about.addEventListener('input', updateAboutCount);
   aliasButton.addEventListener('click', () => {
     aliasButton.hidden = true;
@@ -404,6 +442,8 @@
       context = null;
       viewing = null;
       opener = null;
+      editingAvatar = false;
+      avatarEditor?.close();
       closeAlias();
       if (dialog.open) dialog.close();
       list.replaceChildren();

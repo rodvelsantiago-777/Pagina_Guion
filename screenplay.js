@@ -123,6 +123,7 @@
   return [...forms.values()];
  }
  const CharacterDetails=typeof module==='object'&&module.exports?require('./character-details.js'):root.PlanoCharacterDetails;
+ const CharacterAvatar=typeof module==='object'&&module.exports?require('./character-avatar.js'):root.PlanoCharacterAvatar;
  function validateProfiles(value){
   if(value===undefined)return [];
   if(!Array.isArray(value)||value.length>500)throw Error('El proyecto admite hasta 500 fichas de personaje.');
@@ -140,6 +141,8 @@
    if((gender&&!characterGenders.includes(gender))||(legacySex&&legacySex!=='Intersexual'&&!legacyGenders.has(legacySex)))throw Error('Elige un género válido para el personaje.');
    if(!/[\p{L}\p{N}]/u.test(givenNames)||role&&!characterRoles.includes(role)||!Array.isArray(item.aliases)||item.aliases.length>24)throw Error('Revisa el nombre, las opciones y el límite de 24 apodos por personaje.');
    const profile={id:item.id,givenNames,surnames,age,gender,role,aliases:[]},name=characterName(profile),key=characterKey(name);
+   const avatar=CharacterAvatar.validate(item.avatar);
+   if(avatar)profile.avatar=avatar;
    // Conserva el dato anterior donde no se puede traducir a una identidad de género.
    if(legacySex==='Intersexual')profile.sex=legacySex;
    if(item.about!==undefined){

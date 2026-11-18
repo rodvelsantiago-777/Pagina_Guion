@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const S = require('../screenplay.js');
 const Archive = require('../project-archive.js');
 const Details = require('../character-details.js');
+const Avatar = require('../character-avatar.js');
 const { chromium } = require('./runtime-deps.cjs').load('playwright');
 const { launch } = require('./editor-auth-fixture.cjs');
 
@@ -90,6 +91,11 @@ assert.throws(() => Details.updateRelationships(withDetails, { ...twin, details:
 const payload = { version: 1, screenplay: script, annotations: [], corrections: [], crew: {}, characterProfiles: withDetails };
 const packed = Archive.stringify({ name: 'La visita', documentName: 'La visita.plano', payload });
 assert.deepEqual(Archive.parse(packed).payload.characterProfiles, withDetails);
+const savedAvatar = { v: 3, orejas: 'puntiagudas', formaOjos: 'abiertos', vestuario: 'caballero', piel: '#79A988' };
+const avatarPayload = { ...payload, characterProfiles: [{ ...withDetails[0], avatar: { ...Avatar.normalize(savedAvatar), extra: '<svg/>' } }, twin] };
+const avatarArchive = Archive.stringify({ name: 'La visita', documentName: 'La visita.plano', payload: avatarPayload });
+assert.deepEqual(Archive.parse(avatarArchive).payload.characterProfiles[0].avatar, savedAvatar);
+assert.equal(S.validateProfiles([{ ...angela, avatar: 'data:image/svg+xml,abc' }])[0].avatar, undefined);
 assert(!S.portable(script).includes('characterProfiles'));
 
 const out = path.join(__dirname, '.output');
@@ -214,6 +220,37 @@ async function run() {
       assert.deepEqual(layout, { shortFieldsShareRows: true, selectsAlign: true, selectsKeepHeight: true, longFieldsUseBothColumns: true });
     }
     await checkFieldColumns();
+    const editIcon = dialog.getByRole('button', { name: 'Editar icono del personaje' });
+    const creator = page.getByRole('dialog', { name: 'Creador de personaje' });
+    await editIcon.click();
+    await creator.waitFor();
+    assert(await dialog.isHidden());
+    await creator.getByLabel('Orejas', { exact: true }).selectOption('puntiagudas');
+    await creator.getByLabel('Forma de ojos', { exact: true }).selectOption('abiertos');
+    await creator.getByLabel('Vestuario', { exact: true }).selectOption('caballero');
+    await creator.getByRole('button', { name: 'Color de piel personalizado' }).click();
+    assert(await creator.locator('#color-picker-dialog').isVisible());
+    await page.locator('#choose-custom-color').click();
+    await page.locator('#custom-color-hex').fill('#79a988');
+    await page.locator('#save-custom-color').click();
+    assert.equal(await creator.locator('[data-avatar-preview] [data-ears="puntiagudas"]').count(), 3);
+    await page.screenshot({ path: path.join(out, 'creador-personaje.png') });
+    await creator.getByRole('button', { name: 'Guardar icono' }).click();
+    await dialog.waitFor();
+    assert(await creator.isHidden());
+    assert.equal(await aboutField.inputValue(), about);
+    assert.equal(await dialog.getByLabel('Apodo principal', { exact: true }).inputValue(), 'Canelita');
+    assert.equal(await dialog.getByLabel('¿Qué quiere?', { exact: true }).inputValue(), 'Encontrar la carta.');
+    assert.equal(await editIcon.locator('[data-ears="puntiagudas"]').count(), 1);
+    assert(await editIcon.evaluate(button => button === document.activeElement));
+    assert(await page.evaluate(() => !state.characterProfiles.some(profile => profile.avatar)));
+    await editIcon.click();
+    assert.equal(await creator.getByLabel('Vestuario', { exact: true }).inputValue(), 'caballero');
+    await creator.getByLabel('Vestuario', { exact: true }).selectOption('cocinero');
+    await page.keyboard.press('Escape');
+    await dialog.waitFor();
+    assert.equal(await editIcon.locator('[data-headwear]').count(), 1);
+    assert.equal(await editIcon.locator('[data-headwear] circle').count(), 2);
     await dialog.locator('#character-extra-fields').evaluate(grid => grid.scrollIntoView({ block: 'start' }));
     await page.screenshot({ path: path.join(out, 'editar-personaje.png') });
     await dialog.getByRole('button', { name: 'Guardar personaje' }).click();
@@ -222,6 +259,7 @@ async function run() {
     const basics = ficha.getByRole('region', { name: 'Datos básicos' });
     const extra = ficha.getByRole('region', { name: 'Información adicional' });
     assert.equal(await ficha.getByRole('textbox').count(), 0);
+    assert.equal(await ficha.locator('[data-profile-initials] [data-ears="puntiagudas"]').count(), 1);
     assert.deepEqual(await basics.locator('dt').allTextContents(), ['Edad', 'Género', 'Acerca de']);
     assert.deepEqual(await basics.locator('dd').allTextContents(), ['21', 'Mujer', about]);
     assert.deepEqual(await ficha.getByRole('list', { name: 'Apodos', exact: true }).getByRole('listitem').allTextContents(), ['Canelita Principal']);
@@ -243,9 +281,12 @@ async function run() {
     const angelaCard = cards.getByRole('button', { name: /Ángela Gómez/ });
     await page.waitForFunction(() => document.activeElement?.matches('.character-card') && document.activeElement.textContent.includes('Ángela Gómez'));
     assert.match(await angelaCard.textContent(), /Protagonista.*2 menciones · 1 diálogo/);
+    assert.equal(await angelaCard.locator('.character-initials [data-ears="puntiagudas"]').count(), 1);
     const linked = await page.evaluate(() => state.characterProfiles);
     const savedAngela = linked.find(item => item.givenNames === 'Ángela');
     const savedDorotea = linked.find(item => item.givenNames === 'DOROTEA');
+    assert.deepEqual(savedAngela.avatar, savedAvatar);
+    assert.deepEqual(await page.evaluate(id => JSON.parse(localStorage.getItem(state.key)).characterProfiles.find(profile => profile.id === id).avatar, savedAngela.id), savedAvatar);
     assert.deepEqual(savedAngela.details, {
       relationships: [{ targetId: savedDorotea.id, type: 'Amistad' }],
       startStatus: 'Vivo', arc: 'Redención', orientation: 'Fluida', personalityType: 'INFP-T', want: 'Encontrar la carta.', height: '',
@@ -325,6 +366,17 @@ async function run() {
     assert.equal(await dialog.getByLabel('Personaje', { exact: true }).locator('option:checked').textContent(), 'Dorotea Acosta');
     assert.equal(await relationType.inputValue(), 'Familia');
     await page.setViewportSize({ width: 390, height: 700 });
+    await editIcon.click();
+    await creator.waitFor();
+    assert.equal(await creator.getByLabel('Forma de ojos', { exact: true }).inputValue(), 'abiertos');
+    assert(await creator.evaluate(node => {
+      const panel = node.querySelector('.character-avatar-settings');
+      const footer = node.querySelector('footer').getBoundingClientRect();
+      return panel.scrollHeight > panel.clientHeight && panel.scrollWidth === panel.clientWidth && footer.bottom <= innerHeight;
+    }));
+    await page.screenshot({ path: path.join(out, 'creador-personaje-movil.png') });
+    await creator.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await dialog.waitFor();
     await checkFieldColumns();
     assert(await dialog.evaluate(node => {
       const body = node.querySelector('.character-dialog-body');
@@ -422,7 +474,7 @@ async function run() {
     await previousData.waitFor();
     assert.deepEqual(await page.evaluate(() => state.characterProfiles.map(({ gender, sex }) => ({ gender, sex }))), [{ gender: 'Género fluido', sex: 'Intersexual' }]);
     assert.deepEqual(errors, []);
-    console.log('OK: lectura antes de editar, género y fichas antiguas, apodos, diálogos, campos opcionales, relaciones y móvil.');
+    console.log('OK: ficha, creador de iconos, borradores, persistencia, apodos, diálogos, relaciones y móvil.');
   } finally {
     await browser.close();
   }
