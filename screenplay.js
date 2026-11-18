@@ -143,6 +143,10 @@
    const profile={id:item.id,givenNames,surnames,age,gender,role,aliases:[]},name=characterName(profile),key=characterKey(name);
    const avatar=CharacterAvatar.validate(item.avatar);
    if(avatar)profile.avatar=avatar;
+   const position=item.relationshipPosition;
+   if(position&&Number.isFinite(position.x)&&Number.isFinite(position.y)&&Math.abs(position.x)<=20000&&Math.abs(position.y)<=20000){
+    profile.relationshipPosition={x:Math.round(position.x),y:Math.round(position.y)};
+   }
    // Conserva el dato anterior donde no se puede traducir a una identidad de género.
    if(legacySex==='Intersexual')profile.sex=legacySex;
    if(item.about!==undefined){

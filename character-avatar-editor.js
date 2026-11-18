@@ -2,16 +2,24 @@
 (function (root) {
   'use strict';
   const Avatar = root.PlanoCharacterAvatar, Wardrobe = root.PlanoCharacterWardrobe, Palette = root.PlanoColors;
-  const sharedColors = [
-    '#252730', '#543628', '#765439', '#C69B5C', '#E8DED1',
-    ...Palette.presets.map(hex => hex.toUpperCase()),
-  ].map(hex => ({ hex }));
+  const hairColors = [
+    ['Negro', '#211D1B'], ['Castaño muy oscuro', '#352820'], ['Castaño oscuro', '#543628'],
+    ['Castaño', '#6D4B36'], ['Castaño claro', '#8B6748'], ['Cobrizo', '#A5663C'],
+    ['Caoba', '#763F2E'], ['Rubio oscuro', '#A58A60'], ['Rubio', '#C4A674'],
+    ['Rubio claro', '#DDC99F'], ['Gris oscuro', '#5E5B57'], ['Canoso', '#A3A09A'], ['Blanco', '#E8E2D8'],
+  ].map(([name, hex]) => ({ name, hex }));
+  const eyeColors = [
+    ['Café muy oscuro', '#30251F'], ['Café oscuro', '#4B3326'], ['Café', '#765439'],
+    ['Café claro', '#967343'], ['Avellana', '#827446'], ['Ámbar', '#A48249'],
+    ['Verde oliva', '#697249'], ['Verde grisáceo', '#819080'], ['Verde oscuro', '#465E52'],
+    ['Azul grisáceo', '#708B9B'], ['Azul', '#56768F'], ['Azul oscuro', '#3F596E'], ['Gris', '#8B9392'],
+  ].map(([name, hex]) => ({ name, hex }));
   const skinColors = [...Avatar.tones.map(({ id, name, color }) => ({ value: id, name, hex: color })),
-    { name: 'Verde salvia', hex: '#73A884' }];
+    { name: 'Beige cálido', hex: '#D7AC8B' }];
   const traits = {
     pelo: ['Peinado', { calvo: 'Sin cabello', 'tres-pelos': 'Tres pelos', corto: 'Corto', medio: 'Media melena', largo: 'Largo' }, '22 8 148 148',
-      ['cabello', 'Color de cabello']],
-    formaOjos: ['Forma de ojos', { abiertos: 'Más abiertos', rasgados: 'Rasgados' }, '57 49 78 78', ['ojos', 'Color de ojos']],
+      ['cabello', 'Color de cabello', hairColors]],
+    formaOjos: ['Forma de ojos', { abiertos: 'Más abiertos', rasgados: 'Rasgados' }, '57 49 78 78', ['ojos', 'Color de ojos', eyeColors]],
     expresion: ['Expresión facial', { feliz: 'Feliz', triste: 'Triste', serio: 'Serio', enojado: 'Enojado' }, '56 62 80 80'],
     detallePiel: ['Detalle facial', { ninguno: 'Sin detalle', pecas: 'Pecas', granos: 'Granos', rubor: 'Rubor' }, '59 63 74 74',
       ['piel', 'Color de piel', skinColors]],
@@ -30,14 +38,14 @@
     ['rostro', 'Rasgos faciales', ['colmillos', 'nariz', 'orejas']],
     ['vello', 'Cejas y vello facial', ['cejas', 'vello']],
     ['piel', 'Piel y edad', ['detallePiel', 'edad']],
-    ['vestuario', 'Vestuario y gafas', ['vestuario', 'gafas'], 'vestuario'],
+    ['vestuario', 'Gafas y vestuario', ['gafas', 'vestuario'], 'vestuario'],
   ];
   const booleanKeys = new Set(['cejas', 'gafas']);
   const choiceValue = (key, value) => booleanKeys.has(key) ? value === 'true' : value;
   const swatch = ({ hex, value = hex, name = hex }) => `<button type="button" class="character-avatar-color-choice"
     data-avatar-swatch="${value}" data-hex="${hex}" style="--swatch:${hex}" aria-pressed="false"
     aria-label="Usar color ${name}" title="${name}"></button>`;
-  const color = (menu, key, label = '', palette = sharedColors) => `<fieldset class="character-avatar-color" data-avatar-color="${key}">
+  const color = (menu, key, label = '', palette = hairColors) => `<fieldset class="character-avatar-color" data-avatar-color="${key}">
     <legend>${label}</legend>
     <div class="character-avatar-swatches">${palette.slice(0, 13).map(swatch).join('')}</div>
     <button class="color-launch" type="button" data-custom-color data-color-target="character-avatar-color-${menu}-${key}"

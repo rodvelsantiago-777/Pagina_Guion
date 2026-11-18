@@ -256,7 +256,7 @@ async function run() {
     await choose('cejas', 'Con cejas');
     await choose('orejas', 'Puntiagudas (elfo)');
     await choose('formaOjos', 'Más abiertos');
-    assert.deepEqual(await swatches(menu('formaOjos')), await swatches(menu('pelo')));
+    assert.notDeepEqual(await swatches(menu('formaOjos')), await swatches(menu('pelo')));
     assert.equal((await swatches(menu('pelo'))).length, 13);
     assert.deepEqual(await menu('formaOjos').getByRole('group', { name: 'Forma de ojos', exact: true }).getByRole('radio')
       .evaluateAll(inputs => inputs.map(input => input.value)), ['abiertos', 'rasgados']);

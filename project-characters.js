@@ -87,6 +87,9 @@
   }
   let context, viewing, opener, editing, sourceName, relationshipTargets, saving = false, generation = 0;
   let avatarEditor, editingAvatar = false;
+  let relations, showingRelations = false;
+  const cardsPanel = $('#characters-cards-panel'), relationsPanel = $('#characters-relations-panel');
+  const viewTabs = [$('#characters-cards-tab'), $('#characters-relations-tab')];
   const properties = ['givenNames', 'surnames', 'age', 'gender', 'role', 'about'];
   const characterContext = ['givenNames', 'surnames'];
   const message = (node, text = '') => { node.textContent = text; node.hidden = !text; };
@@ -109,6 +112,70 @@
   }
   function paintEditAvatar() {
     paintAvatar(editAvatar, editing.avatar, S.characterName(nameFields()));
+  }
+  async function commitGraph(change) {
+    if (!context || saving) throw Error('Espera a que termine el guardado.');
+    const active = context, token = generation;
+    let profiles = [...active.profiles];
+    function ensureProfile(key) {
+      const item = active.characters.find(character => root.PlanoCharacterRelations.key(character) === key);
+      if (!item) throw Error('El personaje ya no está disponible. Vuelve a abrir el árbol.');
+      if (item.profile) return profiles.find(profile => profile.id === item.profile.id);
+      const profile = emptyProfile(item.name);
+      profiles.push(profile);
+      return profile;
+    }
+    if (change.position) {
+      const profile = ensureProfile(change.position.key);
+      profiles = profiles.map(item => item.id === profile.id
+        ? { ...item, relationshipPosition: { x: change.position.x, y: change.position.y } } : item);
+    }
+    if (change.relationship) {
+      const { source, target, type, previousType, remove } = change.relationship;
+      const owner = ensureProfile(source), other = ensureProfile(target);
+      if (owner.id === other.id) throw Error('Elige dos personajes diferentes.');
+      const current = Details.relationshipsFor(profiles, owner.id) || [];
+      const relationships = current.filter(entry => !(entry.targetId === other.id && entry.type === previousType));
+      if (!remove) relationships.push({ targetId: other.id, type });
+      profiles = Details.updateRelationships(profiles, { ...owner, details: { ...owner.details, relationships } });
+    }
+    profiles = S.validateProfiles(profiles);
+    saving = true;
+    add.disabled = true;
+    try {
+      const project = await active.commit(active.project, profiles);
+      if (token !== generation) return false;
+      context = { ...active, project, profiles };
+      render();
+      return true;
+    } finally {
+      saving = false;
+      if (token === generation) add.disabled = false;
+    }
+  }
+  function setView(tree) {
+    showingRelations = tree;
+    cardsPanel.hidden = tree;
+    relationsPanel.hidden = !tree;
+    for (const [index, tab] of viewTabs.entries()) {
+      const selected = Boolean(index) === tree;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    }
+    if (tree && context) {
+      relations ??= root.PlanoCharacterRelations.create(relationsPanel, { commit: commitGraph, open: showProfile });
+      relations.render(context.characters, context.profiles);
+    }
+  }
+  for (const [index, tab] of viewTabs.entries()) {
+    tab.addEventListener('click', () => setView(Boolean(index)));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : 1 - index;
+      setView(Boolean(next));
+      viewTabs[next].focus();
+    });
   }
   function automaticNames() {
     return S.characterForms({ ...nameFields(), aliases: sourceName ? [sourceName] : [] });
@@ -305,6 +372,7 @@
       cards.append(empty);
     }
     list.replaceChildren(cards);
+    if (showingRelations) relations?.render(characters, context.profiles);
     if (focusId) list.querySelector('[data-character-id="' + focusId + '"]')?.focus();
   }
 
@@ -405,7 +473,9 @@
       if (viewing) {
         render();
         const updated = context.characters.find(item => item.profile?.id === profile.id);
-        showProfile(updated, list.querySelector('[data-character-id="' + profile.id + '"]'));
+        const trigger = showingRelations ? relationsPanel.querySelector('[data-character-key="' + profile.id + '"]')
+          : list.querySelector('[data-character-id="' + profile.id + '"]');
+        showProfile(updated, trigger);
       } else {
         dialog.close();
         render(profile.id);
@@ -422,6 +492,8 @@
     async open({ load, commit }) {
       const token = ++generation;
       context = null;
+      relations?.clear();
+      setView(false);
       list.replaceChildren();
       add.disabled = true;
       status.textContent = 'Cargando personajes…';
@@ -444,6 +516,7 @@
       opener = null;
       editingAvatar = false;
       avatarEditor?.close();
+      relations?.clear();
       closeAlias();
       if (dialog.open) dialog.close();
       list.replaceChildren();

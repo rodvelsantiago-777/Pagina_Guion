@@ -4,44 +4,44 @@
 
   const styles = Object.freeze({
     camiseta: { label: 'Camiseta', colors: [
-      ['Camiseta', '#446B5D', ['#282A32', '#F4EEE2', '#49668E', '#A34E51', '#C48B49', '#7C5F90']],
+      ['Camiseta', '#446B5D', ['#292A2B', '#EDE8DF', '#465B73', '#804641', '#B39B74', '#737374']],
     ] },
     policia: { label: 'Policía', colors: [
-      ['Uniforme', '#314D73', ['#1D2A40', '#292C31', '#53677A', '#4F594B', '#89785E']],
+      ['Uniforme', '#314D73', ['#1D293D', '#282B30', '#4D5965', '#53594B', '#958875']],
     ] },
     doctor: { label: 'Doctor', colors: [
-      ['Uniforme bajo la bata', '#537F84', ['#789BB4', '#406953', '#475A7D', '#925D6D', '#6E5D79']],
+      ['Uniforme bajo la bata', '#537F84', ['#7895A6', '#567364', '#485D78', '#626773', '#E5E7E2']],
     ] },
     enfermero: { label: 'Enfermero', colors: [
-      ['Uniforme', '#508583', ['#237788', '#77AFA5', '#5A7FB8', '#8B6499', '#AA586F']],
+      ['Uniforme', '#508583', ['#476F82', '#87ABA1', '#5D7B9B', '#46556B', '#8D8191']],
     ] },
     cocinero: { label: 'Cocinero', colors: [] },
     soldado: { label: 'Soldado', colors: [
-      ['Uniforme', '#63754C', ['#3F5036', '#73836B', '#A48C66', '#827B58', '#51585C']],
+      ['Uniforme', '#63754C', ['#414B35', '#737D66', '#AC9B7A', '#777259', '#555951']],
     ] },
     ingeniero: { label: 'Ingeniero / electricista', colors: [
-      ['Uniforme', '#536985', ['#34475C', '#3B5E5B', '#4A5543', '#7F6B49', '#A95933']],
-      ['Casco', '#E8B53F', ['#F2F1EA', '#EB7834', '#C4473D', '#4381B4', '#659354']],
+      ['Uniforme', '#536985', ['#35465A', '#526862', '#515847', '#82745D', '#A36A40']],
+      ['Casco', '#E8B53F', ['#F1F0E8', '#D97A38', '#B44C3D', '#48779B', '#60805C']],
     ] },
     caballero: { label: 'Caballero con armadura', colors: [
-      ['Metal', '#778994', ['#414954', '#ADB8BE', '#566F81', '#8A7A72', '#706166']],
-      ['Ribetes', '#BF9760', ['#DAAD4C', '#CECFD1', '#B6754C', '#9A4553', '#4C7491']],
+      ['Metal', '#778994', ['#414954', '#ADB5B9', '#67727A', '#92887B', '#666666']],
+      ['Ribetes', '#BF9760', ['#B7A06E', '#C5C6C3', '#A47650', '#6B6256', '#818784']],
     ] },
     chaleco: { label: 'Camiseta con chaleco', colors: [
-      ['Camiseta', '#C8A782', ['#EFE8D9', '#A3ACA7', '#86A7BA', '#BF756A', '#46434B']],
-      ['Chaleco', '#5F6170', ['#343847', '#535E46', '#856D55', '#7A4750', '#37576B']],
+      ['Camiseta', '#C8A782', ['#EEE7DC', '#A4AAA4', '#93A5AE', '#AC8474', '#484746']],
+      ['Chaleco', '#5F6170', ['#34383E', '#575F4E', '#816D56', '#6B5148', '#405466']],
     ] },
     traje: { label: 'Traje', colors: [
-      ['Blazer', '#333449', ['#212429', '#5B6168', '#263E5A', '#705452', '#48635C']],
-      ['Camisa', '#F5F1EB', ['#D0DEE8', '#CCC2D8', '#E5C8C8', '#C9D6C5', '#3F444E']],
+      ['Blazer', '#333449', ['#232529', '#5C6063', '#2D3B50', '#69574C', '#79776F']],
+      ['Camisa', '#F5F1EB', ['#D0DBE1', '#C8CCD0', '#DFCACA', '#D9D3C6', '#41454B']],
     ] },
     camisa: { label: 'Camisa de vestir', colors: [
-      ['Camisa', '#ABBDCF', ['#F3EFE7', '#91A998', '#BC9AA0', '#ADA3BF', '#334A69']],
+      ['Camisa', '#ABBDCF', ['#F2EEE6', '#A0AAA0', '#C3AAAC', '#BCB9BF', '#465B73']],
     ] },
     lenador: { label: 'Leñador', colors: [
-      ['Cuadros · color principal', '#A75450', ['#A75B31', '#526D51', '#526C89', '#9A7851', '#764960']],
-      ['Cuadros · color secundario', '#442C3B', ['#292A2F', '#3F3028', '#2C4437', '#2B3B55', '#D2B695']],
-      ['Camiseta interior', '#E1D3B8', ['#F3EDE1', '#C5C1B9', '#B69779', '#546D6B', '#38373C']],
+      ['Cuadros · color principal', '#A75450', ['#8C423A', '#58644D', '#50647A', '#9D805D', '#6F594C']],
+      ['Cuadros · color secundario', '#442C3B', ['#292A2D', '#44392F', '#344238', '#303D4B', '#CDB99B']],
+      ['Camiseta interior', '#E1D3B8', ['#EFEAE0', '#BFBCB5', '#AD967B', '#64716D', '#3B3C3C']],
     ] },
   });
   const colorKeys = ['ropa', 'ropa2', 'ropa3'];
