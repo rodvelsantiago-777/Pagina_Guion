@@ -11,6 +11,7 @@
     {"id": "project-character-profiles", "category": "new", "text": "Fichas de personajes con apodos, campos opcionales y relaciones. El redactor agrupa sus menciones y usa el apodo principal al insertarlos en un diálogo.", "topic": "writing", "order": 31},
     {"id": "project-character-avatar-creator", "category": "new", "text": "Creador de personajes. Pulsa el icono al editar una ficha para personalizar su avatar.", "topic": "writing", "order": 32, "replaces": {"day": "2026-11-18", "text": "Actualización de las herramientas de cobertura y anotaciones."}},
     {"id": "project-character-avatar-menus", "category": "improved", "text": "El creador organiza los rasgos en desplegables con miniaturas y ofrece paletas propias para cada vestuario.", "topic": "writing", "order": 33},
+    {"id": "project-character-avatar-previews", "category": "improved", "text": "Las miniaturas muestran tus rasgos actuales. El vestuario y las muestras de color se muestran en una sola fila.", "topic": "writing", "order": 34},
     {"id": "writer-type-toolbar", "category": "improved", "text": "Botones y atajos para los tipos de texto. Enter propone el siguiente elemento del guion.", "topic": "writing", "order": 40},
     {"id": "generated-dialogue-syntax", "category": "improved", "text": "CONT'D automático y paréntesis fijos en las acotaciones.", "topic": "writing", "order": 50},
     {"id": "writer-find-and-character-mentions", "category": "new", "text": "Buscar y reemplazar con Ctrl+F y Ctrl+H. Mejor detección de menciones de personajes.", "topic": "writing", "order": 60},

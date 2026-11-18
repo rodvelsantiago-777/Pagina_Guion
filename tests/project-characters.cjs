@@ -96,6 +96,10 @@ const avatarPayload = { ...payload, characterProfiles: [{ ...withDetails[0], ava
 const avatarArchive = Archive.stringify({ name: 'La visita', documentName: 'La visita.plano', payload: avatarPayload });
 assert.deepEqual(Archive.parse(avatarArchive).payload.characterProfiles[0].avatar, savedAvatar);
 assert.equal(S.validateProfiles([{ ...angela, avatar: 'data:image/svg+xml,abc' }])[0].avatar, undefined);
+assert.equal(Avatar.defaults.formaOjos, 'abiertos');
+assert.equal(Avatar.defaults.pelo, 'medio');
+assert.equal(Avatar.normalize({ v: 3 }).formaOjos, 'rasgados');
+assert.equal(Avatar.normalize(Avatar.validate(Avatar.defaults)).formaOjos, 'abiertos');
 assert(!S.portable(script).includes('characterProfiles'));
 
 const out = path.join(__dirname, '.output');
@@ -222,7 +226,8 @@ async function run() {
     await checkFieldColumns();
     const editIcon = dialog.getByRole('button', { name: 'Editar icono del personaje' });
     const creator = page.getByRole('dialog', { name: 'Creador de personaje' });
-    const menu = key => creator.locator(`[data-avatar-menu="${key}"]`);
+    const groups = { formaOjos: 'ojos', expresion: 'ojos', orejas: 'rostro', nariz: 'rostro', colmillos: 'rostro', cejas: 'vello', gafas: 'vestuario' };
+    const menu = key => creator.locator(`[data-avatar-menu="${groups[key] || key}"]`);
     async function expand(key) {
       const target = menu(key);
       if (await target.getAttribute('open') === null) await target.locator('summary').click();
@@ -240,6 +245,10 @@ async function run() {
     await editIcon.click();
     await creator.waitFor();
     assert(await dialog.isHidden());
+    assert.deepEqual(await menu('pelo').getByRole('radio').evaluateAll(inputs => inputs.map(input => input.value)),
+      ['calvo', 'tres-pelos', 'corto', 'medio', 'largo']);
+    assert(await menu('pelo').getByRole('radio', { name: 'Media melena', exact: true }).isChecked());
+    assert.equal(await creator.locator('details').count(), 6);
     await menu('cejas').locator('summary').press('Enter');
     assert.equal(await menu('pelo').getAttribute('open'), null);
     await choose('cejas', 'Sin cejas');
@@ -248,6 +257,9 @@ async function run() {
     await choose('orejas', 'Puntiagudas (elfo)');
     await choose('formaOjos', 'Más abiertos');
     assert.deepEqual(await swatches(menu('formaOjos')), await swatches(menu('pelo')));
+    assert.equal((await swatches(menu('pelo'))).length, 13);
+    assert.deepEqual(await menu('formaOjos').getByRole('group', { name: 'Forma de ojos', exact: true }).getByRole('radio')
+      .evaluateAll(inputs => inputs.map(input => input.value)), ['abiertos', 'rasgados']);
     await choose('vestuario', 'Caballero con armadura');
     const metal = menu('vestuario').locator('[data-avatar-color="ropa"]');
     const armorPalette = await swatches(metal);
@@ -256,6 +268,9 @@ async function run() {
     assert.notDeepEqual(await swatches(metal), armorPalette);
     await choose('vestuario', 'Caballero con armadura');
     assert.equal(await metal.getByRole('button', { name: 'Usar color #414954' }).getAttribute('aria-pressed'), 'true');
+    await choose('gafas', 'Con gafas');
+    assert.equal(await menu('vestuario').locator('input[value="camiseta"] + span rect').count(), 2);
+    await choose('gafas', 'Sin gafas');
     await expand('piel');
     await creator.getByRole('button', { name: 'Color de piel personalizado' }).click();
     assert(await creator.locator('#color-picker-dialog').isVisible());
@@ -264,6 +279,18 @@ async function run() {
     await page.locator('#custom-color-hex').fill('#79a988');
     await page.locator('#save-custom-color').click();
     assert.equal(await creator.locator('[data-avatar-preview] [data-ears="puntiagudas"]').count(), 3);
+    await expand('vestuario');
+    assert(await menu('vestuario').locator('.character-avatar-clothes').evaluate(row => {
+      const tops = [...row.children].map(node => node.getBoundingClientRect().top);
+      return row.scrollWidth > row.clientWidth && tops.every(top => Math.abs(top - tops[0]) < 1);
+    }));
+    const hairBefore = await creator.locator('[data-avatar-preview]').first().locator('[data-hair-front]').getAttribute('d');
+    assert.equal(await menu('vestuario').locator('input[value="caballero"] + span [data-hair-front]').getAttribute('d'), hairBefore);
+    const pupil = creator.locator('[data-avatar-preview]').first().locator('[data-eyes] circle').first();
+    assert.equal(await menu('vestuario').locator('input[value="caballero"] + span [data-eyes] circle').first().getAttribute('fill'), await pupil.getAttribute('fill'));
+    const hairMenu = await expand('pelo');
+    assert.equal(await hairMenu.locator('input[value="corto"] + span [data-headwear]').count(), 0);
+    assert.equal(await hairMenu.locator('input[value="corto"] + span [data-ears="puntiagudas"]').count(), 1);
     await expand('vestuario');
     await page.screenshot({ path: path.join(out, 'creador-personaje.png') });
     await creator.getByRole('button', { name: 'Guardar icono' }).click();
@@ -407,8 +434,19 @@ async function run() {
     assert(await creator.evaluate(node => {
       const panel = node.querySelector('.character-avatar-settings');
       const footer = node.querySelector('footer').getBoundingClientRect();
-      return panel.scrollHeight > panel.clientHeight && panel.scrollWidth === panel.clientWidth && footer.bottom <= innerHeight;
+      return panel.scrollWidth === panel.clientWidth && footer.bottom <= innerHeight;
     }));
+    await expand('piel');
+    assert.equal((await swatches(menu('piel'))).length, 13);
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 700 });
+      assert(await menu('piel').locator('.character-avatar-swatches').evaluate(row => {
+        const tops = [...row.children].map(node => node.getBoundingClientRect().top);
+        return row.children.length <= 13 && row.scrollWidth <= row.clientWidth && tops.every(top => Math.abs(top - tops[0]) < 1);
+      }));
+      assert(await creator.evaluate(node => node.scrollWidth === node.clientWidth));
+    }
+    await expand('ojos');
     await page.screenshot({ path: path.join(out, 'creador-personaje-movil.png') });
     await page.setViewportSize({ width: 360, height: 740 });
     await page.evaluate(() => PlanoAppearance.choose({ mode: 'dark' }));

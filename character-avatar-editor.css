@@ -48,9 +48,17 @@
 }
 .character-avatar-menu[open] .character-avatar-chevron { transform: rotate(225deg); margin-top: 3px; }
 .character-avatar-menu-body { display: grid; gap: 12px; padding: 11px; min-width: 0; }
+.character-avatar-trait { display: grid; gap: 7px; min-width: 0; }
+.character-avatar-trait + .character-avatar-trait { padding-top: 7px; border-top: 1px solid var(--line); }
+.character-avatar-trait h3 { margin: 0; color: var(--ink); font: 650 12px/1.3 var(--sans); }
 .character-avatar-choices {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(57px, 68px)); gap: 8px 6px;
 }
+.character-avatar-clothes {
+  display: flex; align-items: start; flex-wrap: nowrap; overflow-x: auto;
+  padding: 3px 3px 7px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.character-avatar-clothes > .character-avatar-choice { flex: 0 0 66px; }
 .character-avatar-choice {
   position: relative; display: grid; align-content: start; justify-items: center; gap: 4px;
   min-width: 0; padding: 3px 1px; border-radius: 5px; cursor: pointer;
@@ -68,12 +76,15 @@
 .character-avatar-choice input:checked ~ .character-avatar-choice-name { color: var(--ink); font-weight: 650; }
 .character-avatar-color { min-width: 0; margin: 0; padding: 0; border: 0; }
 .character-avatar-color legend { margin: 0 0 6px; padding: 0; color: var(--ink); font: 650 12px var(--sans); }
-.character-avatar-swatches { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.character-avatar-swatches {
+  display: grid; grid-template-columns: repeat(13, minmax(0, 27px));
+  gap: clamp(3px, .75vw, 5px); margin-bottom: 7px;
+}
 .character-avatar-color-choice {
-  position: relative; width: 27px; height: 27px; padding: 0;
+  position: relative; width: 100%; aspect-ratio: 1; padding: 0;
   border: 1px solid var(--line-strong); border-radius: 4px; background: var(--swatch);
 }
-.character-avatar-color-choice:is(:hover, :focus-visible, [aria-pressed="true"]) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.character-avatar-color-choice:is(:hover, :focus-visible, [aria-pressed="true"]) { outline: 2px solid var(--accent); outline-offset: 0; }
 .character-avatar-color-choice[aria-pressed="true"]::after {
   content: '✓'; position: absolute; inset: 0; margin: auto; width: 14px; height: 14px;
   border-radius: 50%; color: #252525; background: #fff; font-size: 10px; line-height: 14px; text-align: center;

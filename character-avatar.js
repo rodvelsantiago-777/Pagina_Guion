@@ -22,10 +22,11 @@
   const skinColors = new Map(tones.map(({ id, color }) => [id, color]));
   const skinColor = value => skinColors.get(value) ?? value;
   const hexColor = /^#[0-9a-f]{6}$/i;
+  const savedEyeDefault = 'rasgados';
   const baseDefaults = Object.freeze({
     v: 3, pelo: 'medio', gafas: false, cejas: true, nariz: 'normal', piel: 1,
     vello: 'ninguno', expresion: 'feliz', edad: 'joven', orejas: 'normales', colmillos: 'ninguno', detallePiel: 'ninguno',
-    ojos: '#765439', formaOjos: 'rasgados', cabello: '#543628', vestuario: 'camiseta',
+    ojos: '#765439', formaOjos: 'abiertos', cabello: '#543628', vestuario: 'camiseta',
   });
   const colorKeys = ['ojos', 'cabello'];
   const expressions = {
@@ -86,6 +87,7 @@
   function normalize(value) {
     const model = { ...baseDefaults };
     if (!versions.includes(value?.v)) return Object.assign(model, wardrobe.normalizeColors(model.vestuario));
+    model.formaOjos = savedEyeDefault;
     for (const [key, options] of Object.entries(shapeOptions)) {
       if (options.includes(value[key])) model[key] = value[key];
     }
@@ -107,7 +109,7 @@
   function validate(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !versions.includes(value.v)) return undefined;
     const model = normalize(value);
-    const defaults = { ...baseDefaults, ...wardrobe.normalizeColors(model.vestuario) };
+    const defaults = { ...baseDefaults, formaOjos: savedEyeDefault, ...wardrobe.normalizeColors(model.vestuario) };
     return Object.fromEntries(Object.entries(model).filter(([key, setting]) => key === 'v' || setting !== defaults[key]));
   }
 
@@ -200,7 +202,7 @@
     </g>`;
   }
 
-  function svg(value) {
+  function svg(value, { hideHeadwear = false } = {}) {
     const model = normalize(value);
     const skin = skinColor(model.piel);
     const shadow = mix(skin, '#44263A', .28);
@@ -211,7 +213,8 @@
     const expression = expressions[model.expresion];
     const facialHairPath = facialHair[model.vello];
     const outfit = wardrobe.render(model, mix);
-    const hairMask = outfit.headwear ? ` style="clip-path: path('${outfit.hairline}') view-box"` : '';
+    const headwear = hideHeadwear ? '' : outfit.headwear;
+    const hairMask = headwear ? ` style="clip-path: path('${outfit.hairline}') view-box"` : '';
     // La piel y la barba comparten el contorno de la mandíbula.
     const face = 'M55 71c0-24 17-39 41-39 23 0 41 15 41 39v20c0 21-10 34-26 44-5 3-10 5-15 5-6 0-11-2-16-5-15-10-25-23-25-44V71Z';
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Busto del personaje">
@@ -233,8 +236,8 @@
       ${drawNose(model.nariz, skin, shadow)}
       ${drawMouth(expression, model.colmillos, mouthColor)}
       ${strands ? `<g${hairMask}><path data-hair-front="" fill="${model.cabello}" d="${strands.front}"/><path fill="${mix(model.cabello, '#F7DBC5', .24)}" d="${strands.sheen}"/></g>` : ''}
-      ${model.pelo === 'tres-pelos' && !outfit.headwear ? `<path data-hair-front="" d="M85 35c-2-5-5-8-9-10M96 33c0-7-2-12-5-15M107 34c2-6 5-9 9-11" fill="none" stroke="${model.cabello}" stroke-width="2.8" stroke-linecap="round"/>` : ''}
-      ${outfit.headwear}
+      ${model.pelo === 'tres-pelos' && !headwear ? `<path data-hair-front="" d="M85 35c-2-5-5-8-9-10M96 33c0-7-2-12-5-15M107 34c2-6 5-9 9-11" fill="none" stroke="${model.cabello}" stroke-width="2.8" stroke-linecap="round"/>` : ''}
+      ${headwear}
       ${model.gafas ? '<g fill="none" stroke="#322E37" stroke-width="3.1" stroke-linecap="round"><rect x="60" y="80" width="29" height="19" rx="7"/><rect x="103" y="80" width="29" height="19" rx="7"/><path d="M89 86q7-5 14 0m-43 0-6-2m78 2 6-2"/></g>' : ''}
     </svg>`;
   }
