@@ -125,6 +125,7 @@
   const selected=selectedProject;
   if(!selected)closeCharacters();
   const inProject=Boolean(selected),facts=$('#project-facts');
+  document.body.classList.toggle('is-characters',inProject&&charactersOpen);
   $('#drop-zone').hidden=inProject;
   $('.page-footer').hidden=inProject;
   $('#project-overview').hidden=!inProject||charactersOpen;
@@ -181,6 +182,7 @@
  function closeCharacters(){
   if(!charactersOpen)return;
   charactersOpen=false;
+  document.body.classList.remove('is-characters');
   root.PlanoProjectCharacters.close();
  }
  function showRoot(){closeCharacters();selectedProject=null;message();hooks.home();renderProject();return showHome();}

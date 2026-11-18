@@ -14,6 +14,7 @@
     {"id": "project-character-avatar-previews", "category": "improved", "text": "Las miniaturas muestran tus rasgos actuales. El vestuario y las muestras de color se muestran en una sola fila.", "topic": "writing", "order": 34},
     {"id": "project-character-natural-colors", "category": "improved", "text": "Paletas más naturales para piel, ojos, cabello y prendas. Las gafas aparecen antes del vestuario.", "topic": "writing", "order": 35},
     {"id": "project-character-relations-tree", "category": "new", "text": "Árbol de relaciones con avatares, personajes movibles y conexiones de colores. Define vínculos desde el lienzo.", "topic": "writing", "order": 36},
+    {"id": "project-character-full-page-sections", "category": "improved", "text": "Barra superior para alternar entre Personajes y Árbol de relaciones. Ambas vistas aprovechan toda la página.", "topic": "writing", "order": 37},
     {"id": "writer-type-toolbar", "category": "improved", "text": "Botones y atajos para los tipos de texto. Enter propone el siguiente elemento del guion.", "topic": "writing", "order": 40},
     {"id": "generated-dialogue-syntax", "category": "improved", "text": "CONT'D automático y paréntesis fijos en las acotaciones.", "topic": "writing", "order": 50},
     {"id": "writer-find-and-character-mentions", "category": "new", "text": "Buscar y reemplazar con Ctrl+F y Ctrl+H. Mejor detección de menciones de personajes.", "topic": "writing", "order": 60},

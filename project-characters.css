@@ -1,14 +1,14 @@
-.project-characters { display: grid; gap: 20px; padding-block: 4px 36px; }
-.characters-breadcrumb { margin: 0; }
-#characters-project-name { overflow-wrap: anywhere; text-align: left; }
-.characters-heading {
-  display: flex; justify-content: space-between; align-items: center; gap: 16px;
-  padding: 0 0 18px; border-bottom: 1px solid var(--line);
-}
-.characters-heading h1, .character-dialog h2 { margin: 0; color: var(--ink); font: 650 24px/1.2 var(--sans); }
-.characters-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
-#character-add { white-space: nowrap; }
-#character-add span { font-size: 17px; line-height: 1; }
+.project-characters { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+.characters-section-bar { display: flex; align-items: center; gap: 24px; padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--surface-alt); }
+.characters-breadcrumb { min-width: 0; max-width: 200px; margin: 0; }
+.characters-breadcrumb button { min-width: 0; max-width: 100%; }
+#characters-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.character-dialog h2 { margin: 0; color: var(--ink); font: 650 24px/1.2 var(--sans); }
+#characters-cards-panel { min-height: 0; overflow: auto; padding: 22px 28px 32px; }
+#characters-summary { margin: 0 0 16px; color: var(--muted); font-size: 12px; }
+#character-add { white-space: nowrap; margin-inline-start: auto; }
+#character-add > span:first-child { font-size: 17px; line-height: 1; }
+.project-characters > .characters-error { margin: 0; padding: 10px 28px; }
 .character-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 184px), 1fr)); gap: 12px; }
 .character-card {
   min-width: 0; display: grid; justify-items: start; gap: 6px; padding: 18px;
@@ -207,7 +207,14 @@
   .character-edit-basics { padding: 14px; }
   .character-dialog input, .character-dialog select, .character-dialog textarea { font-size: 16px; }
   .character-field-tag { min-height: 38px; }
-  .characters-heading h1 { font-size: 20px; }
+}
+@media (max-width: 680px) {
+  .characters-section-bar { gap: 10px; padding-inline: 16px; }
+  .characters-breadcrumb { flex-shrink: 0; }
+  #characters-project-name, #character-add .character-add-label { display: none; }
+  #character-add { min-width: 32px; padding-inline: 8px; }
+  #characters-cards-panel { padding: 18px 16px 24px; }
+  .project-characters > .characters-error { padding-inline: 16px; }
 }
 @media (max-width: 420px) {
   .character-relation-row { grid-template-columns: minmax(0, 1fr) 24px; }

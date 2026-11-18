@@ -52,6 +52,12 @@ body:not(.is-editing) .main-shell{display:contents}
 body:not(.is-editing) .main-shell>.topbar{grid-column:1/-1;grid-row:1;position:sticky;top:0;z-index:50;height:64px;padding:0 28px;gap:24px}
 body:not(.is-editing) .main-shell>main{grid-column:1;grid-row:3;width:100%;max-width:1320px;margin:0 auto;padding:36px clamp(24px,4vw,60px) 32px}
 body:not(.is-editing) .main-shell>.cloud-alert{grid-column:1;grid-row:2}
+/* Personajes y relaciones usan toda la superficie bajo la cabecera. */
+body.is-characters:not(.is-editing) .app-shell{height:100dvh;min-height:0;grid-template-rows:64px auto minmax(0,1fr)}
+body.is-characters:not(.is-editing) .main-shell>main{height:100%;min-height:0;max-width:none;padding:0;margin:0;overflow:hidden}
+body.is-characters:not(.is-editing) .page-heading{display:none}
+body.is-characters:not(.is-editing) .script-workspace,
+body.is-characters:not(.is-editing) #upload-view{height:100%;min-height:0}
 body:not(.is-editing) .page-footer{display:flex;margin:8px 0 0;padding:8px 0 0;font:11px/1.5 var(--sans)}
 .page-footer small{font-size:inherit}
 .page-footer [data-app-version]{margin-left:4px;font-variant-numeric:tabular-nums;white-space:nowrap}

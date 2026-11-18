@@ -26,6 +26,22 @@ const out = path.join(__dirname, '.output');
   });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 960 } });
+    const fullPageSection = async () => {
+      const layout = await page.evaluate(() => {
+        const rect = selector => document.querySelector(selector).getBoundingClientRect();
+        const section = rect('#project-characters'), header = rect('.topbar');
+        const panel = rect('#project-characters > [role=tabpanel]:not([hidden])');
+        return { left: section.left, width: section.width, top: section.top, headerBottom: header.bottom,
+          bottom: panel.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight,
+          pageWidth: document.documentElement.scrollWidth, pageHeight: document.documentElement.scrollHeight };
+      });
+      assert.equal(layout.left, 0);
+      assert.equal(layout.width, layout.viewportWidth, 'La sección ocupa todo el ancho');
+      assert.equal(layout.top, layout.headerBottom, 'La barra de secciones sigue a la cabecera');
+      assert.equal(layout.bottom, layout.viewportHeight, 'La vista llega al final de la pantalla');
+      assert.equal(layout.pageWidth, layout.viewportWidth, 'Sin desbordamiento horizontal');
+      assert.equal(layout.pageHeight, layout.viewportHeight, 'El contenido se desplaza dentro de su vista');
+    };
     const errors = [];
     page.on('pageerror', reason => errors.push(reason.message));
     await page.context().route('**/*', route => /^https?:/.test(route.request().url()) ? route.abort() : route.continue());
@@ -36,7 +52,9 @@ const out = path.join(__dirname, '.output');
     await page.locator('#editor-home').click();
     await page.locator('.script-card-open').click();
     await page.locator('#open-project-characters').click();
+    await fullPageSection();
     await page.getByRole('tab', { name: 'Árbol de relaciones' }).click();
+    await fullPageSection();
     const canvas = page.getByRole('region', { name: /^Lienzo de relaciones/ });
     const graph = page.locator('#characters-relations-panel');
     const nodes = graph.locator('.relations-node');
@@ -99,17 +117,24 @@ const out = path.join(__dirname, '.output');
     assert.equal(await graph.locator('.relations-link').count(), 3);
     await add.getByRole('button', { name: 'Cancelar', exact: true }).click();
     await page.screenshot({ path: path.join(out, 'arbol-relaciones.png') });
-    await page.getByRole('tab', { name: 'Fichas', exact: true }).click();
+    await page.getByRole('tab', { name: 'Personajes', exact: true }).click();
+    await page.screenshot({ path: path.join(out, 'personajes-seccion-completa.png') });
     await page.locator('.character-card').filter({ hasText: 'VECINA' }).click();
     await page.getByRole('dialog', { name: 'VECINA', exact: true }).getByText('Ana Suárez · Conocidos', { exact: true }).waitFor();
     await page.getByRole('dialog', { name: 'VECINA', exact: true }).getByRole('button', { name: 'Cerrar ficha' }).click();
     await page.getByRole('tab', { name: 'Árbol de relaciones' }).click();
     assert.deepEqual(await page.evaluate(() => state.characterProfiles.find(profile => profile.id === 'ana').relationshipPosition), savedPosition);
     await page.setViewportSize({ width: 390, height: 844 });
+    await fullPageSection();
     await graph.getByRole('button', { name: 'Ajustar', exact: true }).click();
     assert(await graph.evaluate(node => node.scrollWidth <= node.clientWidth));
     await page.evaluate(() => PlanoAppearance.choose({ mode: 'dark' }));
     await page.screenshot({ path: path.join(out, 'arbol-relaciones-movil.png') });
+    await page.getByRole('tab', { name: 'Árbol de relaciones' }).press('ArrowLeft');
+    assert.equal(await page.getByRole('tab', { name: 'Personajes', exact: true }).getAttribute('aria-selected'), 'true');
+    await fullPageSection();
+    await page.screenshot({ path: path.join(out, 'personajes-seccion-movil.png') });
+    await page.getByRole('tab', { name: 'Personajes', exact: true }).press('ArrowRight');
     const exported = await page.evaluate(() => PlanoProjectArchive.stringify({
       name: 'Las visitas', documentName: 'Las visitas.plano', payload: { version: 1, screenplay: state.screenplay, characterProfiles: state.characterProfiles, annotations: [], corrections: [], crew: {} },
     }));
@@ -126,6 +151,9 @@ const out = path.join(__dirname, '.output');
     assert.equal(await graph.locator('.relations-link').count(), 0);
     assert(await graph.getByRole('button', { name: 'Añadir relación' }).isDisabled());
     assert(await graph.getByText('Aún no hay personajes.', { exact: false }).isVisible());
+    await page.locator('#characters-back').click();
+    assert(await page.locator('#project-overview').isVisible());
+    assert.equal(await page.evaluate(() => document.body.classList.contains('is-characters')), false);
     assert.deepEqual(errors, []);
     console.log('OK: árbol, avatares, vínculos únicos por tipo, edición recíproca, arrastre guardado, zoom, exportación y móvil.');
   } finally {

@@ -35,7 +35,7 @@
   <script src="account-center.js?v=20261105-home-version-1" defer></script>
   <link rel="stylesheet" href="account-center.css?v=20261117-cleanup">
   <script src="appearance-account.js?v=20261103-account-center-1" defer></script>
-  <script src="cloud-library.js?v=20261117-editor-performance" defer></script>
+  <script src="cloud-library.js?v=20261118-character-sections" defer></script>
   <script src="compact-popovers.js?v=20261112-emoji-picker-1" defer></script>
   <script src="export-ui.js?v=20261117-cleanup" defer></script>
   <link rel="stylesheet" href="export-ui.css?v=20261102-docx-1">
@@ -77,18 +77,18 @@
   <script src="project-info.js?v=20261117-genre-palette" defer></script>
   <link rel="stylesheet" href="project-info.css?v=20261112-genre-2">
   <script src="project-archive.js?v=20261117-characters" defer></script>
-  <link rel="stylesheet" href="project-characters.css?v=20261118-relations">
-  <link rel="stylesheet" href="character-relations.css">
+  <link rel="stylesheet" href="project-characters.css?v=20261118-character-sections">
+  <link rel="stylesheet" href="character-relations.css?v=20261118-character-sections">
   <link rel="stylesheet" href="character-avatar-editor.css?v=20261118-avatar-groups">
   <script src="character-details-editor.js?v=20261117-shared-relationships" defer></script>
   <script src="character-avatar-editor.js?v=20261118-natural-palettes" defer></script>
   <script src="character-relations.js" defer></script>
-  <script src="project-characters.js?v=20261118-relations" defer></script>
+  <script src="project-characters.js?v=20261118-character-sections" defer></script>
   <script src="editable-import.js?v=20261102-project-archive-1" defer></script>
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
   <script src="writer-editor.js?v=20261117-editor-performance" defer></script>
   <script src="header-ui.js?v=20261110-linked-title-1" defer></script>
-  <link rel="stylesheet" href="studio-shell.css?v=20261110-studio-dashboard-1">
+  <link rel="stylesheet" href="studio-shell.css?v=20261118-character-sections">
   <script src="app.js?v=20261117-editor-performance" defer></script>
   <script src="patch-notes.js?v=20261117-patch-series" defer></script>
 </head>
@@ -266,16 +266,17 @@
               </section>
             </section>
             <section id="project-characters" class="project-characters" aria-labelledby="characters-title" hidden>
-              <nav class="project-breadcrumb characters-breadcrumb" aria-label="Proyecto"><button id="characters-back" type="button"><svg aria-hidden="true"><use href="#i-arrow"/></svg><span id="characters-project-name">Volver al proyecto</span></button></nav>
-              <header class="characters-heading">
-                <div><h1 id="characters-title" tabindex="-1">Personajes</h1><p id="characters-summary" role="status"></p></div>
-                <button id="character-add" class="workspace-button workspace-button-primary" type="button"><span aria-hidden="true">+</span> Nuevo personaje</button>
+              <h1 id="characters-title" class="sr-only" tabindex="-1">Personajes</h1>
+              <header class="characters-section-bar">
+                <nav class="project-breadcrumb characters-breadcrumb" aria-label="Proyecto"><button id="characters-back" type="button"><svg aria-hidden="true"><use href="#i-arrow"/></svg><span id="characters-project-name">Volver al proyecto</span></button></nav>
+                <div class="characters-views" role="tablist" aria-label="Secciones de personajes">
+                  <button id="characters-cards-tab" type="button" role="tab" aria-selected="true" aria-controls="characters-cards-panel">Personajes</button>
+                  <button id="characters-relations-tab" type="button" role="tab" aria-selected="false" aria-controls="characters-relations-panel" tabindex="-1">Árbol de relaciones</button>
+                </div>
+                <button id="character-add" class="workspace-button workspace-button-primary" type="button" aria-label="Nuevo personaje" title="Nuevo personaje"><span aria-hidden="true">+</span><span class="character-add-label">Nuevo personaje</span></button>
               </header>
-              <div class="characters-views" role="tablist" aria-label="Vista de personajes">
-                <button id="characters-cards-tab" type="button" role="tab" aria-selected="true" aria-controls="characters-cards-panel">Fichas</button>
-                <button id="characters-relations-tab" type="button" role="tab" aria-selected="false" aria-controls="characters-relations-panel" tabindex="-1">Árbol de relaciones</button>
-              </div>
               <div id="characters-cards-panel" role="tabpanel" aria-labelledby="characters-cards-tab">
+                <p id="characters-summary" role="status"></p>
                 <div id="character-list" class="character-list"></div>
               </div>
               <div id="characters-relations-panel" role="tabpanel" aria-labelledby="characters-relations-tab" hidden></div>

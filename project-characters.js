@@ -155,6 +155,7 @@
   }
   function setView(tree) {
     showingRelations = tree;
+    $('#characters-title').textContent = tree ? 'Árbol de relaciones' : 'Personajes';
     cardsPanel.hidden = tree;
     relationsPanel.hidden = !tree;
     for (const [index, tab] of viewTabs.entries()) {
