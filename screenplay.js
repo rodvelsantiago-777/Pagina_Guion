@@ -109,7 +109,8 @@
  }
  const characterKey=text=>cue(text).normalize('NFD').replace(/\p{M}/gu,'').replace(/[’‘]/g,"'");
  const characterRoles=['Protagonista','Personaje principal','Antagonista','Deuteragonista','Tritagonista','Personaje secundario','Personaje recurrente','Personaje incidental','Otro'];
- const characterSexes=['Femenino','Masculino','Intersexual','Otro'];
+ const characterGenders=Object.freeze(['Mujer','Hombre','No binario','Género fluido','Agénero','Otro género']);
+ const legacyGenders=new Map([['Femenino','Mujer'],['Masculino','Hombre'],['Otro','Otro género']]);
  const characterAboutLimit=300;
  const characterName=profile=>[profile.givenNames,profile.surnames].filter(Boolean).join(' ');
  const characterSpeaker=profile=>cue(profile.primaryAlias||characterName(profile));
@@ -134,9 +135,13 @@
    if(!item||typeof item.id!=='string'||!/^[-\w]{1,80}$/.test(item.id)||ids.has(item.id))throw Error('Hay identificadores de personaje inválidos.');
    ids.add(item.id);
    const givenNames=field(item.givenNames,80),surnames=field(item.surnames,80),age=field(item.age,32);
-   const sex=field(item.sex,32),role=field(item.role,40);
-   if(!/[\p{L}\p{N}]/u.test(givenNames)||sex&&!characterSexes.includes(sex)||role&&!characterRoles.includes(role)||!Array.isArray(item.aliases)||item.aliases.length>24)throw Error('Revisa el nombre, las opciones y el límite de 24 apodos por personaje.');
-   const profile={id:item.id,givenNames,surnames,age,sex,role,aliases:[]},name=characterName(profile),key=characterKey(name);
+   const legacySex=item.sex===undefined?'':field(item.sex,32),role=field(item.role,40);
+   const gender=item.gender===undefined?(legacyGenders.get(legacySex)||''):field(item.gender,32);
+   if((gender&&!characterGenders.includes(gender))||(legacySex&&legacySex!=='Intersexual'&&!legacyGenders.has(legacySex)))throw Error('Elige un género válido para el personaje.');
+   if(!/[\p{L}\p{N}]/u.test(givenNames)||role&&!characterRoles.includes(role)||!Array.isArray(item.aliases)||item.aliases.length>24)throw Error('Revisa el nombre, las opciones y el límite de 24 apodos por personaje.');
+   const profile={id:item.id,givenNames,surnames,age,gender,role,aliases:[]},name=characterName(profile),key=characterKey(name);
+   // Conserva el dato anterior donde no se puede traducir a una identidad de género.
+   if(legacySex==='Intersexual')profile.sex=legacySex;
    if(item.about!==undefined){
     if(typeof item.about!=='string')throw Error('La descripción del personaje debe ser texto.');
     const about=item.about.replace(/\r\n?/g,'\n');
@@ -465,5 +470,5 @@
   for(const entry of titleFooter(value).entries)if(entry.page===0)context.fillText(entry.text,entry.x*scale,entry.top*scale);
   const result=canvas.toDataURL('image/jpeg',.72);canvas.width=canvas.height=0;return result.length<=20000?result:null;
  }
- const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,characterRoster,characterRoles,characterSexes,characterAboutLimit,characterName,characterForms,characterSpeaker,characterSpeakers,validateProfiles,create,projectTitle,validate,wrap,layout,analyze,runs,pagePlan,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail,coverDetails,titleFooter};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
+ const api={kinds,format,types,id,plain,canonical,cue,characterKey,characterMatcher,characterMarks,characterRoster,characterRoles,characterGenders,characterAboutLimit,characterName,characterForms,characterSpeaker,characterSpeakers,validateProfiles,create,projectTitle,validate,wrap,layout,analyze,runs,pagePlan,pdf,fromPdf,repairPdf,normalizeSyntax,syntaxRange,continuations,forExport,portable,importPortable,thumbnail,validThumbnail,coverDetails,titleFooter};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlanoScreenplay=api;
 })(globalThis);

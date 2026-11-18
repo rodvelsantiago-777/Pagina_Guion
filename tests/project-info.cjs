@@ -3,6 +3,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const p=(kind,text,id=crypto.randomUUID())=>({type:'paragraph',attrs:{kind,id},...(text?{content:[{type:'text',text}]}:{})});
 const info={version:1,genre:'Terror',format:'short',estimatedMinutes:10,target:'Adolescentes',country:'Colombia',language:'Español (latino)',completed:false},script=S.create('¿Quién es?',{name:'Santiago',email:'autor@example.invalid'});
 assert.deepEqual(I.validate(info),info);assert.equal(I.validate(),null);for(const bad of [{...info,format:'serie'},{...info,estimatedMinutes:0},{...info,completed:'true'},{...info,genre:'x'.repeat(121)},{...info,country:'\nColombia'}])assert.throws(()=>I.validate(bad));
+assert.equal(I.validate({...info,genre:'Suspenso'}).genre,'Thriller');
+assert.equal(I.genreAccent('Suspenso'),'thriller');
+assert.equal(I.validate({...info,genre:'Documental'}).genre,'Documental');
+assert.equal(I.genreAccent('Documental'),'');
 const catalog=require('../vendor/project-emoji-data.js')&&Object.values(globalThis.PlanoProjectEmojiData).flat();
 assert(catalog.length>3000);
 for(const [icon] of catalog)assert.equal(I.emoji(icon),icon);
@@ -49,7 +53,7 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
  assert.equal(await page.locator('#project-info-form').getAttribute('autocomplete'),null);
  assert.equal(await page.locator('#project-info-target').getAttribute('autocomplete'),null);
  await page.getByRole('button',{name:'Mostrar géneros'}).click();
- assert.equal(await genreList.getByRole('option').count(),10);
+ assert.deepEqual(await genreList.getByRole('option').allTextContents(),['Drama','Comedia','Terror','Thriller','Ciencia ficción','Acción','Romance','Fantasía','Animación']);
  await genreList.getByRole('option',{name:'Ciencia ficción',exact:true}).click();
  assert.equal(await genre.inputValue(),'Ciencia ficción');
  await genre.fill('terr');await genre.press('ArrowDown');await genre.press('Enter');
@@ -119,14 +123,18 @@ const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'.output');fs.mk
 
  await page.locator('#editor-home').click();
  assert.equal(await page.locator('.project-folder-symbol').textContent(),'🎬');
+ assert.equal(await page.locator('.script-card').getAttribute('data-genre-accent'),'horror');
  await page.locator('.script-card-open').click();
  const facts=page.locator('#project-facts');
  assert(await page.locator('#finalize-screenplay').isHidden());
  await facts.getByRole('button',{name:'Editar ficha'}).click();
  assert.equal(await page.locator('#project-info-duration').inputValue(),'10');
  await page.locator('#project-info-duration').fill('12');
+ await genre.fill('Suspenso');
  await page.locator('#create-project').click();
  await page.waitForFunction(()=>!document.querySelector('#new-script-dialog').open);
+ assert.equal(await facts.locator('dt').filter({hasText:'Género'}).locator('xpath=following-sibling::dd').textContent(),'Thriller');
+ assert.equal(await page.locator('#main-content').getAttribute('data-genre-accent'),'thriller');
  await page.locator('[data-project-stage=coverage]').click();
  assert(await page.locator('#finalize-screenplay').isHidden());
  await page.locator('#stage-tabs [data-stage=writing]').click();

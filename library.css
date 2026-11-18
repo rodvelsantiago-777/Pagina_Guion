@@ -5,42 +5,90 @@ body:not(.is-editing) #upload-view { padding: 0; }
 body:not(.is-editing) .page-heading { display: block; margin: 0 0 26px; }
 #main-content { --dashboard-radius: 9px; }
 
-[data-genre-accent=drama] { --genre-hue: 24; }
-[data-genre-accent=comedy] { --genre-hue: 44; }
-[data-genre-accent=thriller] { --genre-hue: 198; }
-[data-genre-accent=scifi] { --genre-hue: 230; }
-[data-genre-accent=documentary] { --genre-hue: 145; }
-[data-genre-accent=action] { --genre-hue: 14; }
-[data-genre-accent=romance] { --genre-hue: 325; }
-[data-genre-accent=fantasy] { --genre-hue: 274; }
-[data-genre-accent=animation] { --genre-hue: 172; }
 [data-genre-accent] {
-  --genre-fill: hsl(var(--genre-hue) 47% 34%);
-  --genre-ink: hsl(var(--genre-hue) 48% 28%);
+  --genre-fill: var(--genre-fill-light);
+  --genre-ink: var(--genre-ink-light);
+  --genre-on-fill: #fff;
   --genre-soft: color-mix(in srgb, var(--genre-fill) 14%, var(--paper));
   --genre-line: color-mix(in srgb, var(--genre-fill) 30%, var(--line));
-  --genre-secondary-fill: color-mix(in srgb, var(--genre-fill) 60%, #48566c);
   --genre-secondary-ink: color-mix(in srgb, var(--genre-ink) 70%, #334158);
 }
 [data-theme=dark] [data-genre-accent] {
-  --genre-fill: hsl(var(--genre-hue) 39% 30%);
-  --genre-ink: hsl(var(--genre-hue) 68% 80%);
-  --genre-soft: color-mix(in srgb, var(--genre-fill) 38%, var(--paper));
+  --genre-fill: var(--genre-fill-dark, var(--genre-fill-light));
+  --genre-ink: var(--genre-ink-dark);
+  --genre-soft: color-mix(in srgb, var(--genre-soft-source, var(--genre-ink-light)) 38%, var(--paper));
   --genre-line: color-mix(in srgb, var(--genre-ink) 20%, var(--line));
   --genre-secondary-ink: color-mix(in srgb, var(--genre-ink) 65%, #b7c9e2);
 }
+[data-genre-accent=drama] {
+  --genre-fill-light: #6b6259;
+  --genre-ink-light: #5f5449;
+  --genre-ink-dark: #d3c5b6;
+  --genre-secondary-fill: #4e4a47;
+}
+[data-genre-accent=comedy] {
+  --genre-fill-light: #facc15;
+  --genre-fill-dark: #e0b82a;
+  --genre-on-fill: #2f2509;
+  --genre-ink-light: #695000;
+  --genre-ink-dark: #f9df72;
+  --genre-secondary-fill: #675405;
+}
+[data-genre-accent=thriller] {
+  --genre-fill-light: #16546a;
+  --genre-ink-light: #23546b;
+  --genre-ink-dark: #89c6df;
+  --genre-secondary-fill: #3d556a;
+}
+[data-genre-accent=scifi] {
+  --genre-fill-light: #4cee89;
+  --genre-fill-dark: #38cf72;
+  --genre-on-fill: #0b2e19;
+  --genre-ink-light: #186038;
+  --genre-ink-dark: #8af5ad;
+  --genre-secondary-fill: #245b42;
+}
+[data-genre-accent=action] {
+  --genre-fill-light: #f5842e;
+  --genre-fill-dark: #e98032;
+  --genre-on-fill: #321808;
+  --genre-ink-light: #8b390d;
+  --genre-ink-dark: #ffb27b;
+  --genre-secondary-fill: #763c1e;
+}
+[data-genre-accent=romance] {
+  --genre-fill-light: #9d2146;
+  --genre-ink-light: #8d2443;
+  --genre-ink-dark: #f69bb3;
+  --genre-secondary-fill: #64334d;
+}
+[data-genre-accent=fantasy] {
+  --genre-fill-light: #6e3cc6;
+  --genre-ink-light: #6232a7;
+  --genre-ink-dark: #cdb1fa;
+  --genre-secondary-fill: #453264;
+}
+[data-genre-accent=animation] {
+  --genre-fill-light: #ff8273;
+  --genre-fill-dark: #ed8074;
+  --genre-on-fill: #371815;
+  --genre-ink-light: #8d352c;
+  --genre-ink-dark: #ffb0a5;
+  --genre-secondary-fill: #774339;
+}
 [data-genre-accent=horror] {
-  --genre-fill: #2c3037;
-  --genre-ink: #343b45;
+  --genre-fill-light: #2c3037;
+  --genre-fill-dark: #292d34;
+  --genre-ink-light: #343b45;
+  --genre-ink-dark: #c2c9d2;
+  --genre-soft-source: var(--genre-fill);
   --genre-secondary-fill: #41464e;
 }
 [data-theme=dark] [data-genre-accent=horror] {
-  --genre-fill: #292d34;
-  --genre-ink: #c2c9d2;
   --genre-secondary-fill: #3c424b;
 }
 [data-genre-accent] .workspace-banner[data-view=project] { border-color: var(--genre-line); }
-[data-genre-accent] .workspace-banner[data-view=project] .workspace-banner-visual { background: var(--genre-fill); color: white; }
+[data-genre-accent] .workspace-banner[data-view=project] .workspace-banner-visual { background: var(--genre-fill); color: var(--genre-on-fill); }
 [data-genre-accent] .workspace-banner-preview:not(:has(img)) { background: color-mix(in srgb, var(--genre-fill) 82%, white); }
 [data-genre-accent] :is(.project-rename, .project-facts-state) { background: var(--genre-soft); color: var(--genre-ink); }
 [data-genre-accent] .project-rename:hover { border-color: var(--genre-ink); }
@@ -260,6 +308,7 @@ body:not(.is-editing) .privacy-note { justify-content: flex-start; padding: 14px
 .project-overview { display: grid; gap: 16px; }
 .project-stage-group {
   --stage-color: var(--genre-fill, var(--writing-fill, #8a4e33));
+  --stage-on-fill: var(--genre-on-fill, #fff);
   --stage-ink: var(--genre-ink, var(--writing-ink, #8a4e33));
   --stage-soft: var(--genre-soft, var(--writing-soft, #f8eee6));
   display: grid;
@@ -272,10 +321,11 @@ body:not(.is-editing) .privacy-note { justify-content: flex-start; padding: 14px
 }
 .project-stage-breakdowns {
   --stage-color: var(--genre-secondary-fill, var(--breakdowns-fill, #315e7a));
+  --stage-on-fill: #fff;
   --stage-ink: var(--genre-secondary-ink, var(--breakdowns-ink, #315e7a));
   --stage-soft: var(--genre-soft, var(--breakdowns-soft, #eaf2f7));
 }
-.project-stage-heading { display: grid; place-content: center; justify-items: center; gap: 10px; min-height: 122px; padding: 18px 14px; background: var(--stage-color); color: #fff; }
+.project-stage-heading { display: grid; place-content: center; justify-items: center; gap: 10px; min-height: 122px; padding: 18px 14px; background: var(--stage-color); color: var(--stage-on-fill); }
 .project-stage-heading h2 { margin: 0; font: 650 14px/1.4 var(--sans); }
 .project-stage-badge { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: color-mix(in srgb, var(--stage-color) 82%, #fff); }
 .project-stage-badge svg { width: 23px; height: 23px; }

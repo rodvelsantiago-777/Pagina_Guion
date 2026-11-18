@@ -7,6 +7,10 @@
   const choice = (id, label, options, customLabel) => ({ id, label, kind: 'select', options, customLabel, limit: 160 });
   const relationshipLimit = 120;
   const maxRelationships = 499;
+  const relationshipTypes = Object.freeze([
+    'Familia', 'Conocidos', 'Romance', 'Amistad', 'Trabajo o estudios', 'Mentoría', 'Rivalidad', 'Enemistad', 'Otro',
+  ]);
+  const relationshipKey = ({ targetId, type }) => targetId + ':' + type.trim().toLocaleLowerCase('es').normalize('NFC');
   const mbtiTypes = [
     'ISTJ', 'ISFJ', 'INFJ', 'INTJ', 'ISTP', 'ISFP', 'INFP', 'INTP',
     'ESTP', 'ESFP', 'ENFP', 'ENTP', 'ESTJ', 'ESFJ', 'ENFJ', 'ENTJ',
@@ -74,11 +78,68 @@
       }
       const type = text(entry.type, relationshipLimit, 'Relación');
       if (!type) throw Error('Describe el vínculo de cada relación.');
-      const key = entry.targetId + ':' + type.toLocaleLowerCase('es').normalize('NFC');
+      const key = relationshipKey({ targetId: entry.targetId, type });
       if (seen.has(key)) throw Error('Esa relación ya está añadida.');
       seen.add(key);
       return { targetId: entry.targetId, type };
     });
+  }
+
+  function relationshipsFor(profiles, id) {
+    if (!id) return;
+    const outgoing = profiles.find(profile => profile.id === id)?.details?.relationships;
+    const links = new Map();
+    for (const entry of outgoing || []) links.set(relationshipKey(entry), { ...entry, sourceId: id });
+    for (const profile of profiles) {
+      if (profile.id === id) continue;
+      for (const entry of profile.details?.relationships || []) {
+        if (entry.targetId !== id) continue;
+        const reverse = { targetId: profile.id, type: entry.type, sourceId: profile.id };
+        const key = relationshipKey(reverse);
+        if (!links.has(key)) links.set(key, reverse);
+      }
+    }
+    if (links.size || outgoing) return [...links.values()];
+  }
+
+  function updateRelationships(profiles, edited) {
+    const previous = profiles.find(profile => profile.id === edited.id);
+    const own = previous?.details?.relationships || [];
+    const visible = relationshipsFor(profiles, edited.id) || [];
+    const submitted = edited.details?.relationships || [];
+    const requested = new Set(submitted.map(relationshipKey));
+    if (requested.size !== submitted.length) throw Error('Esa relación ya está añadida.');
+
+    const existing = new Set(visible.map(relationshipKey));
+    const incomingOwners = new Set(visible.filter(entry => entry.sourceId === entry.targetId).map(entry => entry.sourceId));
+    const additions = new Map();
+    for (const entry of submitted) {
+      if (existing.has(relationshipKey(entry))) continue;
+      const ownerId = entry.sourceId === entry.targetId && incomingOwners.has(entry.sourceId) ? entry.sourceId : edited.id;
+      const entries = additions.get(ownerId) || [];
+      entries.push({ targetId: ownerId === edited.id ? entry.targetId : edited.id, type: entry.type });
+      additions.set(ownerId, entries);
+    }
+    const outgoing = own.filter(entry => requested.has(relationshipKey(entry))).concat(additions.get(edited.id) || []);
+    const saved = { ...edited, details: { ...edited.details } };
+    if (outgoing.length || edited.details?.relationships?.length === 0) saved.details.relationships = outgoing;
+    else delete saved.details.relationships;
+
+    // Se guarda un solo vínculo nuevo por pareja y tipo. Desde cualquiera de las dos fichas se puede cambiar o quitar.
+    const updated = profiles.map(profile => {
+      if (profile === previous) return saved;
+      const stored = profile.details?.relationships;
+      if (!stored?.length) return profile;
+      const kept = stored.filter(entry => entry.targetId !== edited.id || requested.has(relationshipKey({ targetId: profile.id, type: entry.type })));
+      const added = additions.get(profile.id) || [];
+      if (kept.length === stored.length && !added.length) return profile;
+      const details = { ...profile.details };
+      if (kept.length || added.length) details.relationships = kept.concat(added);
+      else delete details.relationships;
+      return { ...profile, details };
+    });
+    if (!previous) updated.push(saved);
+    return updated;
   }
 
   function validate(value, projectIds, ownerId) {
@@ -99,7 +160,7 @@
     return Object.keys(details).length ? details : undefined;
   }
 
-  const api = { fields, relationshipLimit, maxRelationships, validate };
+  const api = { fields, relationshipTypes, maxRelationships, validate, relationshipsFor, updateRelationships };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.PlanoCharacterDetails = api;
 })(globalThis);

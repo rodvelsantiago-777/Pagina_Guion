@@ -28,6 +28,16 @@ const [angela] = S.validateProfiles([{
   id: 'angela-ficha', givenNames: 'Ángela', surnames: 'Gómez', age: '21', sex: 'Femenino',
   role: 'Protagonista', aliases: ['Canelita', 'canelita', 'Ángela', 'Dra. Alba'], primaryAlias: 'canelita', about,
 }]);
+assert.equal(angela.gender, 'Mujer');
+assert.equal(angela.sex, undefined);
+const legacyProfile = { ...angela };
+delete legacyProfile.gender;
+assert.equal(S.validateProfiles([{ ...legacyProfile, sex: 'Masculino' }])[0].gender, 'Hombre');
+const [intersex] = S.validateProfiles([{ ...legacyProfile, sex: 'Intersexual' }]);
+assert.equal(intersex.gender, '');
+assert.equal(intersex.sex, 'Intersexual');
+assert.deepEqual(S.validateProfiles([{ ...intersex, gender: 'No binario' }]), [{ ...intersex, gender: 'No binario' }]);
+assert.throws(() => S.validateProfiles([{ ...angela, gender: 'Intersexual' }]), /género válido/);
 assert.deepEqual(S.characterForms(angela), ['Ángela Gómez', 'Ángela', 'Canelita', 'Dra. Alba']);
 assert.deepEqual(S.analyze(script).characters.map(item => item.name), ['DOROTEA', 'ÁNGELA', 'VECINA']);
 const analysis = S.analyze(script, [angela]);
@@ -67,6 +77,16 @@ assert.throws(() => S.validateProfiles([expanded]), /otro personaje de este proy
 assert.throws(() => S.validateProfiles([{ ...expanded, details: { ...expanded.details, personalityType: 'NNNN' } }, twin]), /opción válida/);
 assert.throws(() => S.validateProfiles([{ ...expanded, details: { relationships: [{ targetId: angela.id, type: 'Rival' }] } }]), /otro personaje de este proyecto/);
 const withDetails = S.validateProfiles([expanded, twin]);
+const legacyReverse = Details.relationshipsFor(withDetails, twin.id);
+assert.deepEqual(legacyReverse, [{ targetId: angela.id, type: 'Hermana', sourceId: angela.id }]);
+const keptLegacy = S.validateProfiles(Details.updateRelationships(withDetails, { ...twin, details: { relationships: legacyReverse } }));
+assert.deepEqual(keptLegacy, withDetails, 'Guardar desde la otra ficha conserva una sola descripción antigua');
+const categorized = S.validateProfiles(Details.updateRelationships(withDetails, { ...twin, details: { relationships: [{ ...legacyReverse[0], type: 'Familia' }] } }));
+assert.deepEqual(categorized[0].details.relationships, [{ targetId: twin.id, type: 'Familia' }]);
+assert.equal(categorized[1].details, undefined, 'Cambiar el tipo desde la otra ficha mantiene un solo registro');
+const legacyDuplicates = [withDetails[0], { ...twin, details: { relationships: [{ targetId: angela.id, type: 'Hermana' }] } }];
+assert.equal(Details.relationshipsFor(legacyDuplicates, twin.id).length, 1);
+assert.throws(() => Details.updateRelationships(withDetails, { ...twin, details: { relationships: [...legacyReverse, ...legacyReverse] } }), /ya está añadida/);
 const payload = { version: 1, screenplay: script, annotations: [], corrections: [], crew: {}, characterProfiles: withDetails };
 const packed = Archive.stringify({ name: 'La visita', documentName: 'La visita.plano', payload });
 assert.deepEqual(Archive.parse(packed).payload.characterProfiles, withDetails);
@@ -92,12 +112,18 @@ async function run() {
     await page.locator('#open-project-characters').click();
     const cards = page.locator('#character-list');
     await cards.getByRole('button', { name: /ÁNGELA/ }).click();
-    const dialog = page.getByRole('dialog', { name: 'Ficha de personaje' });
+    const fromScript = page.getByRole('dialog', { name: 'ÁNGELA', exact: true });
+    assert.equal(await fromScript.getByRole('textbox').count(), 0);
+    assert.equal(await fromScript.getByRole('heading', { name: 'Información adicional' }).count(), 0);
+    await fromScript.getByRole('button', { name: 'Editar personaje' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Editar personaje' });
     assert.equal(await dialog.getByLabel('Nombre(s)', { exact: true }).inputValue(), 'ÁNGELA');
     await dialog.getByLabel('Nombre(s)', { exact: true }).fill('Ángela');
     await dialog.getByLabel('Apellido(s)').fill('Gómez');
-    await dialog.getByLabel('Edad').fill('21');
-    await dialog.getByLabel('Sexo').selectOption('Femenino');
+    await dialog.getByLabel('Edad', { exact: true }).fill('21');
+    const gender = dialog.getByLabel('Género', { exact: true });
+    assert.deepEqual(await gender.locator('option').allTextContents(), ['Sin definir', 'Mujer', 'Hombre', 'No binario', 'Género fluido', 'Agénero', 'Otro género']);
+    await gender.selectOption('Mujer');
     await dialog.getByLabel('Rol en la historia').selectOption('Protagonista');
     const aboutField = dialog.getByLabel('Acerca de', { exact: true });
     const aboutCount = dialog.locator('#character-about-count');
@@ -108,28 +134,51 @@ async function run() {
     assert.equal((await aboutField.inputValue()).length, S.characterAboutLimit);
     assert.equal(await aboutCount.textContent(), '300 de 300 caracteres');
     await aboutField.fill(about);
-    await dialog.getByLabel('Nuevo apodo').fill('Canelita');
-    await dialog.getByRole('button', { name: 'Añadir apodo' }).click();
-    assert.deepEqual(await dialog.locator('.character-tag').allTextContents(), ['Ángela Gómez', 'Ángela', 'Canelita×']);
+    const addAlias = dialog.getByRole('button', { name: 'Añadir apodo', exact: true });
+    const aliasInput = dialog.getByRole('textbox', { name: 'Nuevo apodo', exact: true });
+    assert(await aliasInput.isHidden());
+    await addAlias.click();
+    assert(await aliasInput.evaluate(input => input === document.activeElement && input.closest('.character-tag')));
+    await aliasInput.fill('Canelita');
+    await aliasInput.press('Enter');
+    assert(await aliasInput.isHidden());
+    assert.deepEqual(await dialog.locator('.character-tag-list .character-tag').allTextContents(), ['Ángela Gómez', 'Ángela', 'Canelita×']);
+    await addAlias.click();
+    await aliasInput.fill('???');
+    await aliasInput.press('Enter');
+    assert(await dialog.getByText('Escribe un apodo válido.').isVisible());
+    await aliasInput.press('Escape');
+    assert(await dialog.isVisible());
+    assert(await aliasInput.isHidden());
     await dialog.getByLabel('Apodo principal', { exact: true }).selectOption('Canelita');
-    const addField = dialog.getByRole('button', { name: 'Añadir campo', exact: false }).first();
-    const fieldPicker = dialog.getByLabel('Campo de información adicional', { exact: true });
+    const addField = dialog.getByRole('button', { name: 'Añadir campo', exact: true });
+    const fieldPicker = dialog.getByRole('list', { name: 'Campos disponibles' });
+    const fieldTag = key => fieldPicker.getByRole('button', { name: 'Añadir ' + Details.fields.get(key).label, exact: true });
     async function addDetail(key) {
-      await addField.click();
-      await fieldPicker.selectOption(key);
+      await fieldTag(key).click();
     }
-    await addField.click();
-    assert.equal(await fieldPicker.locator('optgroup').count(), 0);
-    assert.equal(await fieldPicker.locator(':scope > option').count(), 33);
-    const fieldOrder = await fieldPicker.locator('option').evaluateAll(options => options.map(option => option.value));
-    assert.deepEqual(fieldOrder.slice(fieldOrder.indexOf('want'), fieldOrder.indexOf('want') + 4), ['want', 'need', 'internalGoal', 'externalGoal']);
-    assert.equal(fieldOrder[fieldOrder.indexOf('height') + 1], 'weight');
-    await fieldPicker.selectOption('relationships');
+    assert.equal(await addField.getAttribute('aria-expanded'), 'false');
+    await addField.press('Enter');
+    assert.equal(await addField.getAttribute('aria-expanded'), 'true');
+    const choices = [...Details.fields.values()].map(field => 'Añadir ' + field.label);
+    assert.deepEqual(await fieldPicker.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))), choices);
+    assert(await fieldPicker.evaluate(picker => {
+      const panel = picker.getBoundingClientRect(), body = picker.closest('.character-dialog-body').getBoundingClientRect();
+      return panel.top >= body.top - 1 && panel.bottom <= body.bottom + 1;
+    }), 'En escritorio se ven todas las etiquetas al desplegarlas');
+    await page.screenshot({ path: path.join(out, 'campos-personaje-etiquetas.png') });
+    await fieldTag('relationships').press('Space');
+    assert(await fieldPicker.isVisible());
+    assert.equal(await fieldTag('relationships').count(), 0);
     await dialog.getByRole('button', { name: 'Añadir relación' }).click();
     const relationTarget = dialog.getByLabel('Personaje', { exact: true });
     assert.equal(await relationTarget.locator('option').filter({ hasText: 'ÁNGELA' }).count(), 0);
     await relationTarget.selectOption({ label: 'DOROTEA' });
-    await dialog.getByLabel('Tipo de vínculo', { exact: true }).fill('Amiga de la infancia');
+    const relationType = dialog.getByLabel('Tipo de vínculo', { exact: true });
+    assert.deepEqual(await relationType.locator('option').allTextContents(), ['Elegir vínculo', ...Details.relationshipTypes]);
+    await relationType.selectOption('Amistad');
+    await addDetail('startStatus');
+    await dialog.getByLabel('Estado al inicio de la historia', { exact: true }).selectOption('Vivo');
     await addDetail('arc');
     await dialog.getByLabel('Arco de personaje', { exact: true }).selectOption('Redención');
     await addDetail('orientation');
@@ -142,31 +191,70 @@ async function run() {
     await addDetail('need');
     const fieldLabels = dialog.locator('#character-extra-fields > .character-extra-field > .character-extra-field-heading > :is(label, strong)');
     assert.deepEqual(await fieldLabels.allTextContents(), [
-      'Arco de personaje', '¿Qué quiere?', '¿Qué necesita?', 'Relaciones', 'Orientación sexual', 'Tipo de personalidad (MBTI)',
+      'Estado al inicio de la historia', 'Arco de personaje', '¿Qué quiere?', '¿Qué necesita?', 'Relaciones', 'Orientación sexual', 'Tipo de personalidad (MBTI)',
     ]);
     assert.equal(await dialog.locator('#character-extra-fields :is(h3, h4, fieldset)').count(), 0);
     await dialog.getByRole('button', { name: 'Quitar campo ¿Qué necesita?', exact: true }).click();
     assert(await dialog.getByLabel('¿Qué necesita?', { exact: true }).isHidden());
-    await page.screenshot({ path: path.join(out, 'ficha-personaje.png') });
+    assert(await fieldTag('need').isVisible());
+    await addDetail('height');
+    assert(await fieldPicker.isVisible());
+    async function checkFieldColumns() {
+      const layout = await dialog.locator('#character-extra-fields').evaluate(grid => {
+        const control = key => grid.querySelector('#character-detail-' + key);
+        const box = key => control(key).closest('.character-extra-field').getBoundingClientRect();
+        const beside = (a, b) => Math.abs(a.top - b.top) < 1 && a.right < b.left && Math.abs(a.width - b.width) < 1;
+        return {
+          shortFieldsShareRows: beside(box('startStatus'), box('arc')) && beside(box('orientation'), box('personalityType')),
+          selectsAlign: beside(control('startStatus').getBoundingClientRect(), control('arc').getBoundingClientRect()),
+          selectsKeepHeight: control('orientation').offsetHeight === control('personalityType').offsetHeight,
+          longFieldsUseBothColumns: ['want', 'relationships'].every(key => Math.abs(box(key).width - grid.clientWidth) < 1),
+        };
+      });
+      assert.deepEqual(layout, { shortFieldsShareRows: true, selectsAlign: true, selectsKeepHeight: true, longFieldsUseBothColumns: true });
+    }
+    await checkFieldColumns();
+    await dialog.locator('#character-extra-fields').evaluate(grid => grid.scrollIntoView({ block: 'start' }));
+    await page.screenshot({ path: path.join(out, 'editar-personaje.png') });
     await dialog.getByRole('button', { name: 'Guardar personaje' }).click();
     await dialog.waitFor({ state: 'hidden' });
+    const ficha = page.getByRole('dialog', { name: 'Ángela Gómez' });
+    const basics = ficha.getByRole('region', { name: 'Datos básicos' });
+    const extra = ficha.getByRole('region', { name: 'Información adicional' });
+    assert.equal(await ficha.getByRole('textbox').count(), 0);
+    assert.deepEqual(await basics.locator('dt').allTextContents(), ['Nombre(s)', 'Apellido(s)', 'Edad', 'Género', 'Rol en la historia', 'Apodos y formas de nombrarlo', 'Acerca de']);
+    assert.deepEqual(await basics.locator('dd').allTextContents(), ['Ángela', 'Gómez', '21', 'Mujer', 'Protagonista', 'Ángela GómezÁngelaCanelita Principal', about]);
+    assert.deepEqual(await extra.locator('dt').allTextContents(), ['Estado al inicio de la historia', 'Arco de personaje', '¿Qué quiere?', 'Relaciones', 'Orientación sexual', 'Tipo de personalidad (MBTI)', 'Altura']);
+    assert.equal(await extra.locator('dl > div').filter({ hasText: 'Altura' }).locator('dd').textContent(), '—');
+    assert.match(await extra.textContent(), /DOROTEA · Amistad/);
+    await page.screenshot({ path: path.join(out, 'ficha-personaje.png') });
+    await ficha.getByRole('button', { name: 'Cerrar ficha' }).click();
     const angelaCard = cards.getByRole('button', { name: /Ángela Gómez/ });
-    await angelaCard.waitFor();
+    await page.waitForFunction(() => document.activeElement?.matches('.character-card') && document.activeElement.textContent.includes('Ángela Gómez'));
     assert.match(await angelaCard.textContent(), /Protagonista.*2 menciones · 1 diálogo/);
     const linked = await page.evaluate(() => state.characterProfiles);
     const savedAngela = linked.find(item => item.givenNames === 'Ángela');
     const savedDorotea = linked.find(item => item.givenNames === 'DOROTEA');
     assert.deepEqual(savedAngela.details, {
-      relationships: [{ targetId: savedDorotea.id, type: 'Amiga de la infancia' }],
-      arc: 'Redención', orientation: 'Fluida', personalityType: 'INFP-T', want: 'Encontrar la carta.',
+      relationships: [{ targetId: savedDorotea.id, type: 'Amistad' }],
+      startStatus: 'Vivo', arc: 'Redención', orientation: 'Fluida', personalityType: 'INFP-T', want: 'Encontrar la carta.', height: '',
     });
     assert.deepEqual(await page.evaluate(() => state.screenplay), original);
     await page.screenshot({ path: path.join(out, 'personajes-proyecto.png') });
     await cards.getByRole('button', { name: /DOROTEA/ }).click();
+    const reciprocal = page.getByRole('dialog', { name: 'DOROTEA', exact: true });
+    await reciprocal.getByText('Ángela Gómez · Amistad', { exact: true }).waitFor();
+    await reciprocal.getByRole('button', { name: 'Editar personaje' }).click();
     await dialog.getByLabel('Nombre(s)', { exact: true }).fill('Dorotea');
     await dialog.getByLabel('Apellido(s)', { exact: true }).fill('Acosta');
+    assert.equal(await relationType.inputValue(), 'Amistad');
+    await relationType.selectOption('Familia');
     await dialog.getByRole('button', { name: 'Guardar personaje' }).click();
-    await cards.getByRole('button', { name: /Dorotea Acosta/ }).waitFor();
+    const doroteaProfile = page.getByRole('dialog', { name: 'Dorotea Acosta' });
+    const doroteaCard = cards.getByRole('button', { name: /Dorotea Acosta/ });
+    await doroteaProfile.getByText('Ángela Gómez · Familia', { exact: true }).waitFor();
+    await doroteaProfile.getByRole('button', { name: 'Cerrar ficha' }).click();
+    await doroteaCard.waitFor();
     await page.locator('#characters-back').click();
     await page.locator('[data-project-stage=writing]').click();
     await page.locator('#writer-characters-tab').click();
@@ -210,9 +298,12 @@ async function run() {
     await page.locator('.script-card-open').click();
     await page.locator('#open-project-characters').click();
     await angelaCard.click();
+    assert.match(await extra.textContent(), /Dorotea Acosta · Familia/);
+    assert.equal(await page.evaluate(() => state.characterProfiles.flatMap(profile => profile.details?.relationships || []).length), 1);
+    await ficha.getByRole('button', { name: 'Editar personaje' }).click();
     assert.equal(await dialog.getByLabel('Apellido(s)').inputValue(), 'Gómez');
-    assert.equal(await dialog.getByLabel('Edad').inputValue(), '21');
-    assert.equal(await dialog.getByLabel('Sexo').inputValue(), 'Femenino');
+    assert.equal(await dialog.getByLabel('Edad', { exact: true }).inputValue(), '21');
+    assert.equal(await gender.inputValue(), 'Mujer');
     assert.equal(await dialog.getByLabel('Rol en la historia').inputValue(), 'Protagonista');
     assert.equal(await aboutField.inputValue(), about);
     assert.equal(await aboutCount.textContent(), about.length + ' de 300 caracteres');
@@ -221,15 +312,39 @@ async function run() {
     assert.equal(await dialog.getByLabel('¿Qué quiere?', { exact: true }).inputValue(), 'Encontrar la carta.');
     assert.equal(await dialog.getByLabel('Personaje', { exact: true }).inputValue(), savedDorotea.id);
     assert.equal(await dialog.getByLabel('Personaje', { exact: true }).locator('option:checked').textContent(), 'Dorotea Acosta');
-    assert.equal(await dialog.getByLabel('Tipo de vínculo', { exact: true }).inputValue(), 'Amiga de la infancia');
+    assert.equal(await relationType.inputValue(), 'Familia');
     await page.setViewportSize({ width: 390, height: 700 });
+    await checkFieldColumns();
     assert(await dialog.evaluate(node => {
       const body = node.querySelector('.character-dialog-body');
       const footer = node.querySelector('footer').getBoundingClientRect();
       return body.scrollHeight > body.clientHeight && body.scrollWidth === body.clientWidth && footer.bottom <= innerHeight;
     }));
+    await addField.click();
+    assert(await fieldPicker.evaluate(picker => picker.scrollWidth === picker.clientWidth));
+    await addField.click();
+    assert.equal(await addField.getAttribute('aria-expanded'), 'false');
+    await dialog.getByLabel('Edad', { exact: true }).fill('99');
     await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    assert.equal(await basics.getByText('21', { exact: true }).count(), 1);
+    assert(await ficha.evaluate(node => node.scrollWidth === node.clientWidth && node.getBoundingClientRect().bottom <= innerHeight));
+    await page.screenshot({ path: path.join(out, 'ficha-personaje-movil.png') });
+    await ficha.getByRole('button', { name: 'Editar personaje' }).click();
+    assert.equal(await dialog.getByLabel('Edad', { exact: true }).inputValue(), '21');
+    await page.keyboard.press('Escape');
+    await ficha.waitFor();
+    await page.keyboard.press('Escape');
+    await ficha.waitFor({ state: 'hidden' });
     await page.setViewportSize({ width: 1280, height: 900 });
+    await doroteaCard.click();
+    await doroteaProfile.getByRole('button', { name: 'Editar personaje' }).click();
+    await dialog.getByRole('button', { name: 'Quitar relación 1' }).click();
+    await dialog.getByRole('button', { name: 'Guardar personaje' }).click();
+    await doroteaProfile.getByRole('button', { name: 'Cerrar ficha' }).click();
+    await angelaCard.click();
+    assert.equal(await ficha.getByText('Dorotea Acosta · Familia', { exact: true }).count(), 0);
+    assert.equal(await page.evaluate(() => state.characterProfiles.flatMap(profile => profile.details?.relationships || []).length), 0);
+    await ficha.getByRole('button', { name: 'Cerrar ficha' }).click();
 
     await page.evaluate(() => createNativeScript(PlanoScreenplay.create('Otro proyecto')));
     await page.locator('#editor-home').click();
@@ -240,15 +355,19 @@ async function run() {
     const create = page.getByRole('dialog', { name: 'Nuevo personaje' });
     await create.getByLabel('Nombre(s)', { exact: true }).fill('Lucía');
     await create.getByLabel('Apellido(s)').fill('Ríos');
+    await create.getByLabel('Género', { exact: true }).selectOption('No binario');
+    await create.getByRole('button', { name: 'Añadir apodo' }).click();
     await create.getByLabel('Nuevo apodo').fill('Luci');
+    await create.getByLabel('Apellido(s)', { exact: true }).click();
+    assert(await create.getByRole('button', { name: 'Quitar apodo Luci', exact: true }).isVisible());
+    await create.getByLabel('Apodo principal', { exact: true }).selectOption('Luci');
     await create.getByRole('button', { name: 'Añadir apodo' }).click();
     await create.getByLabel('Nuevo apodo').fill('Lu');
-    await create.getByRole('button', { name: 'Añadir apodo' }).click();
-    await create.getByLabel('Apodo principal', { exact: true }).selectOption('Luci');
     await create.getByRole('button', { name: 'Guardar personaje' }).click();
     await cards.getByRole('button', { name: /Lucía/ }).waitFor();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem(state.key)).characterProfiles);
-    assert.deepEqual(saved.map(item => [item.givenNames, item.primaryAlias]), [['Lucía', 'Luci']]);
+    assert.deepEqual(saved.map(item => [item.givenNames, item.primaryAlias, item.gender]), [['Lucía', 'Luci', 'No binario']]);
+    assert.deepEqual(saved[0].aliases, ['Luci', 'Lu']);
     await page.locator('#characters-back').click();
     await page.locator('[data-project-stage=writing]').click();
     await page.locator('#writer-characters-tab').click();
@@ -265,8 +384,26 @@ async function run() {
     await lucia.getByRole('button', { name: /No esperaba verte\./ }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth));
+    const olderProject = JSON.parse(packed);
+    olderProject.project.payload.characterProfiles = [{ ...legacyProfile, sex: 'Intersexual' }];
+    olderProject.project.payload.proofreading = { enabled: false, dictionary: '', ignored: [] };
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('#file-input').setInputFiles({ name: 'Anterior.plano', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(olderProject)) });
+    await page.waitForFunction(() => state.screenplay?.title === 'La visita' && !state.busy);
+    await page.locator('#editor-home').click();
+    await page.locator('.script-card-open').click();
+    await page.locator('#open-project-characters').click();
+    await angelaCard.click();
+    const previousData = basics.getByText('Dato anterior · Intersexual', { exact: true });
+    await previousData.waitFor();
+    await ficha.getByRole('button', { name: 'Editar personaje' }).click();
+    assert.equal(await gender.inputValue(), '');
+    await gender.selectOption('Género fluido');
+    await dialog.getByRole('button', { name: 'Guardar personaje' }).click();
+    await previousData.waitFor();
+    assert.deepEqual(await page.evaluate(() => state.characterProfiles.map(({ gender, sex }) => ({ gender, sex }))), [{ gender: 'Género fluido', sex: 'Intersexual' }]);
     assert.deepEqual(errors, []);
-    console.log('OK: fichas, apodos, diálogos, 32 campos opcionales, relaciones estables al renombrar, móvil y copia .plano.');
+    console.log('OK: lectura antes de editar, género y fichas antiguas, apodos, diálogos, campos opcionales, relaciones y móvil.');
   } finally {
     await browser.close();
   }

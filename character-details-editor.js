@@ -29,25 +29,61 @@
 
   function create(section) {
     const add = section.querySelector('#character-add-field');
+    const actions = add.parentElement;
     const picker = section.querySelector('#character-field-picker');
+    const empty = picker.querySelector('.character-field-empty');
+    const scroll = section.closest('.character-dialog-body');
     const output = section.querySelector('#character-extra-fields');
     let details = {}, targets = [];
     const customFields = new Set();
+    const options = new Map();
+
+    function buildPicker() {
+      const items = document.createDocumentFragment();
+      for (const field of catalog.fields.values()) {
+        const item = make('li');
+        const button = make('button', 'character-field-tag');
+        const plus = make('span', 'character-field-tag-plus', '+');
+        button.type = 'button';
+        button.setAttribute('aria-label', 'Añadir ' + field.label);
+        plus.setAttribute('aria-hidden', 'true');
+        button.append(plus, field.label);
+        button.addEventListener('click', () => chooseField(field, button));
+        item.append(button);
+        items.append(item);
+        options.set(field.id, { item, button });
+      }
+      picker.append(items);
+      renderPicker();
+    }
 
     function showPicker(open) {
+      if (open && !options.size) buildPicker();
       picker.hidden = !open;
       add.setAttribute('aria-expanded', String(open));
-      if (open) picker.focus();
+      if (open) actions.scrollIntoView({ block: actions.offsetHeight > scroll.clientHeight ? 'start' : 'nearest' });
     }
 
     function renderPicker() {
-      const options = [new Option('Elige un campo', '')];
-      for (const field of catalog.fields.values()) {
-        if (!Object.hasOwn(details, field.id)) options.push(new Option(field.label, field.id));
+      let hasChoices = false;
+      for (const [id, { item }] of options) {
+        item.hidden = Object.hasOwn(details, id);
+        if (!item.hidden) hasChoices = true;
       }
-      picker.replaceChildren(...options);
-      add.disabled = options.length === 1;
-      if (add.disabled) showPicker(false);
+      empty.hidden = hasChoices;
+    }
+
+    function chooseField(field, button) {
+      if (Object.hasOwn(details, field.id)) return;
+      const available = [...picker.querySelectorAll('li:not([hidden]) button')];
+      const index = available.indexOf(button);
+      const next = available[index + 1] || available[index - 1] || add;
+      const top = picker.getBoundingClientRect().top;
+      details[field.id] = field.kind === 'relationships' ? [] : '';
+      render();
+      // Los campos aparecen encima del catálogo. Mantén las etiquetas a la vista.
+      scroll.scrollTop += picker.getBoundingClientRect().top - top;
+      next.focus();
     }
 
     function customInput(field, select, body) {
@@ -103,6 +139,11 @@
 
     function relationshipField(body) {
       const relations = details.relationships;
+      const addRelation = make('button', 'workspace-button character-add-relation', '+ Añadir relación');
+      function updateAddRelation() {
+        const outgoing = relations.filter(relation => relation.sourceId !== relation.targetId).length;
+        addRelation.disabled = !targets.length || outgoing >= catalog.maxRelationships;
+      }
       for (const [index, relation] of relations.entries()) {
         const row = make('div', 'character-relation-row');
         const person = make('select');
@@ -110,14 +151,26 @@
         person.required = true;
         person.append(new Option('Seleccionar personaje', ''), ...targets.map(target => new Option(target.name, target.id)));
         person.value = relation.targetId;
-        person.addEventListener('change', () => { relation.targetId = person.value; });
-        const type = make('input');
+        const type = make('select');
         type.id = 'character-relation-type-' + index;
         type.required = true;
-        type.maxLength = catalog.relationshipLimit;
-        type.placeholder = 'Ej. Hermana, mentor, rival';
+        type.append(new Option('Elegir vínculo', ''), ...catalog.relationshipTypes.map(name => new Option(name, name)));
+        let legacy;
+        if (relation.type && !catalog.relationshipTypes.includes(relation.type)) {
+          const description = relation.sourceId === relation.targetId ? ' (desde su ficha)' : ' (descripción anterior)';
+          legacy = new Option(relation.type + description, relation.type);
+          type.append(legacy);
+        }
         type.value = relation.type;
-        type.addEventListener('input', () => { relation.type = type.value; });
+        type.addEventListener('change', () => { relation.type = type.value; });
+        person.addEventListener('change', () => {
+          relation.targetId = person.value;
+          updateAddRelation();
+          if (!legacy) return;
+          if (type.value === legacy.value) type.value = relation.type = '';
+          legacy.remove();
+          legacy = null;
+        });
         const remove = removeButton('Quitar relación ' + (index + 1), () => {
           relations.splice(index, 1);
           render();
@@ -130,10 +183,9 @@
         row.append(personField, typeField, remove);
         body.append(row);
       }
-      const addRelation = make('button', 'workspace-button character-add-relation', '+ Añadir relación');
       addRelation.type = 'button';
       addRelation.id = controlId('relationships');
-      addRelation.disabled = !targets.length || relations.length >= catalog.maxRelationships;
+      updateAddRelation();
       addRelation.addEventListener('click', () => {
         relations.push({ targetId: '', type: '' });
         render();
@@ -146,18 +198,22 @@
     function renderField(field) {
       const isRelationships = field.kind === 'relationships';
       const box = make('div', 'character-extra-field');
-      if (isRelationships || field.kind === 'textarea' || field.customLabel || field.label.length > 25) box.classList.add('character-wide');
+      box.classList.toggle('character-wide', isRelationships || field.kind === 'textarea');
       const heading = make('div', 'character-extra-field-heading');
       const remove = removeButton('Quitar campo ' + field.label, () => {
         delete details[field.id];
         customFields.delete(field.id);
         render();
-        (picker.hidden ? add : picker).focus();
+        (picker.hidden ? add : options.get(field.id).button).focus();
       });
       heading.append(isRelationships ? make('strong', '', field.label) : label(controlId(field.id), field.label), remove);
       box.append(heading);
       if (isRelationships) relationshipField(box);
-      else scalarField(field, box);
+      else {
+        const controls = make('div', 'character-extra-field-controls');
+        scalarField(field, controls);
+        box.append(controls);
+      }
       return box;
     }
 
@@ -171,15 +227,6 @@
     }
 
     add.addEventListener('click', () => showPicker(picker.hidden));
-    picker.addEventListener('change', () => {
-      const field = catalog.fields.get(picker.value);
-      if (!field) return;
-      details[field.id] = field.kind === 'relationships' ? [] : '';
-      showPicker(false);
-      render();
-      const control = document.getElementById(controlId(field.id));
-      (control.disabled ? control.closest('.character-extra-field').querySelector('.character-detail-remove') : control).focus();
-    });
 
     return {
       open(values, choices) {

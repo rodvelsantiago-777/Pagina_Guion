@@ -4,10 +4,11 @@
  const S=typeof module==='object'&&module.exports?require('./screenplay.js'):root.PlanoScreenplay;
  const V=typeof module==='object'&&module.exports?require('./screenplay-versions.js'):root.PlanoScreenplayVersions;
  const formats={short:'Cortometraje',feature:'Largometraje'},limits={genre:120,target:160,country:80,language:80};
+ const genres=['Drama','Comedia','Terror','Thriller','Ciencia ficción','Acción','Romance','Fantasía','Animación'];
  const genreAliases={
   drama:'drama',dramatico:'drama',comedia:'comedy',humor:'comedy',
   terror:'horror',horror:'horror',suspenso:'thriller',suspense:'thriller',thriller:'thriller',
-  'ciencia ficcion':'scifi',scifi:'scifi','sci fi':'scifi',documental:'documentary',
+  'ciencia ficcion':'scifi',scifi:'scifi','sci fi':'scifi',
   accion:'action',aventura:'action',romance:'romance',romantico:'romance',romantica:'romance',
   fantasia:'fantasy',fantastico:'fantasy',fantastica:'fantasy',animacion:'animation'
  };
@@ -28,6 +29,7 @@
   const clean={version:1};
   const symbol=emoji(value.emoji);if(symbol)clean.emoji=symbol;
   for(const [key,max]of Object.entries(limits)){if(typeof value[key]!=='string'||value[key].length>max||/[\u0000-\u001f\u007f]/.test(value[key]))throw Error('Revisa los datos de la ficha del proyecto.');clean[key]=value[key].trim();}
+  if(/^(?:suspenso|suspense|thriller)$/i.test(clean.genre))clean.genre='Thriller';
   if(value.estimatedMinutes!==null&&(!Number.isFinite(value.estimatedMinutes)||value.estimatedMinutes<.1||value.estimatedMinutes>1440))throw Error('La duración estimada debe estar entre 0,1 y 1440 minutos.');
   return{...clean,format:value.format,estimatedMinutes:value.estimatedMinutes,completed:value.completed};
  }
@@ -52,7 +54,6 @@
   use.setAttribute('href','#i-folder');svg.append(use);container.replaceChildren(svg);
  };
  api.editor=function({owner,create,save,loadEmojis}){
-  const genres=['Drama','Comedia','Terror','Suspenso','Ciencia ficción','Documental','Acción','Romance','Fantasía','Animación'];
   const dialog=document.createElement('dialog');dialog.id='new-script-dialog';dialog.className='project-info-dialog';dialog.setAttribute('aria-labelledby','new-script-title');
   dialog.innerHTML=`<form id="project-info-form"><header><div><p class="dialog-eyebrow" id="project-info-eyebrow">TU PRÓXIMA HISTORIA</p><h2 id="new-script-title">Nuevo proyecto</h2><p class="project-info-lead">Define la ficha de tu historia. Podrás completarla o ajustarla después.</p></div><button id="cancel-new-script" class="shot-close" type="button" aria-label="Cerrar ficha del proyecto">×</button></header>
    <div class="project-info-fields"><div class="project-identity project-info-wide"><div class="project-icon-field"><span>Icono</span><button id="project-icon-button" type="button" title="Elegir icono del proyecto" aria-label="Elegir icono del proyecto" aria-expanded="false" aria-controls="project-emoji-picker" popovertarget="project-emoji-picker"><span id="project-icon-preview" aria-hidden="true"></span></button></div><label>Nombre del proyecto<input id="project-info-name" required maxlength="120" autocomplete="off" placeholder="Título del proyecto"></label>
