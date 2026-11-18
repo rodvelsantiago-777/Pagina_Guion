@@ -34,7 +34,9 @@ El generador incorpora esta organización también a las notas históricas ident
 
 Escribe una frase breve por cambio, sin detalles internos ni repetir cómo se guardan o reconstruyen los datos. Para agrupar formatos, usa el mismo `group` y `text`, y un `detail` diferente en cada entrada; `detailOrder` fija su orden en la lista.
 
-Si no se añadieron entradas, el flujo prepara un resumen breve de las áreas modificadas; prioriza los mensajes explícitos `fix:` y `feat:` frente a títulos genéricos de commits. Ese resumen describe las áreas actualizadas; no interpreta por sí solo todos los detalles del código. Los textos del registro permiten ofrecer explicaciones más precisas a los usuarios.
+El flujo usa el registro editorial y, cuando falta una entrada, los mensajes explícitos `fix:` y `feat:`. Si tampoco hay mensajes explícitos, el aviso dice «Actualización de PLANO.».
+
+Para sustituir una nota publicada, añade a la entrada correcta un campo `replaces` con `day` (fecha de la publicación en Colombia) y `text` (el texto exacto que se publicó). Una publicación dedicada a esa corrección conserva la fecha y el número de versión.
 
 El `release-notes.json` vacío de la carpeta de trabajo es intencional: un cambio local todavía no se ha publicado. GitHub Actions lo sustituye dentro del paquete de publicación. Los archivos generados quedan en `_site/`, que no se añade a Git.
 

@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const {makeRelease}=require('../tools/build-pages.cjs'),{releases}=require('../patch-notes.js');
 const root=fs.mkdtempSync(path.join(__dirname,'.output/editorial-git-')),git=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();git(['init']);git(['config','user.name','Prueba']);git(['config','user.email','test@example.invalid']);
-function commit(entries,config){fs.writeFileSync(path.join(root,'release-notes.entries.json'),JSON.stringify({entries}));if(config)fs.writeFileSync(path.join(root,'release-notes.config.json'),JSON.stringify(config));git(['add','.']);git(['commit','-m','Actualización de prueba']);return git(['rev-parse','HEAD']);}
+function commit(entries,config,subject='Actualización de prueba'){fs.writeFileSync(path.join(root,'release-notes.entries.json'),JSON.stringify({entries}));if(config)fs.writeFileSync(path.join(root,'release-notes.config.json'),JSON.stringify(config));git(['add','.']);git(['commit','-m',subject]);return git(['rev-parse','HEAD']);}
 function legacy(id,day,items){return{id,commit:id,publishedAt:day+'T20:00:00Z',version:day.replaceAll('-','.'),sections:[{category:'new',items}]};}
 const base={id:'base',category:'new',text:'Una explicación antigua muy larga sobre el primer cambio.'},library={id:'library',category:'new',text:'Otra explicación extensa sobre los proyectos.'},writer={id:'writer',category:'new',text:'Explicación del nuevo redactor y todos sus detalles técnicos.'},account={id:'account',category:'new',text:'Explicación de la cuenta y sus mecanismos internos.'};
 const first=commit([base]),second=commit([base,library]);
@@ -18,4 +18,28 @@ const next=commit([...short,{id:'fresh',category:'fixed',text:'Corrección nueva
 const trimmed=releases({schema:1,versioning:config,releases:[{id:'later',publishedAt:'2026-11-05T23:00:00Z',sections:[{category:'new',items:['Otro cambio.']}]},tomorrow.releases[0]]});assert.deepEqual(trimmed.map(item=>item.version),['0.2.3','0.2.2'],'No renumera las versiones si falta la parte más antigua del historial');
 const explicit={...config,milestones:[...config.milestones,{day:'2026-11-05',version:'0.3.0'}]};const chosen=commit([...short,{id:'manual',category:'new',text:'Actualización elegida por el propietario.'}],explicit),bump=makeRelease({root,after:chosen,before:next,previous:tomorrow,publishedAt:'2026-11-05T23:00:00Z'});assert.equal(bump.releases[0].version,'0.3.0');assert.equal(bump.releases[1].version,'0.2.2');
 assert.deepEqual(releases({schema:1,releases:[legacy('x','2026-10-22',[{text:'Formatos:',details:['TXT','TXT','<img>']},null,23])]}).at(0).sections[0].items,[{text:'Formatos:',details:['TXT','<img>']}]);
-console.log('OK: 0.1.0 → 0.1.1 → 0.2.0 → 0.2.1, historial resumido sin novedades repetidas, formatos agrupados, incrementos estables y saltos solo explícitos.');
+
+const catalog=[...short,{id:'manual',category:'new',text:'Actualización elegida por el propietario.'}];
+fs.writeFileSync(path.join(root,'shot-colors.js'),'/* Paleta compartida entre apartados */');
+const creatorCommit=commit(catalog,explicit,'Creacion de personajes');
+const creatorDate='2026-11-18T15:27:14.003Z';
+const unlabelled=makeRelease({root,before:chosen,after:creatorCommit,previous:bump,publishedAt:creatorDate});
+assert.deepEqual(unlabelled.releases[0].sections,[{category:'improved',items:['Actualización de PLANO.']}]);
+const incorrect='Actualización de las herramientas de cobertura y anotaciones.';
+const published={...unlabelled,releases:unlabelled.releases.map((item,index)=>index<2?{...item,sections:[
+ ...item.sections.filter(section=>section.category!=='improved'),{category:'improved',items:[incorrect]},
+]}:item)};
+const creator={id:'character-creator',category:'new',topic:'writing',order:32,text:'Creador de personajes.',replaces:{day:'2026-11-18',text:incorrect}};
+const repair=commit([...catalog,creator],explicit,'fix: corregir la nota de la versión');
+const repaired=makeRelease({root,before:creatorCommit,after:repair,previous:published,publishedAt:'2026-11-19T16:00:00Z'});
+assert.deepEqual(repaired.releases.map(({id,version,publishedAt})=>({id,version,publishedAt})),
+ published.releases.map(({id,version,publishedAt})=>({id,version,publishedAt})));
+assert.deepEqual(repaired.releases[0].sections,[{category:'new',items:[{id:creator.id,text:creator.text,topic:'writing',order:32}]}]);
+assert.deepEqual(repaired.releases[1],published.releases[1],'El mismo texto en otra fecha conserva su nota original');
+assert.equal(repaired.releases[0].commit,repair);
+assert.deepEqual(makeRelease({root,after:repair,previous:repaired,publishedAt:'2026-11-20T16:00:00Z'}),repaired);
+const followup=commit([...catalog,creator,{id:'other',category:'fixed',text:'Otra corrección.'}],explicit);
+const combined=makeRelease({root,before:creatorCommit,after:followup,previous:published,publishedAt:'2026-11-19T16:00:00Z'});
+assert.deepEqual(combined.releases[0].sections,[{category:'fixed',items:['Otra corrección.']}]);
+assert.deepEqual(combined.releases[1].sections,repaired.releases[0].sections);
+console.log('OK: corrección histórica en su fecha original, resumen neutro, formatos agrupados y versiones estables.');

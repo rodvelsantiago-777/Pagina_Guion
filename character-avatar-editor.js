@@ -1,30 +1,66 @@
 /* Editor del icono. El borrador se aplica a la ficha al guardar. */
 (function (root) {
   'use strict';
-  const Avatar = root.PlanoCharacterAvatar, Wardrobe = root.PlanoCharacterWardrobe;
-  const features = [
-    ['pelo', 'Peinado', { corto: 'Corto', medio: 'Media melena', largo: 'Largo', 'tres-pelos': 'Tres pelos', calvo: 'Sin cabello' }],
-    ['edad', 'Edad visual', { joven: 'Joven', mayor: 'Mayor' }],
-    ['expresion', 'Expresión facial', { feliz: 'Feliz', triste: 'Triste', serio: 'Serio', enojado: 'Enojado' }],
-    ['vello', 'Vello facial', { ninguno: 'Sin vello facial', barba: 'Barba', bigote: 'Bigote', chivo: 'Barba de chivo' }],
-    ['orejas', 'Orejas', { normales: 'Normales', puntiagudas: 'Puntiagudas (elfo)', ninguna: 'Sin orejas' }],
-    ['colmillos', 'Colmillos', { ninguno: 'Sin colmillos', abajo: 'Hacia abajo', arriba: 'Hacia arriba' }],
-    ['nariz', 'Nariz', { normal: 'Normal', grande: 'Grande y ancha' }],
-    ['formaOjos', 'Forma de ojos', { rasgados: 'Rasgados', abiertos: 'Más abiertos' }],
+  const Avatar = root.PlanoCharacterAvatar, Wardrobe = root.PlanoCharacterWardrobe, Palette = root.PlanoColors;
+  const sharedColors = [
+    '#252730', '#543628', '#765439', '#925939', '#C69B5C', '#E8DED1',
+    ...Palette.presets.map(hex => hex.toUpperCase()),
+  ].map(hex => ({ hex }));
+  const skinColors = [...Avatar.tones.map(({ id, name, color }) => ({ value: id, name, hex: color })), ...sharedColors];
+  const menus = [
+    ['pelo', 'Peinado', { corto: 'Corto', medio: 'Media melena', largo: 'Largo', 'tres-pelos': 'Tres pelos', calvo: 'Sin cabello' }, '22 8 148 148',
+      ['cabello', 'Color de cabello']],
+    ['formaOjos', 'Forma de ojos', { rasgados: 'Rasgados', abiertos: 'Más abiertos' }, '57 49 78 78',
+      ['ojos', 'Color de ojos']],
+    ['expresion', 'Expresión facial', { feliz: 'Feliz', triste: 'Triste', serio: 'Serio', enojado: 'Enojado' }, '56 62 80 80'],
+    ['piel', 'Piel', { ninguno: 'Sin detalle', pecas: 'Pecas', granos: 'Granos', rubor: 'Rubor' }, '59 63 74 74',
+      ['piel', 'Color de piel', skinColors]],
+    ['vestuario', 'Vestuario', Object.fromEntries(Object.entries(Wardrobe.styles).map(([id, item]) => [id, item.label])), null],
+    ['vello', 'Vello facial', { ninguno: 'Sin vello facial', barba: 'Barba', bigote: 'Bigote', chivo: 'Barba de chivo' }, '51 61 90 90',
+      ['cabello', 'Color de cabello y vello']],
+    ['orejas', 'Orejas', { normales: 'Normales', puntiagudas: 'Puntiagudas (elfo)', ninguna: 'Sin orejas' }, '26 29 140 140'],
+    ['nariz', 'Nariz', { normal: 'Normal', grande: 'Grande y ancha' }, '63 65 66 66'],
+    ['cejas', 'Cejas', { true: 'Con cejas', false: 'Sin cejas' }, '55 48 82 82',
+      ['cabello', 'Color de cabello y cejas']],
+    ['gafas', 'Gafas', { true: 'Con gafas', false: 'Sin gafas' }, '49 44 94 94'],
+    ['colmillos', 'Colmillos', { ninguno: 'Sin colmillos', abajo: 'Hacia abajo', arriba: 'Hacia arriba' }, '70 85 52 52'],
+    ['edad', 'Edad visual', { joven: 'Joven', mayor: 'Mayor' }, '52 51 88 88'],
   ];
-  const detail = ['detallePiel', 'Detalle facial', { ninguno: 'Ninguno', pecas: 'Pecas', granos: 'Granos', rubor: 'Rubor' }];
-  const outfit = ['vestuario', 'Vestuario', Object.fromEntries(Object.entries(Wardrobe.styles).map(([key, item]) => [key, item.label]))];
-  const select = ([key, label, choices]) => `<div class="character-avatar-field">
-    <label for="character-avatar-field-${key}">${label}</label><select id="character-avatar-field-${key}" name="${key}">${Object.entries(choices).map(
-    ([value, text]) => `<option value="${value}">${text}</option>`
-  ).join('')}</select></div>`;
-  const toggle = (key, label) => `<label class="character-avatar-toggle"><input type="checkbox" name="${key}"> ${label}</label>`;
-  const color = (key, label = '') => `<div class="character-avatar-color">
-    <button class="color-launch" type="button" data-color-target="character-avatar-color-${key}" aria-haspopup="dialog" aria-controls="color-picker-dialog">
-      <span class="character-avatar-swatch" aria-hidden="true"></span><strong>${label}</strong><code aria-hidden="true"></code>
+  const settingKey = menu => menu === 'piel' ? 'detallePiel' : menu;
+  const booleanKeys = new Set(['cejas', 'gafas']);
+  const choiceValue = (key, value) => booleanKeys.has(key) ? value === 'true' : value;
+  const swatch = ({ hex, value = hex, name = hex }) => `<button type="button" class="character-avatar-color-choice"
+    data-avatar-swatch="${value}" data-hex="${hex}" style="--swatch:${hex}" aria-pressed="false"
+    aria-label="Usar color ${name}" title="${name}"></button>`;
+  const color = (menu, key, label = '', palette = sharedColors) => `<fieldset class="character-avatar-color" data-avatar-color="${key}">
+    <legend>${label}</legend>
+    <div class="character-avatar-swatches">${palette.map(swatch).join('')}</div>
+    <button class="color-launch" type="button" data-custom-color data-color-target="character-avatar-color-${menu}-${key}"
+      aria-label="${label} personalizado" aria-haspopup="dialog" aria-controls="color-picker-dialog">
+      <span class="character-avatar-swatch" aria-hidden="true"></span><strong>Color personalizado</strong><code aria-hidden="true"></code>
     </button>
-    <input type="color" name="${key}" id="character-avatar-color-${key}" hidden>
-  </div>`;
+    <input type="color" name="${key}" id="character-avatar-color-${menu}-${key}" hidden>
+  </fieldset>`;
+
+  function menuMarkup([menu, label, choices, , palette]) {
+    const key = settingKey(menu);
+    const options = Object.entries(choices).map(([value, name]) => `<label class="character-avatar-choice">
+      <input type="radio" name="${key}" value="${value}" aria-label="${name}">
+      <span class="character-avatar-art character-avatar-thumbnail" aria-hidden="true"></span>
+      <span class="character-avatar-choice-name">${name}</span>
+    </label>`).join('');
+    const colors = menu === 'vestuario'
+      ? `<div class="character-avatar-outfit-colors" data-outfit-colors>${Wardrobe.colorKeys.map(key => color(menu, key, '', [])).join('')}</div>`
+        + '<p class="character-avatar-fixed-color" data-fixed-color hidden>Uniforme y gorro blancos</p>'
+      : palette ? color(menu, ...palette) : '';
+    return `<details class="character-avatar-menu" name="plano-character-avatar-options" data-avatar-menu="${menu}">
+      <summary><span>${label}</span><span data-current-option></span><span class="character-avatar-chevron" aria-hidden="true"></span></summary>
+      <div class="character-avatar-menu-body">
+        <div class="character-avatar-choices" role="group" aria-label="${menu === 'piel' ? 'Detalle facial' : label}">${options}</div>
+        ${colors}
+      </div>
+    </details>`;
+  }
 
   function create(parent) {
     const dialog = document.createElement('dialog');
@@ -41,28 +77,7 @@
             <div><span class="character-avatar-art character-avatar-card" data-avatar-preview></span>En la lista</div>
           </div>
         </div>
-        <div class="character-avatar-settings">
-          <div class="character-avatar-fields">
-            ${features.map(select).join('')}${toggle('cejas', 'Cejas')}${toggle('gafas', 'Gafas')}
-          </div>
-          <fieldset>
-            <legend>Piel</legend>
-            <div class="character-avatar-tones">${Avatar.tones.map(tone => `<label title="${tone.name}" style="--tone:${tone.color}">
-              <input type="radio" name="piel" value="${tone.id}" aria-label="${tone.name}"><span aria-hidden="true"></span>
-            </label>`).join('')}</div>
-            ${color('piel', 'Color de piel personalizado')}
-            ${select(detail)}
-          </fieldset>
-          <fieldset>
-            <legend>Colores</legend>
-            <div class="character-avatar-fields">${color('ojos', 'Ojos')}${color('cabello', 'Cabello')}</div>
-          </fieldset>
-          <div class="character-avatar-outfit">
-            ${select(outfit)}
-            <div class="character-avatar-fields" data-outfit-colors>${Wardrobe.colorKeys.map(key => color(key)).join('')}</div>
-            <p data-fixed-color hidden>Uniforme y gorro blancos</p>
-          </div>
-        </div>
+        <div class="character-avatar-settings">${menus.map(menuMarkup).join('')}</div>
       </div>
       <footer>
         <button class="workspace-button character-avatar-reset" type="button" data-avatar-reset>Restablecer</button>
@@ -71,16 +86,24 @@
       </footer>
     </form>`;
     parent.append(dialog);
-    const form = dialog.querySelector('form'), fields = form.elements, title = form.querySelector('h2');
+    const form = dialog.querySelector('form'), title = form.querySelector('h2');
     const settingsPanel = form.querySelector('.character-avatar-settings');
-    const previews = [...form.querySelectorAll('[data-avatar-preview]')];
-    const skinRadios = [...form.querySelectorAll('input[type="radio"][name="piel"]')];
-    const colorRows = new Map([...form.querySelectorAll('.character-avatar-color')].map(row => {
-      const input = row.querySelector('input'), launch = row.querySelector('button');
-      return [input.name, { row, input, launch, label: launch.querySelector('strong'), code: launch.querySelector('code') }];
+    const panels = new Map(menus.map(([menu, , choices, crop]) => {
+      const key = settingKey(menu);
+      const panel = settingsPanel.querySelector(`[data-avatar-menu="${menu}"]`);
+      return [menu, { key, choices, crop, panel, current: panel.querySelector('[data-current-option]'),
+        options: [...panel.querySelectorAll('input[type="radio"]')] }];
     }));
+    const previews = [...form.querySelectorAll('[data-avatar-preview]')];
+    const colorRows = [...form.querySelectorAll('[data-avatar-color]')].map(row => {
+      const input = row.querySelector('input'), launch = row.querySelector('button.color-launch');
+      return { key: input.name, row, input, launch, label: row.querySelector('legend'), swatches: row.querySelector('.character-avatar-swatches'),
+        code: launch.querySelector('code') };
+    });
     const outfitColors = form.querySelector('[data-outfit-colors]'), fixedColor = form.querySelector('[data-fixed-color]');
+    const garmentColors = colorRows.filter(({ key }) => Wardrobe.colorKeys.includes(key));
     const editedPalettes = new Map();
+    const activeMenu = () => panels.get(settingsPanel.querySelector('details[open]')?.dataset.avatarMenu);
     let settings, resolve;
 
     function paint() {
@@ -88,39 +111,56 @@
       for (const preview of previews) preview.innerHTML = graphic;
     }
 
-    function syncColor(key, value) {
-      const { input, launch, code } = colorRows.get(key);
-      input.value = value.toLowerCase();
-      code.textContent = value;
-      root.PlanoColors.syncLaunch(launch);
+    function paintChoices(section) {
+      if (!section?.panel.open) return;
+      const { key, options, crop } = section;
+      const base = { ...Avatar.defaults, pelo: 'calvo', piel: settings.piel, cabello: settings.cabello, ojos: settings.ojos, formaOjos: settings.formaOjos };
+      for (const input of options) {
+        const value = choiceValue(key, input.value);
+        const garment = key === 'vestuario' ? Wardrobe.normalizeColors(value, value === settings.vestuario ? settings : editedPalettes.get(value)) : {};
+        const thumbnail = input.nextElementSibling;
+        thumbnail.innerHTML = Avatar.svg({ ...base, ...garment, [key]: value });
+        if (crop) thumbnail.firstElementChild.setAttribute('viewBox', crop);
+      }
     }
 
-    function syncSkin() {
-      for (const input of skinRadios) input.checked = Number(input.value) === settings.piel;
-      syncColor('piel', Avatar.skinColor(settings.piel));
+    function syncSelection() {
+      for (const { key, choices, current, options } of panels.values()) {
+        current.textContent = choices[settings[key]];
+        for (const input of options) input.checked = input.value === String(settings[key]);
+      }
+    }
+
+    function syncColor({ key, row, input, launch, swatches, code }) {
+      if (row.hidden) return;
+      const hex = key === 'piel' ? Avatar.skinColor(settings.piel) : settings[key];
+      input.value = hex.toLowerCase();
+      code.textContent = hex;
+      Palette.syncLaunch(launch);
+      for (const button of swatches.children) button.setAttribute('aria-pressed', String(button.dataset.hex === hex));
     }
 
     function syncOutfit() {
       const { colors } = Wardrobe.styles[settings.vestuario];
       outfitColors.hidden = !colors.length;
       fixedColor.hidden = Boolean(colors.length);
-      for (const [index, key] of Wardrobe.colorKeys.entries()) {
-        const { row, label } = colorRows.get(key);
+      for (const [index, { row, label, launch, swatches }] of garmentColors.entries()) {
         const choice = colors[index];
         row.hidden = !choice;
         if (!choice) continue;
-        label.textContent = choice[0];
-        syncColor(key, settings[key]);
+        const [name, initial, presets] = choice;
+        label.textContent = name;
+        launch.setAttribute('aria-label', name + ' personalizado');
+        swatches.innerHTML = [initial, ...presets].map(hex => swatch({ hex })).join('');
       }
     }
 
     function syncForm() {
-      for (const [key] of [...features, detail, outfit]) fields[key].value = settings[key];
-      for (const key of ['cejas', 'gafas']) fields[key].checked = settings[key];
-      for (const key of ['ojos', 'cabello']) syncColor(key, settings[key]);
-      syncSkin();
       syncOutfit();
+      syncSelection();
+      colorRows.forEach(syncColor);
       paint();
+      paintChoices(activeMenu());
     }
 
     function changeOutfit(style) {
@@ -131,23 +171,40 @@
       syncOutfit();
     }
 
-    form.addEventListener('change', ({ target }) => {
-      const { name: key, type, value } = target;
-      if (!Object.hasOwn(settings, key)) return;
+    function edit(key, value) {
       if (key === 'vestuario') changeOutfit(value);
-      else {
-        const next = type === 'checkbox' ? target.checked : type === 'radio' ? Number(value) : value;
-        settings = Avatar.normalize({ ...settings, [key]: next });
-        if (key === 'piel') syncSkin();
-        else if (type === 'color') syncColor(key, settings[key]);
-      }
+      else settings = Avatar.normalize({ ...settings, [key]: value });
+      syncSelection();
+      colorRows.forEach(syncColor);
       paint();
+      if (colorRows.some(row => row.key === key) || key === 'formaOjos') paintChoices(activeMenu());
+    }
+
+    settingsPanel.addEventListener('toggle', event => {
+      const section = panels.get(event.target.dataset.avatarMenu);
+      if (!resolve || !section?.panel.open) return;
+      paintChoices(section);
+      const bounds = settingsPanel.getBoundingClientRect(), summary = section.panel.firstElementChild.getBoundingClientRect();
+      if (summary.top < bounds.top) settingsPanel.scrollTop += summary.top - bounds.top;
+      else if (summary.bottom > bounds.bottom) settingsPanel.scrollTop += summary.bottom - bounds.bottom;
+    }, true);
+    form.addEventListener('change', ({ target }) => {
+      if (!Object.hasOwn(settings, target.name)) return;
+      edit(target.name, choiceValue(target.name, target.value));
+    });
+    form.addEventListener('click', event => {
+      const button = event.target.closest('[data-avatar-swatch]');
+      if (!button) return;
+      const key = button.closest('[data-avatar-color]').dataset.avatarColor;
+      const value = button.dataset.avatarSwatch;
+      edit(key, value.startsWith('#') ? value : Number(value));
     });
     form.querySelector('[data-avatar-reset]').addEventListener('click', () => {
       editedPalettes.clear();
       settings = Avatar.normalize();
       syncForm();
     });
+
     function finish(result) {
       if (!resolve) return;
       const complete = resolve;
@@ -175,6 +232,7 @@
       open(value) {
         settings = Avatar.normalize(value);
         editedPalettes.clear();
+        panels.get('pelo').panel.open = true;
         syncForm();
         const completion = new Promise(done => { resolve = done; });
         dialog.showModal();

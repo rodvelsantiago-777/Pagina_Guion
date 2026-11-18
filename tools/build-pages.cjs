@@ -22,6 +22,13 @@ function presentEntries(records){
 }
 function rewordHistory(root,after,history,editorial){
  const current=new Map(editorial.map(item=>[item.id,item])),aliases=new Map(),groups=new Map(editorial.filter(item=>item.group).map(item=>[item.group,item]));
+ const corrections=new Map();
+ for(const entry of editorial){
+  const target=entry.replaces;
+  if(!target?.day||typeof target.text!=='string'||!categories.includes(entry.category)||!noteItem(entry))continue;
+  if(!corrections.has(target.day))corrections.set(target.day,new Map());
+  corrections.get(target.day).set(target.text,entry);
+ }
  let refs=[];try{refs=git(root,['log',after,'--format=%H','--','release-notes.entries.json']).split('\n').slice(0,200);}catch{}
  for(const ref of new Set([after,...history.map(item=>item.commit).filter(Boolean),...refs]))for(const item of readEntries(root,ref)){
   if(typeof item?.text==='string'&&!aliases.has(item.text.trim().slice(0,500)))aliases.set(item.text.trim().slice(0,500),item.id);
@@ -32,7 +39,16 @@ function rewordHistory(root,after,history,editorial){
   if(typeof note==='object'&&Array.isArray(note.details))return{...note,text:entry.text,...editorialMetadata({...entry,id:entry.group||entry.id})};
   return entry;
  }
- return history.map(item=>({...item,sections:item.sections.map(section=>({...section,items:presentEntries(section.items.map(rewrite))}))}));
+ return history.map(item=>{
+  const sections=new Map(),replacements=corrections.get(item.day);
+  for(const section of item.sections)for(const note of section.items){
+   const replacement=replacements?.get(typeof note==='string'?note:note.text);
+   const category=replacement?.category||section.category;
+   if(!sections.has(category))sections.set(category,[]);
+   sections.get(category).push(replacement||rewrite(note));
+  }
+  return {...item,sections:[...sections].map(([category,notes])=>({category,items:presentEntries(notes)}))};
+ });
 }
 function orderDetails(history,editorial){
  const groups=new Map();
@@ -57,22 +73,18 @@ function makeRelease({root,before,after,previous,publishedAt=new Date().toISOStr
  if(exists(root,last)){try{git(root,['merge-base','--is-ancestor',last,after]);base=last;}catch{}}
  const prior=new Map((base?readEntries(root,base):[]).map(item=>[item.id,item]));
  // La redacción es editorial; solo IDs nuevos o una revisión explícita anuncian otra función.
- let entries=editorial.filter(item=>item&&typeof item.id==='string'&&categories.includes(item.category)&&typeof item.text==='string'&&item.text.trim()&&(!prior.has(item.id)||(prior.get(item.id).revision||1)!==(item.revision||1))).slice(0,200);
+ const changes=editorial.filter(item=>item&&typeof item.id==='string'&&categories.includes(item.category)&&typeof item.text==='string'&&item.text.trim()&&(!prior.has(item.id)||(prior.get(item.id).revision||1)!==(item.revision||1))).slice(0,200);
+ const publishedIds=new Set(history.flatMap(release=>release.sections.flatMap(section=>section.items.map(note=>note.id))));
+ let entries=changes.filter(item=>!item.replaces||prior.has(item.id)||!publishedIds.has(item.id));
+ if(changes.length&&!entries.length){
+  const [latest,...rest]=history;
+  return {schema:1,versioning,releases:releases({schema:1,versioning,releases:[{...latest,commit:after},...rest]})};
+ }
  if(!entries.length){
-  const args=base?['diff','--name-only',base,after,'--']:['show','--format=','--name-only',after,'--'];
-  const files=git(root,args).split('\n'),groups=[
-   [/^(cloud-library|library)\./,'Actualización de la biblioteca de guiones.'],
-   [/^(app|coverage-lines|document-labels|label-layout|shot-)\b/,'Actualización de las herramientas de cobertura y anotaciones.'],
-   [/^(technical-script|excel-export)\./,'Actualización del guion técnico y sus herramientas.'],
-   [/^(appearance|styles|editor)\./,'Actualización del diseño y los controles del estudio.'],
-   [/^(accounts|cloud|supabase\/)/,'Actualización de cuentas y guardado en la nube.'],
-   [/^(patch-notes|release-notes|\.github\/)/,'Actualización de las notas de versión y la publicación.']
-  ];
-  entries=groups.filter(([pattern])=>files.some(file=>pattern.test(file))).map(([,text])=>({category:'improved',text}));
   const subjects=git(root,['log','--reverse','--format=%s',...(base?[`${base}..${after}`]:['-1',after])]).split('\n');
   const fixes=[...new Set(subjects)].filter(text=>/^(fix|corrige|corrección|feat)(\([^)]*\))?:?\s/i.test(text)&&text.length>14).slice(0,3);
-  if(fixes.length)entries=fixes.map(text=>({category:/^(fix|corrige|corrección)\b/i.test(text)?'fixed':'new',text:text.replace(/^(feat|fix|chore)(\([^)]*\))?:\s*/,'').slice(0,160)}));
-  if(!entries.length)entries=[{category:'improved',text:'Actualización de mantenimiento de la aplicación.'}];
+  entries=fixes.map(text=>({category:/^(fix|corrige|corrección)\b/i.test(text)?'fixed':'new',text:text.replace(/^(feat|fix|chore)(\([^)]*\))?:\s*/,'').slice(0,160)}));
+  if(!entries.length)entries=[{category:'improved',text:'Actualización de PLANO.'}];
  }
  const current={id:after,commit:after,publishedAt:new Date(publishedAt).toISOString(),sections:categories.map(category=>({category,items:presentEntries(entries.filter(item=>item.category===category))})).filter(section=>section.items.length)};
  const feed={schema:1,versioning,releases:orderDetails(releases({schema:1,versioning,releases:[current,...history]}),editorial)};

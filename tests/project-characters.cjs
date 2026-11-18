@@ -91,7 +91,7 @@ assert.throws(() => Details.updateRelationships(withDetails, { ...twin, details:
 const payload = { version: 1, screenplay: script, annotations: [], corrections: [], crew: {}, characterProfiles: withDetails };
 const packed = Archive.stringify({ name: 'La visita', documentName: 'La visita.plano', payload });
 assert.deepEqual(Archive.parse(packed).payload.characterProfiles, withDetails);
-const savedAvatar = { v: 3, orejas: 'puntiagudas', formaOjos: 'abiertos', vestuario: 'caballero', piel: '#79A988' };
+const savedAvatar = { v: 3, orejas: 'puntiagudas', formaOjos: 'abiertos', vestuario: 'caballero', piel: '#79A988', ropa: '#414954' };
 const avatarPayload = { ...payload, characterProfiles: [{ ...withDetails[0], avatar: { ...Avatar.normalize(savedAvatar), extra: '<svg/>' } }, twin] };
 const avatarArchive = Archive.stringify({ name: 'La visita', documentName: 'La visita.plano', payload: avatarPayload });
 assert.deepEqual(Archive.parse(avatarArchive).payload.characterProfiles[0].avatar, savedAvatar);
@@ -222,18 +222,49 @@ async function run() {
     await checkFieldColumns();
     const editIcon = dialog.getByRole('button', { name: 'Editar icono del personaje' });
     const creator = page.getByRole('dialog', { name: 'Creador de personaje' });
+    const menu = key => creator.locator(`[data-avatar-menu="${key}"]`);
+    async function expand(key) {
+      const target = menu(key);
+      if (await target.getAttribute('open') === null) await target.locator('summary').click();
+      assert.equal(await creator.locator('details[open]').count(), 1);
+      await target.locator('.character-avatar-thumbnail svg').first().waitFor();
+      return target;
+    }
+    async function choose(key, name) {
+      const target = await expand(key);
+      const radio = page.getByRole('radio', { name, exact: true });
+      await target.locator('label.character-avatar-choice').filter({ has: radio }).click();
+      assert(await target.getByRole('radio', { name, exact: true }).isChecked());
+    }
+    const swatches = selector => selector.locator('[data-avatar-swatch]').evaluateAll(buttons => buttons.map(button => button.dataset.hex));
     await editIcon.click();
     await creator.waitFor();
     assert(await dialog.isHidden());
-    await creator.getByLabel('Orejas', { exact: true }).selectOption('puntiagudas');
-    await creator.getByLabel('Forma de ojos', { exact: true }).selectOption('abiertos');
-    await creator.getByLabel('Vestuario', { exact: true }).selectOption('caballero');
+    await menu('cejas').locator('summary').press('Enter');
+    assert.equal(await menu('pelo').getAttribute('open'), null);
+    await choose('cejas', 'Sin cejas');
+    assert.equal(await creator.locator('[data-avatar-preview] [data-brows]').count(), 0);
+    await choose('cejas', 'Con cejas');
+    await choose('orejas', 'Puntiagudas (elfo)');
+    await choose('formaOjos', 'Más abiertos');
+    assert.deepEqual(await swatches(menu('formaOjos')), await swatches(menu('pelo')));
+    await choose('vestuario', 'Caballero con armadura');
+    const metal = menu('vestuario').locator('[data-avatar-color="ropa"]');
+    const armorPalette = await swatches(metal);
+    await metal.getByRole('button', { name: 'Usar color #414954' }).click();
+    await choose('vestuario', 'Policía');
+    assert.notDeepEqual(await swatches(metal), armorPalette);
+    await choose('vestuario', 'Caballero con armadura');
+    assert.equal(await metal.getByRole('button', { name: 'Usar color #414954' }).getAttribute('aria-pressed'), 'true');
+    await expand('piel');
     await creator.getByRole('button', { name: 'Color de piel personalizado' }).click();
     assert(await creator.locator('#color-picker-dialog').isVisible());
-    await page.locator('#choose-custom-color').click();
+    assert(await page.locator('#custom-color-hex').isVisible());
+    assert(await page.locator('#color-picker-dialog .palette-primary').isHidden());
     await page.locator('#custom-color-hex').fill('#79a988');
     await page.locator('#save-custom-color').click();
     assert.equal(await creator.locator('[data-avatar-preview] [data-ears="puntiagudas"]').count(), 3);
+    await expand('vestuario');
     await page.screenshot({ path: path.join(out, 'creador-personaje.png') });
     await creator.getByRole('button', { name: 'Guardar icono' }).click();
     await dialog.waitFor();
@@ -245,8 +276,11 @@ async function run() {
     assert(await editIcon.evaluate(button => button === document.activeElement));
     assert(await page.evaluate(() => !state.characterProfiles.some(profile => profile.avatar)));
     await editIcon.click();
-    assert.equal(await creator.getByLabel('Vestuario', { exact: true }).inputValue(), 'caballero');
-    await creator.getByLabel('Vestuario', { exact: true }).selectOption('cocinero');
+    await expand('vestuario');
+    assert(await menu('vestuario').getByRole('radio', { name: 'Caballero con armadura' }).isChecked());
+    await choose('vestuario', 'Cocinero');
+    assert(await menu('vestuario').getByText('Uniforme y gorro blancos').isVisible());
+    assert(await menu('vestuario').locator('[data-outfit-colors]').isHidden());
     await page.keyboard.press('Escape');
     await dialog.waitFor();
     assert.equal(await editIcon.locator('[data-headwear]').count(), 1);
@@ -368,15 +402,27 @@ async function run() {
     await page.setViewportSize({ width: 390, height: 700 });
     await editIcon.click();
     await creator.waitFor();
-    assert.equal(await creator.getByLabel('Forma de ojos', { exact: true }).inputValue(), 'abiertos');
+    await expand('formaOjos');
+    assert(await menu('formaOjos').getByRole('radio', { name: 'Más abiertos' }).isChecked());
     assert(await creator.evaluate(node => {
       const panel = node.querySelector('.character-avatar-settings');
       const footer = node.querySelector('footer').getBoundingClientRect();
       return panel.scrollHeight > panel.clientHeight && panel.scrollWidth === panel.clientWidth && footer.bottom <= innerHeight;
     }));
     await page.screenshot({ path: path.join(out, 'creador-personaje-movil.png') });
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.evaluate(() => PlanoAppearance.choose({ mode: 'dark' }));
+    await choose('vestuario', 'Leñador');
+    assert.equal(await menu('vestuario').locator('[data-outfit-colors] fieldset:visible').count(), 3);
+    await creator.getByRole('button', { name: 'Cuadros · color principal personalizado', exact: true }).click();
+    assert(await page.locator('#custom-color-hex').isVisible());
+    await page.keyboard.press('Escape');
+    assert(await creator.isVisible());
+    await page.screenshot({ path: path.join(out, 'creador-personaje-menus-oscuro.png') });
     await creator.getByRole('button', { name: 'Cancelar', exact: true }).click();
     await dialog.waitFor();
+    await page.evaluate(() => PlanoAppearance.choose({ mode: 'light' }));
+    await page.setViewportSize({ width: 390, height: 700 });
     await checkFieldColumns();
     assert(await dialog.evaluate(node => {
       const body = node.querySelector('.character-dialog-body');

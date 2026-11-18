@@ -3,18 +3,46 @@
   'use strict';
 
   const styles = Object.freeze({
-    camiseta: { label: 'Camiseta', colors: [['Camiseta', '#446B5D']] },
-    policia: { label: 'Policía', colors: [['Uniforme', '#314D73']] },
-    doctor: { label: 'Doctor', colors: [['Uniforme bajo la bata', '#537F84']] },
-    enfermero: { label: 'Enfermero', colors: [['Uniforme', '#508583']] },
+    camiseta: { label: 'Camiseta', colors: [
+      ['Camiseta', '#446B5D', ['#282A32', '#F4EEE2', '#49668E', '#A34E51', '#C48B49', '#7C5F90']],
+    ] },
+    policia: { label: 'Policía', colors: [
+      ['Uniforme', '#314D73', ['#1D2A40', '#292C31', '#53677A', '#4F594B', '#89785E']],
+    ] },
+    doctor: { label: 'Doctor', colors: [
+      ['Uniforme bajo la bata', '#537F84', ['#789BB4', '#406953', '#475A7D', '#925D6D', '#6E5D79']],
+    ] },
+    enfermero: { label: 'Enfermero', colors: [
+      ['Uniforme', '#508583', ['#237788', '#77AFA5', '#5A7FB8', '#8B6499', '#AA586F']],
+    ] },
     cocinero: { label: 'Cocinero', colors: [] },
-    soldado: { label: 'Soldado', colors: [['Uniforme', '#63754C']] },
-    ingeniero: { label: 'Ingeniero / electricista', colors: [['Uniforme', '#536985'], ['Casco', '#E8B53F']] },
-    caballero: { label: 'Caballero con armadura', colors: [['Metal', '#778994'], ['Ribetes', '#BF9760']] },
-    chaleco: { label: 'Camiseta con chaleco', colors: [['Camiseta', '#C8A782'], ['Chaleco', '#5F6170']] },
-    traje: { label: 'Traje', colors: [['Blazer', '#333449'], ['Camisa', '#F5F1EB']] },
-    camisa: { label: 'Camisa de vestir', colors: [['Camisa', '#ABBDCF']] },
-    lenador: { label: 'Leñador', colors: [['Cuadros · color principal', '#A75450'], ['Cuadros · color secundario', '#442C3B'], ['Camiseta interior', '#E1D3B8']] },
+    soldado: { label: 'Soldado', colors: [
+      ['Uniforme', '#63754C', ['#3F5036', '#73836B', '#A48C66', '#827B58', '#51585C']],
+    ] },
+    ingeniero: { label: 'Ingeniero / electricista', colors: [
+      ['Uniforme', '#536985', ['#34475C', '#3B5E5B', '#4A5543', '#7F6B49', '#A95933']],
+      ['Casco', '#E8B53F', ['#F2F1EA', '#EB7834', '#C4473D', '#4381B4', '#659354']],
+    ] },
+    caballero: { label: 'Caballero con armadura', colors: [
+      ['Metal', '#778994', ['#414954', '#ADB8BE', '#566F81', '#8A7A72', '#706166']],
+      ['Ribetes', '#BF9760', ['#DAAD4C', '#CECFD1', '#B6754C', '#9A4553', '#4C7491']],
+    ] },
+    chaleco: { label: 'Camiseta con chaleco', colors: [
+      ['Camiseta', '#C8A782', ['#EFE8D9', '#A3ACA7', '#86A7BA', '#BF756A', '#46434B']],
+      ['Chaleco', '#5F6170', ['#343847', '#535E46', '#856D55', '#7A4750', '#37576B']],
+    ] },
+    traje: { label: 'Traje', colors: [
+      ['Blazer', '#333449', ['#212429', '#5B6168', '#263E5A', '#705452', '#48635C']],
+      ['Camisa', '#F5F1EB', ['#D0DEE8', '#CCC2D8', '#E5C8C8', '#C9D6C5', '#3F444E']],
+    ] },
+    camisa: { label: 'Camisa de vestir', colors: [
+      ['Camisa', '#ABBDCF', ['#F3EFE7', '#91A998', '#BC9AA0', '#ADA3BF', '#334A69']],
+    ] },
+    lenador: { label: 'Leñador', colors: [
+      ['Cuadros · color principal', '#A75450', ['#A75B31', '#526D51', '#526C89', '#9A7851', '#764960']],
+      ['Cuadros · color secundario', '#442C3B', ['#292A2F', '#3F3028', '#2C4437', '#2B3B55', '#D2B695']],
+      ['Camiseta interior', '#E1D3B8', ['#F3EDE1', '#C5C1B9', '#B69779', '#546D6B', '#38373C']],
+    ] },
   });
   const colorKeys = ['ropa', 'ropa2', 'ropa3'];
   const outline = 'M24 187c3-20 12-31 33-36l23-9h32l23 9c21 5 30 16 33 36H24Z';

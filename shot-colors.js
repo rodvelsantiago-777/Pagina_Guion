@@ -24,6 +24,7 @@
   }
   function setup() {
     const $ = selector => document.querySelector(selector), dialog = $("#color-picker-dialog"), spectrum = $("#color-spectrum");
+    const primary = dialog.querySelector(".palette-primary");
     let target = null, draft = presets[0], recent = [], customMode = false, hsv = toHSV(draft);
     try { const saved = JSON.parse(localStorage.getItem(storageKey)); if (Array.isArray(saved)) recent = [...new Set(saved.filter(value => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)).map(value => value.toLowerCase()))].slice(0, 8); } catch {}
     function markSelected() {
@@ -78,7 +79,10 @@
       if (dialog.matches(":popover-open")) { PlanoPopover.hide(dialog, true); return; }
       // Un selector abierto desde una ficha sigue siendo interactivo dentro de su modal.
       (launch.closest("dialog") || document.body).append(dialog);
-      target = input; showCustom(false); sync(input.value); refresh(); PlanoPopover.show(dialog, launch); $("#choose-custom-color").focus({ preventScroll: true });
+      const custom = launch.hasAttribute("data-custom-color");
+      primary.hidden = custom;
+      target = input; showCustom(custom); sync(input.value); refresh(); PlanoPopover.show(dialog, launch);
+      $(custom ? "#custom-color-hex" : "#choose-custom-color").focus({ preventScroll: true });
     });
     syncLaunches();
     $("#choose-custom-color").addEventListener("click", () => { showCustom(true); $("#custom-color-hex").focus(); });
