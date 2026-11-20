@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const S = require('../screenplay.js'), Details = require('../character-details.js'), Archive = require('../project-archive.js');
-const Feelings = require('../character-feelings.js');
+const Router = require('../character-feeling-router.js');
 const { chromium } = require('./runtime-deps.cjs').load('playwright');
 const { launch } = require('./editor-auth-fixture.cjs');
 const base = { surnames: '', age: '35', aliases: [], role: '' };
@@ -21,8 +21,8 @@ assert(Details.feelingTypes.length >= 20);
 for (const entries of [[{ targetId: 'ana', feeling: 'Amor' }], [{ targetId: 'nadie', feeling: 'Odio' }],
   [{ targetId: 'beto', feeling: 'Inventado' }], [{ targetId: 'beto', feeling: 'Amor' }, { targetId: 'beto', feeling: 'Odio' }]])
   assert.throws(() => S.validateProfiles([{ ...profiles[0], details: { feelings: entries } }, profiles[1]]));
-const forward = Feelings.geometry({ x: 0, y: 0 }, { x: 480, y: 0 }), reverse = Feelings.geometry({ x: 480, y: 0 }, { x: 0, y: 0 });
-assert(forward.y > 0 && reverse.y < 0, 'Las dos direcciones se dibujan en lados opuestos');
+const routing = Router.routeAll([{ id: 'ab', source: 'a', target: 'b', size: { width: 60, height: 24 } }, { id: 'ba', source: 'b', target: 'a', size: { width: 80, height: 24 } }], new Map([['a', { x: 0, y: 0 }], ['b', { x: 480, y: 0 }]]));
+assert.notEqual(routing.get('ab').path, routing.get('ba').path, 'Las dos direcciones tienen recorridos distintos');
 const script = S.create('Sentimientos');
 script.doc.content = [{ type: 'paragraph', attrs: { id: 'cue', kind: 'character' }, content: [{ type: 'text', text: 'VECINA' }] },
   { type: 'paragraph', attrs: { id: 'speech', kind: 'dialogue' }, content: [{ type: 'text', text: 'Buenas tardes.' }] }];
@@ -61,8 +61,9 @@ const source = { name: 'Sentimientos', documentName: 'Sentimientos.plano', paylo
     assert.equal(await page.locator('.relations-world').getAttribute('style'), world, 'El + abre el formulario sin arrastrar el lienzo');
     await add('ana', 'beto', 'Amor');
     assert.equal(await paths.count(), 1);
-    assert.equal(await paths.first().getAttribute('stroke-width'), '1.2');
-    assert((await paths.first().getAttribute('marker-end')).startsWith('url(#feelings-'));
+    assert.equal(await paths.first().getAttribute('stroke-width'), '1.4');
+    assert.equal(await page.locator('.relations-feeling-arrow').count(), 1);
+    assert((await page.locator('.relations-feeling-arrow').first().getAttribute('d')).endsWith('Z'));
     assert.equal(await page.evaluate(() => state.characterProfiles.find(profile => profile.id === 'beto').details?.feelings?.length || 0), 0);
     await add('beto', 'ana', 'Indiferencia');
     assert.equal(await paths.count(), 2);

@@ -16,11 +16,24 @@
 .relations-world { position: absolute; inset: 0 auto auto 0; width: 1px; height: 1px; transform-origin: 0 0; }
 .relations-lines, .relations-guides { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; stroke: none; }
 .relations-feeling-lines { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.relations-feeling-heads { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.relations-lines > path, .relations-feeling-path, .relations-feeling-halo { vector-effect: non-scaling-stroke; }
+.relations-feeling-halo { stroke: var(--paper); stroke-width: 5px; stroke-linecap: round; stroke-linejoin: round; }
+.relations-feeling-path { stroke-linecap: round; stroke-linejoin: round; }
 .relations-feeling-hit { pointer-events: stroke; cursor: pointer; }
 .relations-feeling-add { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); background: var(--paper); font: 500 16px/1 var(--sans); cursor: pointer; }
 .relations-feeling-add:hover { color: var(--genre-ink, var(--accent)); border-color: currentColor; }
-.relations-feeling-link { position: absolute; top: 0; left: 0; width: max-content; max-width: 170px; padding: 3px 7px; border: 1px dashed var(--feeling-color); border-radius: 12px; color: var(--ink); background: var(--paper); font: 500 10px/1.3 var(--sans); cursor: pointer; }
+.relations-feeling-link { position: absolute; top: 0; left: 0; width: max-content; max-width: 170px; padding: 4px 8px; border: 1px solid var(--feeling-color); border-radius: 5px; color: var(--ink); background: var(--paper); font: 600 11px/1.3 var(--sans); cursor: pointer; }
+.relations-feeling-link::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-inline-end: 5px; border-radius: 50%; background: var(--feeling-color); }
 .relations-feeling-link:hover { box-shadow: 0 0 0 1px var(--feeling-color); }
+.is-tracing-feeling .relations-lines, .is-tracing-feeling .relations-edge-labels { opacity: .2; }
+.is-tracing-feeling :is(.relations-feeling-path,.relations-feeling-arrow,.relations-feeling-origin,.relations-feeling-link):not(.is-traced) { opacity: .16; }
+.is-tracing-feeling .relations-node:not(.is-feeling-endpoint) { opacity: .4; }
+.is-tracing-feeling .relations-feeling-path.is-traced { stroke-width: 2.2px; }
+.relations-feeling-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 14px; flex-basis: 100%; list-style: none; padding: 0; margin: 0; font-size: 11px; }
+.relations-feeling-legend li { white-space: nowrap; }
+.relations-feeling-legend li[data-feeling-group]::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: 5px; background: var(--feeling-color); }
+.relations-feeling-key-caption { font-weight: 600; }
 .relations-feeling-help { margin: 3px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .relations-guides path { stroke: var(--genre-ink, var(--accent)); stroke-width: 1; stroke-dasharray: 5 6; }
 .relations-drop-hint { position: absolute; bottom: 18px; left: 50%; max-width: calc(100% - 32px); margin: 0; padding: 9px 14px; transform: translateX(-50%); border: 1px solid var(--genre-ink, var(--accent)); border-radius: 6px; color: var(--ink); background: var(--paper); font-size: 12px; text-align: center; pointer-events: none; }
@@ -47,7 +60,6 @@
 .relations-node-name { max-width: 156px; padding: 2px 5px; border-radius: 4px; background: var(--paper); overflow-wrap: anywhere; }
 .relations-node.is-family-reference .relations-avatar { border-color: var(--genre-ink, var(--accent)); }
 .relations-node > .relations-node-kinship { pointer-events: none; width: max-content; max-width: 190px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--genre-ink, var(--accent)); background: var(--paper); font: 600 11px/1.35 var(--sans); }
-.relations-family-help { display: block; margin-top: 4px; }
 .relations-link {
   position: absolute; top: 0; left: 0; width: max-content; max-width: 180px;
   padding: 3px 8px; border: 1px solid var(--relationship-color); border-radius: 20px;
@@ -65,7 +77,6 @@
 .relations-couple-field p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 11px; }
 .relations-empty { position: absolute; inset: 44% 24px auto; margin: 0; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none; }
 .relations-foot { display: flex; align-items: start; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 10px 60px 10px 28px; border-top: 1px solid var(--line); color: var(--muted); background: var(--surface-alt); }
-.relations-foot p { max-width: 300px; margin: 0; font-size: 11px; line-height: 1.5; }
 .relations-legend { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px 12px; flex: 1 1 400px; list-style: none; margin: 0; padding: 0; font-size: 11px; }
 .relations-legend li { white-space: nowrap; }
 .relations-dialog { width: min(440px, calc(100% - 28px)); max-height: calc(100dvh - 28px); padding: 24px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--paper); overflow: auto; }
@@ -82,6 +93,7 @@
   .relations-toolbar .workspace-button { font-size: 12px; }
   .relations-foot { padding-inline-start: 16px; }
   .relations-legend { justify-content: start; flex-basis: 100%; }
+  .relations-feeling-legend { justify-content: start; }
   .relations-dialog { padding: 20px 16px; }
   .relations-dialog select { font-size: 16px; }
   .relations-dialog:has(> #report-launch) footer { padding-inline-end: 32px; }

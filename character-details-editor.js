@@ -251,7 +251,11 @@
         person.append(new Option('Seleccionar personaje', ''), ...targets.map(target => new Option(target.name, target.id)));
         person.value = entry.targetId;
         feeling.id = 'character-feeling-type-' + index; feeling.required = true;
-        feeling.append(new Option('Elegir sentimiento', ''), ...catalog.feelingTypes.map(type => new Option(type, type)));
+        feeling.append(new Option('Elegir sentimiento', ''));
+        for (const group of catalog.feelingGroups) {
+          const options = make('optgroup'); options.label = group.label;
+          options.append(...group.types.map(type => new Option(type, type))); feeling.append(options);
+        }
         feeling.value = entry.feeling;
         person.addEventListener('change', () => { entry.targetId = person.value; });
         feeling.addEventListener('change', () => { entry.feeling = feeling.value; });

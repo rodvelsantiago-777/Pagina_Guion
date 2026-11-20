@@ -11,9 +11,14 @@
   const relationshipTypes = Object.freeze([
     'Familia', 'Conocidos', 'Romance', 'Amistad', 'Trabajo o estudios', 'Mentoría', 'Rivalidad', 'Enemistad', 'Otro',
   ]);
-  const feelingTypes = Object.freeze(['Amor', 'Enamoramiento', 'Atracción', 'Deseo', 'Cariño', 'Afecto', 'Ternura',
-    'Admiración', 'Respeto', 'Gratitud', 'Confianza', 'Lealtad', 'Compasión', 'Esperanza', 'Nostalgia',
-    'Tristeza', 'Decepción', 'Culpa', 'Vergüenza', 'Miedo', 'Desconfianza', 'Celos', 'Envidia', 'Rencor', 'Rabia', 'Odio', 'Desprecio', 'Indiferencia', 'Ambivalencia']);
+  const feelingGroups = Object.freeze([
+    { id: 'romantic', label: 'Románticos', color: '#C400B3', darkColor: '#FF26DF', types: ['Amor', 'Enamoramiento', 'Atracción', 'Deseo'] },
+    { id: 'positive', label: 'Positivos', color: '#008D19', darkColor: '#49E500', types: ['Cariño', 'Afecto', 'Ternura', 'Admiración', 'Respeto', 'Gratitud', 'Confianza', 'Lealtad', 'Compasión', 'Esperanza'] },
+    { id: 'negative', label: 'Negativos', color: '#D92B00', darkColor: '#FF5B00', types: ['Desconfianza', 'Celos', 'Envidia', 'Rencor', 'Rabia', 'Odio', 'Desprecio'] },
+    { id: 'vulnerable', label: 'Tristeza y temor', color: '#005FFF', darkColor: '#00C3FF', types: ['Nostalgia', 'Tristeza', 'Decepción', 'Culpa', 'Vergüenza', 'Miedo'] },
+    { id: 'neutral', label: 'Neutrales', color: '#374151', darkColor: '#E4E7EC', types: ['Indiferencia', 'Ambivalencia'] },
+  ].map(group => Object.freeze({ ...group, types: Object.freeze(group.types) })));
+  const feelingTypes = Object.freeze(feelingGroups.flatMap(group => group.types));
   const relationshipKey = ({ targetId, type }) => targetId + ':' + type.trim().toLocaleLowerCase('es').normalize('NFC');
   const mbtiTypes = [
     'ISTJ', 'ISFJ', 'INFJ', 'INTJ', 'ISTP', 'ISFP', 'INFP', 'INTP',
@@ -316,7 +321,7 @@
   const api = { fields, relationshipTypes, maxRelationships, validate, relationshipsFor, updateRelationships,
     parentTitle, childTitle, relationshipLabel, validateFamily, displayRelationshipsFor,
     familyFor: Kinship.forCharacter, lifeState, lifeStateLabel, maritalState,
-    isCouple, isMarried, coupleCaption, maritalExplanation, feelingTypes, feelingsFor };
+    isCouple, isMarried, coupleCaption, maritalExplanation, feelingTypes, feelingGroups, feelingsFor };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.PlanoCharacterDetails = api;
 })(globalThis);

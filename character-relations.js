@@ -56,7 +56,6 @@
       <p class="relations-drop-hint" role="status" hidden></p>
     </div>
     <div class="relations-foot">
-      <p>Arrastra en ocho direcciones. En Familia, coloca progenitores arriba e hijos abajo. Suelta un hijo en el centro de una relación para vincularlo a ambos.<span class="relations-family-help">Pasa sobre un personaje o abre su ficha para consultar sus parentescos.</span></p>
       <ul class="relations-legend" aria-label="Colores de las relaciones"></ul>
     </div>
     <p class="characters-error" data-relations-error role="alert" hidden></p>`;
@@ -134,6 +133,21 @@
       married.disabled = broken.disabled = value;
       feelings.setBusy(value);
     }
+    function feelingObstacles() {
+      const segments = [], labels = [];
+      for (const edge of [...edgeElements, ...familyElements]) {
+        if (edge.button.hidden || edge.path.style.display === 'none') continue;
+        const length = edge.path.getTotalLength(), count = Math.max(1, Math.min(48, Math.ceil(length / 32)));
+        let previous = edge.path.getPointAtLength(0);
+        for (let i = 1; i <= count; i++) {
+          const point = edge.path.getPointAtLength(length * i / count);
+          segments.push({ a: { x: previous.x, y: previous.y }, b: { x: point.x, y: point.y } }); previous = point;
+        }
+        const at = edge.labelPosition, width = edge.button.offsetWidth / 2 + 7, height = edge.button.offsetHeight / 2 + 6;
+        labels.push({ left: at.x - width, right: at.x + width, top: at.y - height, bottom: at.y + height });
+      }
+      return { segments, labels };
+    }
     function draw() {
       frame = 0;
       world.style.transform = 'translate(' + camera.x + 'px,' + camera.y + 'px) scale(' + camera.zoom + ')';
@@ -151,6 +165,7 @@
           const y = (p.y + c.y) / 2;
           edge.path.setAttribute('d', 'M' + p.x + ' ' + (p.y + 40) + 'V' + y + 'H' + c.x + 'V' + (c.y - 40));
           edge.button.style.transform = 'translate(' + ((p.x + c.x) / 2) + 'px,' + y + 'px) translate(-50%,-50%)';
+          edge.labelPosition = { x: (p.x + c.x) / 2, y };
           continue;
         }
         const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy) || 1;
@@ -159,6 +174,7 @@
         edge.path.setAttribute('d', 'M' + a.x + ' ' + a.y + 'Q' + cx + ' ' + cy + ' ' + b.x + ' ' + b.y);
         edge.button.style.transform = 'translate(' + ((a.x + 2 * cx + b.x) / 4) + 'px,' +
           ((a.y + 2 * cy + b.y) / 4) + 'px) translate(-50%,-50%)';
+        edge.labelPosition = { x: (a.x + 2 * cx + b.x) / 4, y: (a.y + 2 * cy + b.y) / 4 };
       }
       for (const branch of familyElements) {
         const { x, y } = Family.middleFor(branch.parents, positions, links), c = positions.get(branch.child);
@@ -166,19 +182,22 @@
         branch.path.setAttribute('d', 'M' + x + ' ' + y + 'V' + elbow + 'H' + c.x + 'V' + (c.y - 40));
         branch.joint.setAttribute('cx', x); branch.joint.setAttribute('cy', y);
         branch.button.style.transform = 'translate(' + c.x + 'px,' + elbow + 'px) translate(-50%,-50%)';
+        branch.labelPosition = { x: c.x, y: elbow };
       }
-      feelings.draw(positions);
+      feelings.draw(positions, { zoom: camera.zoom, dragging: Boolean(gesture?.moved && gesture.key), obstacles: feelingObstacles });
     }
     function schedule() {
       if (!frame) frame = requestAnimationFrame(draw);
     }
     function fit() {
       if (!positions.size || !canvas.clientWidth) return;
+      draw();
       const points = [...positions.values()];
-      const left = Math.min(...points.map(point => point.x)) - 95;
-      const right = Math.max(...points.map(point => point.x)) + 95;
-      const top = Math.min(...points.map(point => point.y)) - 80;
-      const bottom = Math.max(...points.map(point => point.y)) + 124;
+      const extra = feelings.getBounds();
+      const left = Math.min(Math.min(...points.map(point => point.x)) - 95, extra?.left ?? Infinity);
+      const right = Math.max(Math.max(...points.map(point => point.x)) + 95, extra?.right ?? -Infinity);
+      const top = Math.min(Math.min(...points.map(point => point.y)) - 80, extra?.top ?? Infinity);
+      const bottom = Math.max(Math.max(...points.map(point => point.y)) + 124, extra?.bottom ?? -Infinity);
       camera.zoom = Math.max(.2, Math.min(1, (canvas.clientWidth - 44) / (right - left), (canvas.clientHeight - 44) / (bottom - top)));
       camera.x = canvas.clientWidth / 2 - (left + right) / 2 * camera.zoom;
       camera.y = canvas.clientHeight / 2 - (top + bottom) / 2 * camera.zoom;
