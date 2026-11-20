@@ -1,5 +1,6 @@
 {
   "entries": [
+    {"id": "browser-section-history", "category": "new", "text": "Atrás y Adelante recorren proyectos, editores, personajes y cuenta. Cada sección tiene un enlace propio que funciona al recargar en GitHub Pages.", "topic": "interface", "order": 0},
     {"id": "screenplay-writer", "category": "new", "text": "Nuevo redactor para escribir guiones desde cero.", "topic": "writing", "order": 0},
     {"id": "screenplay-title-authors", "category": "new", "text": "Portada independiente con título, autores y datos de contacto.", "topic": "writing", "order": 10},
     {"id": "screenplay-standard-format", "category": "fixed", "text": "Formato unificado del guion y la portada: Courier de 12 puntos, márgenes e interlineado.", "topic": "writing", "order": 20},
@@ -23,6 +24,7 @@
     {"id": "project-character-feelings", "category": "new", "text": "Flechas de sentimientos con dirección propia. Usa el + sobre un personaje para indicar qué siente por otro y consulta ambas direcciones en sus fichas.", "topic": "writing", "order": 43},
     {"id": "project-character-clear-feeling-routes", "category": "improved", "text": "Sentimientos agrupados por color, recorridos separados y puntas de flecha más visibles. Pasa sobre una conexión para seguirla y distinguir sus personajes.", "topic": "writing", "order": 44},
     {"id": "project-character-feeling-contrast", "category": "improved", "text": "Sentimientos con colores más diferenciados de las relaciones y adaptados al modo claro u oscuro. Retirado el bloque de instrucciones del lienzo.", "topic": "writing", "order": 45},
+    {"id": "project-character-delayed-tracing", "category": "improved", "text": "El resaltado espera tres segundos sobre la conexión y desaparece al salir. También funciona en los vínculos familiares. Las flechas prefieren recorridos cortos y directos.", "topic": "writing", "order": 46},
     {"id": "writer-type-toolbar", "category": "improved", "text": "Botones y atajos para los tipos de texto. Enter propone el siguiente elemento del guion.", "topic": "writing", "order": 40},
     {"id": "generated-dialogue-syntax", "category": "improved", "text": "CONT'D automático y paréntesis fijos en las acotaciones.", "topic": "writing", "order": 50},
     {"id": "writer-find-and-character-mentions", "category": "new", "text": "Buscar y reemplazar con Ctrl+F y Ctrl+H. Mejor detección de menciones de personajes.", "topic": "writing", "order": 60},

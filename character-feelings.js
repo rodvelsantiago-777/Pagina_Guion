@@ -47,15 +47,15 @@
     let routes = new Map(), routeSignature = '', routingContent = '';
     function trace(edge) {
       world.closest('.relations-canvas').classList.toggle('is-tracing-feeling', Boolean(edge));
-      for (const candidate of edges) for (const element of [candidate.path, candidate.halo, candidate.head, candidate.origin, candidate.button]) element.classList.toggle('is-traced', candidate === edge);
+      for (const candidate of edges) for (const element of [candidate.path, candidate.halo, candidate.head, candidate.origin, candidate.leader, candidate.button]) element.classList.toggle('is-traced', candidate === edge);
       for (const node of world.querySelectorAll('.relations-node')) node.classList.toggle('is-feeling-endpoint', Boolean(edge && [edge.source, edge.target].includes(node.dataset.characterKey)));
-      if (edge) { lines.append(edge.halo, edge.path, edge.hit); heads.append(edge.head, edge.origin); }
+      if (edge) { lines.append(edge.halo, edge.path); heads.append(edge.head, edge.origin); }
     }
     function setBusy(value) {
       busy = value;
       for (const button of buttons.values()) button.disabled = value || items.length < 2;
       for (const edge of edges) edge.button.disabled = value;
-      if (value) trace(null);
+      if (value) hooks.hover.clear();
       target.disabled = value || lockedTarget;
       feeling.disabled = value; remove.disabled = value;
       form.querySelector('[type=submit]').disabled = value;
@@ -69,6 +69,7 @@
     }
     function open(from, to, trigger) {
       if (busy || items.length < 2 || !byKey.has(from)) return;
+      hooks.hover.clear();
       opener = trigger; lockedTarget = Boolean(to);
       source.replaceChildren(new Option(hooks.label(byKey.get(from)), from));
       target.replaceChildren(new Option('Elige un personaje', ''), ...items.filter(item => hooks.key(item) !== from).map(item => new Option(hooks.label(item), hooks.key(item))));
@@ -89,7 +90,7 @@
     }
     function render(characters, profiles, relationships) {
       items = characters; byKey = new Map(items.map(item => [hooks.key(item), item]));
-      trace(null); edges.length = 0; buttons.clear(); labels.replaceChildren(); actions.replaceChildren(); lines.replaceChildren(); heads.replaceChildren();
+      hooks.hover.clear(); trace(null); edges.length = 0; buttons.clear(); labels.replaceChildren(); actions.replaceChildren(); lines.replaceChildren(); heads.replaceChildren();
       const content = JSON.stringify([items.map(item => [hooks.key(item), hooks.label(item)]), relationships,
         profiles.map(profile => [profile.id, profile.details?.feelings])]);
       if (content !== routingContent) { routes.clear(); routeSignature = ''; routingContent = content; }
@@ -106,15 +107,16 @@
       for (const profile of profiles) for (const entry of profile.details?.feelings || []) {
         if (!byKey.has(profile.id) || !byKey.has(entry.targetId)) continue;
         const group = groups.get(entry.feeling), color = groupColor(group);
-        const path = svg('path'), hit = svg('path'), halo = svg('path'), head = svg('path'), origin = svg('circle'), button = document.createElement('button');
+        const path = svg('path'), hit = svg('path'), halo = svg('path'), head = svg('path'), origin = svg('circle'), leader = svg('path'), button = document.createElement('button');
         halo.classList.add('relations-feeling-halo'); halo.setAttribute('fill', 'none');
         head.classList.add('relations-feeling-arrow'); head.setAttribute('fill', color); head.setAttribute('stroke', 'none');
         origin.classList.add('relations-feeling-origin'); origin.setAttribute('fill', color); origin.setAttribute('r', '2.2'); origin.setAttribute('stroke', 'none');
+        leader.classList.add('relations-feeling-leader'); leader.setAttribute('stroke', color); leader.setAttribute('fill', 'none');
         path.classList.add('relations-feeling-path'); hit.classList.add('relations-feeling-hit');
         path.setAttribute('stroke', color); path.setAttribute('fill', 'none'); path.setAttribute('stroke-width', '1.4');
         path.dataset.feelingGroup = group.id; button.dataset.feelingGroup = group.id;
         path.dataset.feelingSource = profile.id; path.dataset.feelingTarget = entry.targetId;
-        hit.setAttribute('fill', 'none'); hit.setAttribute('stroke', 'transparent'); hit.setAttribute('stroke-width', '12');
+        hit.setAttribute('fill', 'none'); hit.setAttribute('stroke', 'transparent'); hit.setAttribute('stroke-width', '4');
         button.type = 'button'; button.className = 'relations-feeling-link'; button.textContent = entry.feeling;
         button.style.setProperty('--feeling-color', color);
         const description = hooks.label(byKey.get(profile.id)) + ' hacia ' + hooks.label(byKey.get(entry.targetId));
@@ -123,14 +125,10 @@
         button.addEventListener('pointerdown', event => event.stopPropagation());
         hit.addEventListener('pointerdown', event => event.stopPropagation());
         for (const control of [hit, button]) control.addEventListener('click', () => open(profile.id, entry.targetId, button));
-        lines.append(halo, path, hit); heads.append(head, origin); labels.append(button);
-        const edge = { id: JSON.stringify([profile.id, entry.targetId]), source: profile.id, target: entry.targetId, path, hit, halo, head, origin, button };
+        lines.append(halo, path, hit); heads.append(leader, head, origin); labels.append(button);
+        const edge = { id: JSON.stringify([profile.id, entry.targetId]), source: profile.id, target: entry.targetId, path, hit, halo, head, origin, leader, button };
         edges.push(edge);
-        for (const control of [hit, button]) {
-          control.addEventListener('pointerenter', () => { if (!busy) trace(edge); });
-          control.addEventListener('pointerleave', () => { if (document.activeElement !== button) trace(null); });
-        }
-        button.addEventListener('focus', () => { if (!busy) trace(edge); }); button.addEventListener('blur', () => trace(null));
+        hooks.hover.bind([hit, button], () => trace(edge), () => trace(null));
       }
       setBusy(busy);
     }
@@ -150,7 +148,9 @@
         const moving = context.dragging && (sourceAt.x !== original.sourcePosition.x || sourceAt.y !== original.sourcePosition.y || targetAt.x !== original.targetPosition.x || targetAt.y !== original.targetPosition.y);
         const shape = moving ? Router.reconnect(original, sourceAt, targetAt) : original;
         edge.path.setAttribute('d', shape.path); edge.hit.setAttribute('d', shape.path); edge.halo.setAttribute('d', shape.path);
-        edge.head.setAttribute('d', Router.arrowHead(shape.end, shape.targetSide, context.zoom));
+        edge.head.setAttribute('d', Router.arrowHead(shape.end, shape.targetDirection || shape.targetSide, context.zoom));
+        edge.leader.setAttribute('d', shape.anchor && Math.hypot(shape.x - shape.anchor.x, shape.y - shape.anchor.y) > 1
+          ? 'M' + shape.anchor.x + ' ' + shape.anchor.y + 'L' + shape.x + ' ' + shape.y : '');
         edge.origin.setAttribute('cx', shape.start.x); edge.origin.setAttribute('cy', shape.start.y);
         edge.head.dataset.feelingSource = edge.source; edge.head.dataset.feelingTarget = edge.target;
         edge.button.style.transform = 'translate(' + shape.x + 'px,' + shape.y + 'px) translate(-50%,-50%)';
@@ -170,7 +170,7 @@
     dialog.addEventListener('close', () => { if (opener?.isConnected) opener.focus({ preventScroll: true }); else buttons.get(source.value)?.focus({ preventScroll: true }); });
     return { render, draw, setBusy, getBounds, clear() {
       epoch++; busy = false; items = []; byKey.clear(); edges.length = 0; buttons.clear();
-      trace(null); routes.clear(); routeSignature = ''; routingContent = ''; labels.replaceChildren(); actions.replaceChildren(); lines.replaceChildren(); heads.replaceChildren();
+      hooks.hover.clear(); trace(null); routes.clear(); routeSignature = ''; routingContent = ''; labels.replaceChildren(); actions.replaceChildren(); lines.replaceChildren(); heads.replaceChildren();
       if (dialog.open) dialog.close();
     } };
   }

@@ -115,7 +115,7 @@
   async function handleEmailAction(){
     const params=new URL(location.href).searchParams,mode=params.get('mode'),code=params.get('oobCode');
     if(!code||!['resetPassword','verifyEmail'].includes(mode))return;
-    const clean=new URL(location.href);for(const key of ['mode','oobCode','apiKey','continueUrl','lang'])clean.searchParams.delete(key);history.replaceState(null,'',clean.pathname+clean.search+clean.hash);
+    const clean=new URL(location.href);for(const key of ['mode','oobCode','apiKey','continueUrl','lang'])clean.searchParams.delete(key);history.replaceState(history.state,'',clean.pathname+clean.search+clean.hash);
     open(mode==='resetPassword'?'reset':'login');working=true;render();
     try{
       if(mode==='resetPassword'){await client.verifyPasswordResetCode(code);resetCode=code;setView('reset');}

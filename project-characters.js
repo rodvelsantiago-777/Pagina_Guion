@@ -185,6 +185,7 @@
       relations ??= root.PlanoCharacterRelations.create(relationsPanel, { commit: commitGraph, open: showProfile });
       relations.render(context.characters, context.profiles);
     }
+    root.PlanoHistory?.changed();
   }
   for (const [index, tab] of viewTabs.entries()) {
     tab.addEventListener('click', () => setView(Boolean(index)));
@@ -537,6 +538,7 @@
     }
   });
   root.PlanoProjectCharacters = {
+    setView, view: () => showingRelations,
     async open({ load, commit }) {
       const token = ++generation;
       context = null;

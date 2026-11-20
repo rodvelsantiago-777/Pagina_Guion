@@ -34,6 +34,14 @@ for (const edge of edgeData) {
   assert(Math.hypot(route.end.x - target.x, route.end.y - target.y) > 50, 'La punta queda fuera del avatar');
   assert(!/NaN|Infinity/.test(route.path));
 }
+const direct = Router.routeAll([{ id: 'simple', source: 'a', target: 'b', size: { width: 80, height: 25 } }],
+  new Map([['a', { x: 0, y: 0 }], ['b', { x: 480, y: 0 }]]));
+assert.equal(direct.get('simple').points.length, 2, 'Sin obstáculos usa una recta');
+const adjacent = Router.routeAll([{ id: 'simple', source: 'a', target: 'b', size: { width: 80, height: 25 } }],
+  new Map([['a', { x: 0, y: 0 }], ['b', { x: 480, y: 0 }]]), {
+    labels: [{ left: 180, right: 300, top: -20, bottom: 20 }], segments: [{ a: { x: 0, y: 0 }, b: { x: 480, y: 0 } }],
+  });
+assert.equal(adjacent.get('simple').points.length, 2, 'El rótulo de la relación no obliga a rodear la pareja');
 (async () => {
   const browser = await launch(chromium, { executablePath: 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe', headless: true });
   try {
@@ -79,10 +87,46 @@ for (const edge of edgeData) {
     await page.screenshot({ path: path.join(__dirname, '.output/sentimientos-familia-legible.png') });
     const connection = page.getByRole('button', { name: /^Editar sentimiento de Daniel.*hacia Mónica.*Desprecio/ });
     await connection.hover();
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')), false);
+    await page.waitForTimeout(3100);
     assert(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')));
     assert.equal(await page.locator('.relations-node.is-feeling-endpoint').count(), 2);
     assert.equal(await page.locator('.relations-feeling-path.is-traced').count(), 1);
     await page.screenshot({ path: path.join(__dirname, '.output/sentimientos-seguir-flecha.png') });
+    await page.locator('.relations-canvas').hover({ position: { x: 5, y: 5 } });
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')), false, 'Salir elimina el resaltado inmediatamente');
+    await connection.hover();
+    await connection.focus();
+    await page.waitForTimeout(1000);
+    await page.locator('.relations-canvas').hover({ position: { x: 5, y: 5 } });
+    await page.waitForTimeout(2150);
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')), false, 'El foco no retiene el resaltado y salir cancela la espera');
+    await connection.hover();
+    await page.waitForTimeout(2500);
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')), false, 'La espera comienza de nuevo al regresar');
+    await page.waitForTimeout(650);
+    assert(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')));
+    await page.locator('.relations-canvas').hover({ position: { x: 5, y: 5 } });
+    const near = await page.locator('.relations-feeling-path[data-feeling-source="daniel"][data-feeling-target="monica"]').evaluate(path => {
+      const point = path.getPointAtLength(path.getTotalLength() * .25).matrixTransform(path.getScreenCTM());
+      return { x: point.x, y: point.y + 8 };
+    });
+    await page.mouse.move(near.x, near.y);
+    await page.waitForTimeout(3100);
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-feeling')), false, 'Pasar cerca de una flecha no cuenta como pasar sobre ella');
+    const family = await page.locator('.relations-family-branch').evaluate(path => {
+      const point = path.getPointAtLength(path.getTotalLength() * .35).matrixTransform(path.getScreenCTM());
+      return { x: point.x, y: point.y };
+    });
+    await page.mouse.move(family.x, family.y);
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-relation')), false);
+    await page.waitForTimeout(3100);
+    assert(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-relation')));
+    assert.equal(await page.locator('.relations-node.is-relation-endpoint').count(), 3, 'La rama destaca a la hija y ambos progenitores');
+    assert.equal(await page.locator('.relations-lines > path.is-traced').count(), 2);
+    await page.screenshot({ path: path.join(__dirname, '.output/parentesco-resaltado.png') });
+    await page.locator('.relations-canvas').hover({ position: { x: 5, y: 5 } });
+    assert.equal(await page.locator('.relations-canvas').evaluate(element => element.classList.contains('is-tracing-relation')), false);
     await connection.click();
     const dialog = page.locator('.relations-feeling-dialog');
     assert.deepEqual(await dialog.locator('optgroup').evaluateAll(groups => groups.map(group => group.label)), Details.feelingGroups.map(group => group.label));

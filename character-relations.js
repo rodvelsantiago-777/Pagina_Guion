@@ -93,13 +93,35 @@
     const positions = new Map(), nodeElements = new Map(), edgeElements = [], familyElements = [];
     let items = [], profiles = [], links = [], camera = { x: 0, y: 0, zoom: 1 }, gesture, frame = 0;
     let initialized = false, busy = false, currentLink = null, epoch = 0, lastOpener, kinshipKey = null;
-    const feelings = root.PlanoCharacterFeelings.create(host, world, { key: characterKey, label,
+    const hover = root.PlanoConnectionHover.create(canvas);
+    const relationHits = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    relationHits.classList.add('relations-connection-hits'); relationHits.setAttribute('aria-hidden', 'true');
+    world.insertBefore(relationHits, edgeLabels);
+    const feelings = root.PlanoCharacterFeelings.create(host, world, { key: characterKey, label, hover,
       async commit(change) {
         const token = epoch; setBusy(true);
         try { return await hooks.commit({ feeling: change }); }
         finally { if (token === epoch) setBusy(false); }
       },
     });
+    function traceRelation(selected) {
+      canvas.classList.toggle('is-tracing-relation', Boolean(selected));
+      const related = selected?.parents ? [...selected.parents, selected.child] : selected ? [selected.link.source, selected.link.target] : [];
+      for (const edge of edgeElements) {
+        const traced = edge === selected || Boolean(selected?.parents && selected.parents.includes(edge.link.source) && selected.parents.includes(edge.link.target) && !edge.link.parentId);
+        edge.path.classList.toggle('is-traced', traced); edge.button.classList.toggle('is-traced', traced);
+      }
+      for (const branch of familyElements) for (const element of [branch.path, branch.joint, branch.button]) element.classList.toggle('is-traced', branch === selected);
+      for (const [id, node] of nodeElements) node.classList.toggle('is-relation-endpoint', related.includes(id));
+    }
+    function bindRelation(edge, onClick) {
+      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hit.classList.add('relations-connection-hit'); hit.setAttribute('fill', 'none'); hit.setAttribute('stroke', 'transparent'); hit.setAttribute('stroke-width', '4');
+      hit.style.display = edge.path.style.display;
+      hit.addEventListener('pointerdown', event => event.stopPropagation()); hit.addEventListener('click', onClick);
+      edge.hit = hit; relationHits.append(hit);
+      hover.bind([hit, edge.button], () => traceRelation(edge), () => traceRelation(null));
+    }
 
     function showKinship(key) {
       if (key && (busy || gesture?.moved) || key === kinshipKey) return;
@@ -122,6 +144,7 @@
     }
     function setBusy(value) {
       busy = value;
+      hover.setDisabled(value);
       add.disabled = value || items.length < 2;
       canvas.setAttribute('aria-busy', String(value));
       form.querySelector('button[type="submit"]').disabled = value;
@@ -164,6 +187,7 @@
           const p = edge.link.parentId === edge.link.source ? a : b, c = p === a ? b : a;
           const y = (p.y + c.y) / 2;
           edge.path.setAttribute('d', 'M' + p.x + ' ' + (p.y + 40) + 'V' + y + 'H' + c.x + 'V' + (c.y - 40));
+          edge.hit.setAttribute('d', edge.path.getAttribute('d'));
           edge.button.style.transform = 'translate(' + ((p.x + c.x) / 2) + 'px,' + y + 'px) translate(-50%,-50%)';
           edge.labelPosition = { x: (p.x + c.x) / 2, y };
           continue;
@@ -172,6 +196,7 @@
         const curve = edge.offset * 52, cx = (a.x + b.x) / 2 - dy / length * curve;
         const cy = (a.y + b.y) / 2 + dx / length * curve;
         edge.path.setAttribute('d', 'M' + a.x + ' ' + a.y + 'Q' + cx + ' ' + cy + ' ' + b.x + ' ' + b.y);
+        edge.hit.setAttribute('d', edge.path.getAttribute('d'));
         edge.button.style.transform = 'translate(' + ((a.x + 2 * cx + b.x) / 4) + 'px,' +
           ((a.y + 2 * cy + b.y) / 4) + 'px) translate(-50%,-50%)';
         edge.labelPosition = { x: (a.x + 2 * cx + b.x) / 4, y: (a.y + 2 * cy + b.y) / 4 };
@@ -180,6 +205,7 @@
         const { x, y } = Family.middleFor(branch.parents, positions, links), c = positions.get(branch.child);
         const elbow = (y + c.y) / 2;
         branch.path.setAttribute('d', 'M' + x + ' ' + y + 'V' + elbow + 'H' + c.x + 'V' + (c.y - 40));
+        branch.hit.setAttribute('d', branch.path.getAttribute('d'));
         branch.joint.setAttribute('cx', x); branch.joint.setAttribute('cy', y);
         branch.button.style.transform = 'translate(' + c.x + 'px,' + elbow + 'px) translate(-50%,-50%)';
         branch.labelPosition = { x: c.x, y: elbow };
@@ -231,6 +257,7 @@
     }
     function editLink(link, opener) {
       if (busy || items.length < 2) return;
+      hover.clear();
       currentLink = link || null;
       lastOpener = opener;
       source.replaceChildren(...items.map(item => new Option(label(item), characterKey(item))));
@@ -274,6 +301,7 @@
       }
     }
     function render(characters, roster) {
+      hover.clear();
       items = characters;
       profiles = roster;
       links = linksFor(profiles);
@@ -322,6 +350,7 @@
         node.addEventListener('blur', () => showKinship(null));
         node.addEventListener('click', event => {
           if (event.detail && node.dataset.dragged === 'true') return;
+          hover.clear();
           if (!busy) hooks.open(item, node);
         });
         node.addEventListener('keydown', event => {
@@ -336,6 +365,7 @@
         nodes.append(node);
       }
       lines.replaceChildren();
+      relationHits.replaceChildren();
       edgeLabels.replaceChildren();
       edgeElements.length = 0;
       familyElements.length = 0;
@@ -381,7 +411,8 @@
         button.hidden = Boolean(grouped);
         lines.append(path);
         edgeLabels.append(button);
-        edgeElements.push({ link, path, button, offset: index - (group.length - 1) / 2 });
+        const edge = { link, path, button, offset: index - (group.length - 1) / 2 };
+        edgeElements.push(edge); bindRelation(edge, () => editLink(link, button));
       }
       for (const group of groups) for (const child of group.children) {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -394,9 +425,10 @@
         button.style.setProperty('--relationship-color', colorFor('Familia'));
         button.textContent = Details.childTitle(byKey.get(child)?.profile);
         button.setAttribute('aria-label', 'Ver progenitores de ' + label(byKey.get(child)));
-        button.addEventListener('click', () => { if (!busy) hooks.open(byKey.get(child), button); });
+        button.addEventListener('click', () => { hover.clear(); if (!busy) hooks.open(byKey.get(child), button); });
         lines.append(path, joint); edgeLabels.append(button);
-        familyElements.push({ ...group, child, path, joint, button });
+        const branch = { ...group, child, path, joint, button };
+        familyElements.push(branch); bindRelation(branch, () => { hover.clear(); if (!busy) hooks.open(byKey.get(child), button); });
       }
       legend.replaceChildren();
       for (const type of new Set([...Details.relationshipTypes, ...links.map(link => link.type)])) {
@@ -516,6 +548,7 @@
       render, setBusy,
       clear() {
         epoch++;
+        hover.clear(); hover.setDisabled(false);
         feelings.clear();
         gesture = null;
         if (frame) cancelAnimationFrame(frame);
@@ -523,6 +556,7 @@
         positions.clear(); nodeElements.clear(); edgeElements.length = 0; familyElements.length = 0;
         items = []; profiles = []; links = [];
         nodes.replaceChildren(); lines.replaceChildren(); edgeLabels.replaceChildren();
+        relationHits.replaceChildren();
         message(error);
         message(dropHint); guide.setAttribute('d', '');
         canvas.classList.remove('is-dragging', 'has-family-drop');

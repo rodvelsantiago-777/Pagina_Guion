@@ -64,6 +64,7 @@ function showScreen(screen, { refreshLibrary = true } = {}) {
     if (refreshLibrary) PlanoCloudLibrary.showHome();
   }
   PlanoHeader.refresh();
+  globalThis.PlanoHistory?.changed();
 }
 function updateStageView() {
   const editing = state.screen === "editor" && Boolean(state.pdf), technical = state.stage === "technical", writing = state.stage === "writing";
@@ -96,6 +97,7 @@ async function switchStage(stage) {
   if (state.stage === "coverage") state.viewAnchor = capturePosition();
   hideHighlightAction(); cancelHighlightCorrection(); window.getSelection()?.removeAllRanges();
   state.stage = stage; updateStageView();
+  globalThis.PlanoHistory?.changed();
   if (stage === "writing") await PlanoWriter.open(state.screenplay);
   else if (stage === "technical") refreshTechnicalScript();
   else { refreshAnnotations();await renderDocument({ anchor: state.viewAnchor }); startSpelling(); }
@@ -423,7 +425,7 @@ function createDocumentPreview(pdf) {
 }
 function currentLibraryProject() {
   if (!state.file) return null;
-  return { ...state.cloudProject, id: state.cloudProject?.id || "local", project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), project_emoji: state.projectInfo?.emoji??null, project_genre: state.projectInfo?.genre??null, name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
+  return { ...state.cloudProject, id: state.cloudProject?.id || "local", navigationId: state.cloudProject?.id || "local-"+state.screenplay.id, project_name: linkedProjectTitle(state.screenplay,state.localProjectName||state.cloudProject?.project_name), project_emoji: state.projectInfo?.emoji??null, project_genre: state.projectInfo?.genre??null, name: editableName(state.file.name), storage_kind:"editable", fingerprint: state.fingerprint, size_bytes: state.cloudProject?.size_bytes || new TextEncoder().encode(JSON.stringify(state.screenplay)).length, state: "ready", thumbnail: state.thumbnail };
 }
 function renameDocumentFile(name) {
   state.file = state.pdf.source(pdfName(name));
@@ -2791,3 +2793,34 @@ async function exportWrittenFountain(){
   catch(error){message('No se pudo exportar Fountain. '+error.message,true);}finally{state.exporting=false;busy(false);}
 }
 const exportMenu=PlanoExportUI.init({button:$('#open-export'),dialog:$('#export-dialog'),beforeOpen:()=>canSelectShots()&&PlanoTechnicalScript.finishEditing(),hasShots:()=>state.annotations.length>0,run:runExport});
+
+// Solo las vistas principales entran al historial; editar un campo no crea pasos.
+PlanoHistory.init({
+  snapshot:()=>{
+    const tab=PlanoAccountCenter.current();
+    if(tab)return {section:'account',tab};
+    if(state.screen==='editor'&&state.pdf)return {section:state.stage,project:currentLibraryProject().navigationId};
+    return PlanoCloudLibrary.route()||{section:'projects'};
+  },
+  canNavigate:()=>!creatingScript&&!projectInfoEditor.saving&&!state.busy&&!state.exporting&&!PlanoHeader.pending()&&!document.querySelector('dialog[open]')&&PlanoAccountCenter.canLeave()&&(!state.pdf||canSelectShots())&&PlanoTechnicalScript.finishEditing(),
+  blocked:()=>{
+    const target=document.querySelector('#account-center:not([hidden]) #center-message')||document.querySelector('dialog[open] [role="status"]')||$('#feedback');
+    target.textContent='Termina o cancela la edición abierta antes de cambiar de sección.';target.hidden=false;
+  },
+  restore:async route=>{
+    try{
+      if(route.section==='account'){
+        if(PlanoAccountCenter.current())PlanoAccountCenter.section(route.tab);
+        else PlanoAccountCenter.open(route.tab);
+        return;
+      }
+      if(PlanoAccountCenter.current())PlanoAccountCenter.close();
+      if(route.project)await PlanoCloudLibrary.navigate(route);
+      else await PlanoCloudLibrary.showRoot();
+    }catch(error){
+      if(PlanoAccountCenter.current())PlanoAccountCenter.close();
+      await PlanoCloudLibrary.showRoot();
+      message(error.message||'No se pudo abrir esta sección. Vuelve a intentarlo desde tus proyectos.',true);
+    }
+  }
+});

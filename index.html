@@ -26,16 +26,16 @@
   <link rel="preload" href="vendor/firebase-app-compat.js?v=20261103-load-1" as="script">
   <link rel="preload" href="vendor/firebase-auth-compat.js?v=20261103-load-1" as="script">
   <script src="auth-config.js?v=20261020-required-account-1" defer></script>
-  <script src="accounts.js?v=20261103-load-1" defer></script>
+  <script src="accounts.js?v=20261120-browser-navigation" defer></script>
   <script src="cloud-config.js?v=20261020-cloud-1" defer></script>
   <script src="cloud.js?v=20261112-native-layout-1" defer></script>
   <script src="account-session.js?v=20261103-load-1" defer></script>
   <script src="avatar-image.js?v=20261103-avatar-1" defer></script>
   <script src="avatar-crop.js?v=20261103-avatar-1" defer></script>
-  <script src="account-center.js?v=20261105-home-version-1" defer></script>
+  <script src="account-center.js?v=20261120-browser-navigation" defer></script>
   <link rel="stylesheet" href="account-center.css?v=20261117-cleanup">
   <script src="appearance-account.js?v=20261103-account-center-1" defer></script>
-  <script src="cloud-library.js?v=20261118-character-sections" defer></script>
+  <script src="cloud-library.js?v=20261120-browser-navigation" defer></script>
   <script src="compact-popovers.js?v=20261112-emoji-picker-1" defer></script>
   <script src="export-ui.js?v=20261117-cleanup" defer></script>
   <link rel="stylesheet" href="export-ui.css?v=20261102-docx-1">
@@ -79,21 +79,23 @@
   <link rel="stylesheet" href="project-info.css?v=20261112-genre-2">
   <script src="project-archive.js?v=20261117-characters" defer></script>
   <link rel="stylesheet" href="project-characters.css?v=20261120-couple-status">
-  <link rel="stylesheet" href="character-relations.css?v=20261120-feeling-contrast">
+  <link rel="stylesheet" href="character-relations.css?v=20261120-connection-hover">
   <link rel="stylesheet" href="character-avatar-editor.css?v=20261118-avatar-groups">
   <script src="character-details-editor.js?v=20261120-feeling-routes" defer></script>
   <script src="character-avatar-editor.js?v=20261118-natural-palettes" defer></script>
   <script src="character-family.js?v=20261120-age-layout" defer></script>
-  <script src="character-feeling-router.js?v=20261120-feeling-routes" defer></script>
-  <script src="character-feelings.js?v=20261120-feeling-contrast" defer></script>
-  <script src="character-relations.js?v=20261120-feeling-contrast" defer></script>
-  <script src="project-characters.js?v=20261120-feelings" defer></script>
+  <script src="character-connection-hover.js?v=20261120-connection-hover" defer></script>
+  <script src="character-feeling-router.js?v=20261120-short-connections" defer></script>
+  <script src="character-feelings.js?v=20261120-connection-hover" defer></script>
+  <script src="character-relations.js?v=20261120-connection-hover" defer></script>
+  <script src="project-characters.js?v=20261120-browser-navigation" defer></script>
   <script src="editable-import.js?v=20261102-project-archive-1" defer></script>
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
   <script src="writer-editor.js?v=20261117-editor-performance" defer></script>
   <script src="header-ui.js?v=20261110-linked-title-1" defer></script>
   <link rel="stylesheet" href="studio-shell.css?v=20261118-character-sections">
-  <script src="app.js?v=20261117-editor-performance" defer></script>
+  <script src="navigation.js?v=20261120-browser-navigation" defer></script>
+  <script src="app.js?v=20261120-browser-navigation" defer></script>
   <script src="patch-notes.js?v=20261117-patch-series" defer></script>
 </head>
 <body class="auth-locked auth-restoring">
@@ -182,7 +184,7 @@
         </div>
       </header>
       <div id="cloud-sync-alert" class="cloud-alert" role="status" hidden><p id="cloud-sync-error"></p><div><button id="cloud-retry-save" type="button">Reintentar guardado</button><button id="cloud-reload" type="button" hidden>Recargar versión de la nube</button><button id="cloud-export-draft" type="button">Descargar copia de mis notas</button></div></div>
-      <main id="main-content">
+      <main id="main-content" tabindex="-1">
         <section class="page-heading" aria-labelledby="page-title">
           <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Volver a la biblioteca" hidden>
             <button id="project-root" type="button"><svg aria-hidden="true"><use href="#i-arrow"/></svg>Mis proyectos</button>

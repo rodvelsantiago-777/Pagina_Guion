@@ -2,6 +2,14 @@
 
 PLANO es una aplicación web de producción audiovisual en HTML, CSS y JavaScript. El redactor, la cobertura y el guion técnico comparten un documento editable. Las cuentas usan Firebase y los proyectos se guardan en Supabase. PDF.js se usa en el navegador al importar o exportar PDF. La interfaz está en español y se adapta a escritorio, tableta y móvil.
 
+## Navegación en GitHub Pages
+
+Las vistas principales usan rutas con fragmento (`#/proyectos`, `#/proyectos/ID/guion`, `#/proyectos/ID/personajes/relaciones`, `#/cuenta/perfil`). El navegador conserva Atrás y Adelante sin recargar la aplicación. GitHub Pages solo recibe la ruta del documento principal, por lo que los enlaces directos y las recargas no requieren reglas de servidor, un `404.html` de redirección ni alojamiento adicional.
+
+`navigation.js` coordina el historial; las vistas notifican sus cambios al terminar la transición. Las direcciones contienen identificadores estables de proyecto, no títulos ni datos del guion. Tras restaurar la sesión se resuelve el proyecto exclusivamente en la biblioteca de esa cuenta. Un proyecto eliminado o inaccesible devuelve a la biblioteca con un aviso. Las ediciones de campos y los refrescos de contenido no generan entradas. Los formularios abiertos y las operaciones pendientes impiden abandonar la vista; cancelar un salto conserva la posibilidad de usar Adelante. En el modo local de pruebas, un identificador de documento evita confundir archivos distintos: el enlace no sustituye guardar/importar el archivo.
+
+`tests/navigation.cjs` verifica el historial del navegador contra un servidor estático, los editores, personajes y árbol, la cuenta, la conservación del texto, los formularios abiertos, los enlaces directos y la recarga.
+
 ## Etiquetas de diálogo y acotaciones
 
 El redactor incluye **Buscar y reemplazar** desde la lupa, `Ctrl+F` (`Cmd+F` en Mac) y `Ctrl+H` para abrir el reemplazo. Busca literalmente en el cuerpo del guion, entre fragmentos con distinto formato y en todas las páginas, con opciones de mayúsculas y palabra completa. Enter y Mayús+Enter recorren coincidencias; Esc cierra el panel. Los rótulos automáticos y la portada no se reemplazan. Reemplazar todo es una acción de historial y usa pasos de edición individuales para mantener el mapeo de los vínculos de cobertura; conserva el énfasis y evita referencias de personaje falsas. El panel y los colores de búsqueda no se guardan ni exportan.

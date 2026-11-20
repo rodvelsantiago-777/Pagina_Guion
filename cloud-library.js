@@ -122,6 +122,7 @@
   queueMicrotask(pumpPreviews);
  }
  function renderProject(){
+  root.PlanoHistory?.changed();
   const selected=selectedProject;
   if(!selected)closeCharacters();
   const inProject=Boolean(selected),facts=$('#project-facts');
@@ -198,6 +199,19 @@
    load:()=>hooks.projectDetails(project),
    commit:(record,profiles)=>hooks.saveCharacters(record,profiles,owner),
   });
+ }
+ async function navigate(route){
+  await refresh();
+  const project=projects.find(item=>(item.navigationId||item.id)===route.project);
+  if(!project||project.state!=='ready')throw Error('Este proyecto no está disponible en tu cuenta.');
+  if(route.section==='characters'){
+   if(!charactersOpen||selectedProject?.id!==project.id)await showCharacters(project);
+   root.PlanoProjectCharacters.setView(Boolean(route.tree));
+  }else if(route.section==='project')showProject(project);
+  else{
+   closeCharacters();
+   await task(()=>hooks.open(project.id,route.section));
+  }
  }
  function openStage(stage){
   if(!selectedProject)return false;
@@ -358,5 +372,5 @@
   if(selectedProject?.id===project.id)selectedProject=record||{...selectedProject,...project};
   if(atHome())renderHome();
  }
- root.PlanoCloudLibrary={init,showHome,showProject,showRoot,openStage,selected:()=>selectedProject,renameFile,renameProjectInline,updatePreview,closeOnIdentity,finishPreview:()=>previewWork,refreshProject:renderProject,projectUpdated,refreshStatus:()=>sync(cloud.info(false))};
+ root.PlanoCloudLibrary={init,showHome,showProject,showRoot,openStage,navigate,route:()=>selectedProject?{project:selectedProject.navigationId||selectedProject.id,section:charactersOpen?'characters':'project',tree:charactersOpen&&root.PlanoProjectCharacters.view()}:null,selected:()=>selectedProject,renameFile,renameProjectInline,updatePreview,closeOnIdentity,finishPreview:()=>previewWork,refreshProject:renderProject,projectUpdated,refreshStatus:()=>sync(cloud.info(false))};
 })(globalThis);
