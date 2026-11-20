@@ -161,6 +161,12 @@
   color: var(--genre-ink, var(--accent)); background: var(--genre-soft, var(--accent-soft)); font: 650 14px/1 var(--sans);
 }
 .character-extra-field, .character-extra-field-controls, .character-custom-field, .character-relation-control { display: grid; gap: 5px; min-width: 0; }
+.character-family-control { grid-column: 1 / -1; }
+.character-couple-control { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px 22px; }
+.character-couple-control label { display: flex; align-items: center; gap: 7px; }
+.character-dialog .character-couple-control input { width: 16px; height: 16px; min-height: 0; margin: 0; accent-color: var(--genre-ink, var(--accent)); }
+.character-kinship-auto { display: inline-block; margin-inline-start: 7px; padding: 1px 5px; border-radius: 4px; color: var(--muted); background: var(--surface-alt); font: 500 10px/1.5 var(--sans); }
+.character-auto-note { color: var(--muted); font: 11px/1.5 var(--sans); }
 .character-extra-field, .character-extra-field-controls { align-content: start; }
 @supports (grid-template-rows: subgrid) {
   .character-extra-field:not(.character-wide) { grid-row: span 2; grid-template-rows: subgrid; }

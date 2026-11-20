@@ -34,7 +34,7 @@
     const empty = picker.querySelector('.character-field-empty');
     const scroll = section.closest('.character-dialog-body');
     const output = section.querySelector('#character-extra-fields');
-    let details = {}, targets = [];
+    let details = {}, targets = [], ownerId, marital = {}, originalMarital, hadMarital = false;
     const customFields = new Set();
     const options = new Map();
 
@@ -79,7 +79,7 @@
       const index = available.indexOf(button);
       const next = available[index + 1] || available[index - 1] || add;
       const top = picker.getBoundingClientRect().top;
-      details[field.id] = field.kind === 'relationships' ? [] : '';
+      details[field.id] = ['relationships', 'feelings'].includes(field.kind) ? [] : '';
       render();
       // Los campos aparecen encima del catálogo. Mantén las etiquetas a la vista.
       scroll.scrollTop += picker.getBoundingClientRect().top - top;
@@ -134,6 +134,14 @@
         control.addEventListener('input', () => { details[field.id] = control.value; });
       }
       body.append(control);
+      if (field.id === 'maritalStatus' && marital.automatic) {
+        control.disabled = true;
+        const note = make('small', 'character-auto-note', catalog.maritalExplanation(marital));
+        note.id = 'character-marital-auto-note';
+        control.setAttribute('aria-describedby', note.id);
+        body.append(note);
+        return;
+      }
       if (field.customLabel) customInput(field, control, body);
     }
 
@@ -162,9 +170,46 @@
           type.append(legacy);
         }
         type.value = relation.type;
-        type.addEventListener('change', () => { relation.type = type.value; });
+        const familyField = make('div', 'character-relation-control character-family-control');
+        const parent = make('select');
+        parent.id = 'character-relation-parent-' + index;
+        function updateFamily() {
+          familyField.hidden = type.value !== 'Familia';
+          parent.replaceChildren(new Option('Sin definir', ''), new Option('Es progenitor/a de este personaje', person.value), new Option('Es hijo/a de este personaje', ownerId));
+          parent.value = relation.parentId || '';
+        }
+        parent.addEventListener('change', () => {
+          if (parent.value) relation.parentId = parent.value;
+          else delete relation.parentId;
+        });
+        familyField.append(label(parent.id, 'Parentesco del personaje elegido'), parent);
+        const couple = make('div', 'character-couple-control');
+        const coupleChecks = {};
+        for (const [flag, caption] of [['married', 'Casados'], ['broken', 'Ruptura']]) {
+          const check = make('input'); check.type = 'checkbox';
+          check.id = 'character-relation-' + flag + '-' + index;
+          const row = label(check.id, caption); row.prepend(check); couple.append(row); coupleChecks[flag] = check;
+          check.addEventListener('change', () => { relation[flag] = check.checked; });
+        }
+        function updateCouple() {
+          couple.hidden = !catalog.isCouple(type.value);
+          coupleChecks.married.checked = catalog.isMarried(relation);
+          coupleChecks.broken.checked = Boolean(relation.broken);
+        }
+        type.addEventListener('change', () => {
+          relation.type = type.value;
+          if (type.value !== 'Familia') delete relation.parentId;
+          if (!catalog.isCouple(type.value)) { delete relation.married; delete relation.broken; }
+          updateFamily();
+          updateCouple();
+        });
         person.addEventListener('change', () => {
+          const previousTarget = relation.targetId;
           relation.targetId = person.value;
+          delete relation.married; delete relation.broken;
+          if (relation.parentId === previousTarget) relation.parentId = person.value;
+          updateFamily();
+          updateCouple();
           updateAddRelation();
           if (!legacy) return;
           if (type.value === legacy.value) type.value = relation.type = '';
@@ -180,7 +225,9 @@
         const typeField = make('div', 'character-relation-control');
         personField.append(label(person.id, 'Personaje'), person);
         typeField.append(label(type.id, 'Tipo de vínculo'), type);
-        row.append(personField, typeField, remove);
+        row.append(personField, typeField, remove, familyField, couple);
+        updateFamily();
+        updateCouple();
         body.append(row);
       }
       addRelation.type = 'button';
@@ -195,8 +242,33 @@
       if (!targets.length) body.append(make('p', 'character-relation-empty', 'Crea otro personaje del proyecto para vincularlo.'));
     }
 
+    function feelingField(body) {
+      const entries = details.feelings;
+      for (const [index, entry] of entries.entries()) {
+        const row = make('div', 'character-relation-row');
+        const person = make('select'), feeling = make('select');
+        person.id = 'character-feeling-target-' + index; person.required = true;
+        person.append(new Option('Seleccionar personaje', ''), ...targets.map(target => new Option(target.name, target.id)));
+        person.value = entry.targetId;
+        feeling.id = 'character-feeling-type-' + index; feeling.required = true;
+        feeling.append(new Option('Elegir sentimiento', ''), ...catalog.feelingTypes.map(type => new Option(type, type)));
+        feeling.value = entry.feeling;
+        person.addEventListener('change', () => { entry.targetId = person.value; });
+        feeling.addEventListener('change', () => { entry.feeling = feeling.value; });
+        const personField = make('div', 'character-relation-control'), feelingControl = make('div', 'character-relation-control');
+        personField.append(label(person.id, 'Hacia quién'), person); feelingControl.append(label(feeling.id, 'Qué siente'), feeling);
+        row.append(personField, feelingControl, removeButton('Quitar sentimiento ' + (index + 1), () => { entries.splice(index, 1); render(); document.getElementById(controlId('feelings'))?.focus(); }));
+        body.append(row);
+      }
+      const addFeeling = make('button', 'workspace-button', '+ Añadir sentimiento');
+      addFeeling.type = 'button'; addFeeling.id = controlId('feelings');
+      addFeeling.disabled = !targets.length || entries.length >= catalog.maxRelationships;
+      addFeeling.addEventListener('click', () => { entries.push({ targetId: '', feeling: '' }); render(); document.getElementById('character-feeling-target-' + (entries.length - 1))?.focus(); });
+      body.append(addFeeling);
+      if (!targets.length) body.append(make('p', 'character-relation-empty', 'Crea otro personaje para definir qué siente hacia él.'));
+    }
     function renderField(field) {
-      const isRelationships = field.kind === 'relationships';
+      const isRelationships = ['relationships', 'feelings'].includes(field.kind);
       const box = make('div', 'character-extra-field');
       box.classList.toggle('character-wide', isRelationships || field.kind === 'textarea');
       const heading = make('div', 'character-extra-field-heading');
@@ -206,9 +278,11 @@
         render();
         (picker.hidden ? add : options.get(field.id).button).focus();
       });
+      if (field.id === 'maritalStatus' && marital.automatic) remove.disabled = true;
       heading.append(isRelationships ? make('strong', '', field.label) : label(controlId(field.id), field.label), remove);
       box.append(heading);
-      if (isRelationships) relationshipField(box);
+      if (field.kind === 'relationships') relationshipField(box);
+      else if (field.kind === 'feelings') feelingField(box);
       else {
         const controls = make('div', 'character-extra-field-controls');
         scalarField(field, controls);
@@ -229,9 +303,14 @@
     add.addEventListener('click', () => showPicker(picker.hidden));
 
     return {
-      open(values, choices) {
-        details = values || {};
+      open(values, choices, id, effectiveMarital = {}) {
+        details = { ...values };
+        marital = effectiveMarital;
+        hadMarital = Object.hasOwn(details, 'maritalStatus');
+        originalMarital = details.maritalStatus;
+        if (marital.automatic) details.maritalStatus = marital.value;
         targets = choices;
+        ownerId = id;
         customFields.clear();
         for (const [key, value] of Object.entries(details)) {
           const field = catalog.fields.get(key);
@@ -240,7 +319,14 @@
         showPicker(false);
         render();
       },
-      read: () => details,
+      read() {
+        const result = { ...details };
+        if (marital.automatic) {
+          if (hadMarital) result.maritalStatus = originalMarital;
+          else delete result.maritalStatus;
+        }
+        return result;
+      },
     };
   }
 

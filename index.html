@@ -67,23 +67,26 @@
   <link rel="stylesheet" href="editor-status.css?v=20261111-writer-theme-1">
   <link rel="stylesheet" href="header-ui.css?v=20261112-ui-cleanup-1">
   <script src="screenplay-surface.js?v=20261112-native-layout-1" defer></script>
-  <script src="character-details.js?v=20261117-shared-relationships" defer></script>
+  <script src="character-kinship.js?v=20261120-extended-family" defer></script>
+  <script src="character-details.js?v=20261120-feelings" defer></script>
   <script src="character-avatar-wardrobe.js?v=20261118-natural-palettes" defer></script>
   <script src="character-avatar.js?v=20261118-avatar-preview" defer></script>
-  <script src="screenplay.js?v=20261118-relations" defer></script>
+  <script src="screenplay.js?v=20261120-family-tree" defer></script>
   <script src="screenplay-links.js?v=20261112-coverage-performance-1" defer></script>
   <script src="screenplay-versions.js?v=20261112-version-compare-1" defer></script>
   <link rel="stylesheet" href="version-history.css?v=20261112-version-compare-1">
   <script src="project-info.js?v=20261117-genre-palette" defer></script>
   <link rel="stylesheet" href="project-info.css?v=20261112-genre-2">
   <script src="project-archive.js?v=20261117-characters" defer></script>
-  <link rel="stylesheet" href="project-characters.css?v=20261118-character-sections">
-  <link rel="stylesheet" href="character-relations.css?v=20261118-character-sections">
+  <link rel="stylesheet" href="project-characters.css?v=20261120-couple-status">
+  <link rel="stylesheet" href="character-relations.css?v=20261120-feelings">
   <link rel="stylesheet" href="character-avatar-editor.css?v=20261118-avatar-groups">
-  <script src="character-details-editor.js?v=20261117-shared-relationships" defer></script>
+  <script src="character-details-editor.js?v=20261120-feelings" defer></script>
   <script src="character-avatar-editor.js?v=20261118-natural-palettes" defer></script>
-  <script src="character-relations.js" defer></script>
-  <script src="project-characters.js?v=20261118-character-sections" defer></script>
+  <script src="character-family.js?v=20261120-age-layout" defer></script>
+  <script src="character-feelings.js?v=20261120-feelings" defer></script>
+  <script src="character-relations.js?v=20261120-feelings" defer></script>
+  <script src="project-characters.js?v=20261120-feelings" defer></script>
   <script src="editable-import.js?v=20261102-project-archive-1" defer></script>
   <link rel="stylesheet" href="editable-import.css?v=20261102-project-archive-1">
   <script src="writer-editor.js?v=20261117-editor-performance" defer></script>
@@ -124,6 +127,10 @@
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="m16 4 5 5-5 5M21 9H11a7 7 0 0 0 0 14"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l1-6L16 3a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L10 19z"/></symbol>
     <symbol id="i-character" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/></symbol>
+    <symbol id="i-mourning" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" fill-rule="evenodd" d="M12 2c-3.5 0-5.5 2.5-5.5 5.7 0 3 1.9 6 3.6 8.3L5 21l4.5.8 2.5-3.2 2.5 3.2L19 21l-5.1-5c1.7-2.3 3.6-5.3 3.6-8.3C17.5 4.5 15.5 2 12 2Zm0 3c1.7 0 2.5 1.1 2.5 2.7 0 1.9-1.1 4-2.5 6-1.4-2-2.5-4.1-2.5-6C9.5 6.1 10.3 5 12 5Z"/></symbol>
+    <symbol id="i-missing" viewBox="0 0 24 24"><path d="M8 8a4 4 0 0 1 8 0c0 3-4 3.3-4 6.5" stroke-width="2.4"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-rings" viewBox="0 0 24 24"><circle cx="8.5" cy="13.5" r="6"/><circle cx="15.5" cy="13.5" r="6"/><path d="m13 4 2.5-2L18 4l-2.5 3Z"/></symbol>
+    <symbol id="i-heart-broken" viewBox="0 0 24 24"><path d="M12 21 3.7 12.7a5.5 5.5 0 0 1 7.8-7.8l.5.5.5-.5a5.5 5.5 0 0 1 7.8 7.8L12 21Z"/><path d="m13 4-3 5 4 3-3 5 1 4"/></symbol>
     <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 3h14v12l-6 6H5zM13 21v-6h6M8 7h8M8 11h6"/></symbol>
     <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
     <symbol id="i-drag" viewBox="0 0 24 24"><path d="M8 5h1M15 5h1M8 12h1M15 12h1M8 19h1M15 19h1"/></symbol>

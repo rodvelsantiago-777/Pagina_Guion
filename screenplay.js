@@ -175,6 +175,7 @@
    const details=CharacterDetails.validate(value[index].details,ids,profile.id);
    if(details)profile.details=details;
   }
+  CharacterDetails.validateFamily(profiles);
   return profiles;
  }
  function profileNames(profiles){

@@ -117,12 +117,15 @@
     if (!context || saving) throw Error('Espera a que termine el guardado.');
     const active = context, token = generation;
     let profiles = [...active.profiles];
+    const resolved = new Map();
     function ensureProfile(key) {
+      if (resolved.has(key)) return profiles.find(profile => profile.id === resolved.get(key));
       const item = active.characters.find(character => root.PlanoCharacterRelations.key(character) === key);
       if (!item) throw Error('El personaje ya no está disponible. Vuelve a abrir el árbol.');
-      if (item.profile) return profiles.find(profile => profile.id === item.profile.id);
+      if (item.profile) { resolved.set(key, item.profile.id); return profiles.find(profile => profile.id === item.profile.id); }
       const profile = emptyProfile(item.name);
       profiles.push(profile);
+      resolved.set(key, profile.id);
       return profile;
     }
     if (change.position) {
@@ -131,13 +134,28 @@
         ? { ...item, relationshipPosition: { x: change.position.x, y: change.position.y } } : item);
     }
     if (change.relationship) {
-      const { source, target, type, previousType, remove } = change.relationship;
+      const { source, target, type, previousType, remove, parent, married, broken } = change.relationship;
       const owner = ensureProfile(source), other = ensureProfile(target);
       if (owner.id === other.id) throw Error('Elige dos personajes diferentes.');
       const current = Details.relationshipsFor(profiles, owner.id) || [];
       const relationships = current.filter(entry => !(entry.targetId === other.id && entry.type === previousType));
-      if (!remove) relationships.push({ targetId: other.id, type });
+      if (!remove) relationships.push({ targetId: other.id, type,
+        ...(parent && type === 'Familia' ? { parentId: ensureProfile(parent).id } : {}),
+        ...(Details.isCouple(type) ? { married: Boolean(married), broken: Boolean(broken) } : {}) });
       profiles = Details.updateRelationships(profiles, { ...owner, details: { ...owner.details, relationships } });
+    }
+    if (change.feeling) {
+      const owner = ensureProfile(change.feeling.source), other = ensureProfile(change.feeling.target);
+      const feelings = (owner.details?.feelings || []).filter(entry => entry.targetId !== other.id);
+      if (!change.feeling.remove) feelings.push({ targetId: other.id, feeling: change.feeling.feeling });
+      profiles = profiles.map(profile => profile.id === owner.id ? { ...profile, details: { ...profile.details, feelings } } : profile);
+    }
+    for (const family of change.parents || []) {
+      const parent = ensureProfile(family.parent), child = ensureProfile(family.child);
+      const relationships = (Details.relationshipsFor(profiles, parent.id) || [])
+        .filter(entry => !(entry.targetId === child.id && entry.type === 'Familia'));
+      relationships.push({ targetId: child.id, type: 'Familia', parentId: parent.id });
+      profiles = Details.updateRelationships(profiles, { ...parent, details: { ...parent.details, relationships } });
     }
     profiles = S.validateProfiles(profiles);
     saving = true;
@@ -278,8 +296,12 @@
     if (profile.about) basics.append(fieldRow('Acerca de', profile.about, true));
     optionalFields.replaceChildren();
     const details = { ...profile.details };
-    const relationships = Details.relationshipsFor(context.profiles, profile.id);
-    if (relationships) details.relationships = relationships;
+    const marital = Details.maritalState(context.profiles, profile.id);
+    if (marital.automatic || marital.value) details.maritalStatus = marital.label;
+    const relationships = Details.displayRelationshipsFor(context.profiles, profile.id);
+    if (relationships.length) details.relationships = relationships;
+    const feelings = Details.feelingsFor(context.profiles, profile.id);
+    if (feelings.length) details.feelings = feelings;
     for (const field of Details.fields.values()) {
       if (!Object.hasOwn(details, field.id)) continue;
       const value = details[field.id];
@@ -287,18 +309,43 @@
         const byId = new Map(context.profiles.map(other => [other.id, S.characterName(other)]));
         const relations = document.createElement('ul');
         relations.className = 'character-profile-relations';
-        for (const { targetId, type, sourceId } of value) {
+        for (const relationship of value) {
+          const { targetId, type, sourceId } = relationship;
           const entry = document.createElement('li'), name = document.createElement('strong');
           name.textContent = byId.get(targetId);
           const description = sourceId === targetId && !Details.relationshipTypes.includes(type)
-            ? 'Vínculo anotado desde su ficha («' + type + '»)' : type;
+            ? 'Vínculo anotado desde su ficha («' + type + '»)' : Details.relationshipLabel(relationship, context.profiles);
           entry.append(name, ' · ' + description);
+          if (relationship.inferred) {
+            const automatic = document.createElement('small');
+            automatic.className = 'character-kinship-auto';
+            automatic.textContent = 'Automático';
+            automatic.title = relationship.evidence + ' Se actualiza al editar los progenitores.';
+            entry.append(automatic);
+          }
           relations.append(entry);
         }
         optionalFields.append(fieldRow(field.label, relations, true));
+      } else if (field.kind === 'feelings' && value.length) {
+        const byId = new Map(context.profiles.map(other => [other.id, S.characterName(other)]));
+        const entries = document.createElement('ul'); entries.className = 'character-profile-relations';
+        for (const sentiment of value) {
+          const entry = document.createElement('li'), name = document.createElement('strong');
+          name.textContent = byId.get(sentiment.targetId);
+          entry.append(sentiment.direction === 'incoming' ? 'De ' : 'Hacia ', name, ' · ' + sentiment.feeling);
+          entries.append(entry);
+        }
+        optionalFields.append(fieldRow(field.label, entries, true));
       } else {
-        const wide = field.kind === 'textarea' || field.kind === 'relationships';
-        optionalFields.append(fieldRow(field.label, typeof value === 'string' ? value : '', wide));
+        const wide = field.kind === 'textarea' || field.kind === 'relationships' || field.kind === 'feelings';
+        const row = fieldRow(field.label, typeof value === 'string' ? value : '', wide);
+        if (field.id === 'maritalStatus' && marital.automatic) {
+          const automatic = document.createElement('small');
+          automatic.className = 'character-kinship-auto'; automatic.textContent = 'Automático';
+          automatic.title = Details.maritalExplanation(marital);
+          row.querySelector('dd').append(automatic);
+        }
+        optionalFields.append(row);
       }
     }
     additional.hidden = !optionalFields.childElementCount;
@@ -333,7 +380,7 @@
     relationshipTargets = new Map(choices.map(choice => [choice.id, choice]));
     const relationships = Details.relationshipsFor(context.profiles, editing.id);
     if (relationships) editing.details = { ...editing.details, relationships };
-    extras.open(editing.details, choices);
+    extras.open(editing.details, choices, editing.id, Details.maritalState(context.profiles, editing.id));
     reader.hidden = true;
     form.hidden = false;
     dialog.classList.remove('is-reading');
@@ -457,7 +504,7 @@
     const disabledForSave = [];
     try {
       const related = new Map();
-      for (const { targetId } of profile.details.relationships || []) {
+      for (const { targetId } of [...(profile.details.relationships || []), ...(profile.details.feelings || [])]) {
         const target = relationshipTargets.get(targetId);
         if (target && !target.profile && !related.has(targetId)) related.set(targetId, emptyProfile(target.name, target.id));
       }

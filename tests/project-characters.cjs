@@ -66,7 +66,7 @@ assert.throws(() => S.validateProfiles([angela, { ...twin, aliases: ['Canelita']
 assert.throws(() => S.validateProfiles([{ ...angela, about: 'a'.repeat(S.characterAboutLimit + 1) }]), /hasta 300 caracteres/);
 assert.equal(S.validateProfiles([{ ...angela, about: ' ' + about.replace('\n', '\r\n') + ' ' }])[0].about, about);
 assert.equal(S.validateProfiles([{ ...angela, about: undefined }])[0].about, undefined);
-assert.equal(Details.fields.size, 32);
+assert.equal(Details.fields.size, 33);
 const personalityTypes = Details.fields.get('personalityType');
 assert.equal(new Set(personalityTypes.optionGroups[0].options).size, 16);
 assert(personalityTypes.options.includes('INFP-A') && personalityTypes.options.includes('INFP-T'));

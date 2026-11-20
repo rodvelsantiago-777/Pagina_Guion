@@ -14,7 +14,18 @@
 }
 .relations-canvas.is-dragging, .relations-canvas.is-dragging .relations-node { cursor: grabbing; }
 .relations-world { position: absolute; inset: 0 auto auto 0; width: 1px; height: 1px; transform-origin: 0 0; }
-.relations-lines { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; stroke: none; }
+.relations-lines, .relations-guides { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; stroke: none; }
+.relations-feeling-lines { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.relations-feeling-hit { pointer-events: stroke; cursor: pointer; }
+.relations-feeling-add { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); background: var(--paper); font: 500 16px/1 var(--sans); cursor: pointer; }
+.relations-feeling-add:hover { color: var(--genre-ink, var(--accent)); border-color: currentColor; }
+.relations-feeling-link { position: absolute; top: 0; left: 0; width: max-content; max-width: 170px; padding: 3px 7px; border: 1px dashed var(--feeling-color); border-radius: 12px; color: var(--ink); background: var(--paper); font: 500 10px/1.3 var(--sans); cursor: pointer; }
+.relations-feeling-link:hover { box-shadow: 0 0 0 1px var(--feeling-color); }
+.relations-feeling-help { margin: 3px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.relations-guides path { stroke: var(--genre-ink, var(--accent)); stroke-width: 1; stroke-dasharray: 5 6; }
+.relations-drop-hint { position: absolute; bottom: 18px; left: 50%; max-width: calc(100% - 32px); margin: 0; padding: 9px 14px; transform: translateX(-50%); border: 1px solid var(--genre-ink, var(--accent)); border-radius: 6px; color: var(--ink); background: var(--paper); font-size: 12px; text-align: center; pointer-events: none; }
+.relations-canvas.has-family-drop { box-shadow: inset 0 0 0 2px var(--genre-ink, var(--accent)); }
+.relations-family-field { display: grid; gap: 8px; }
 .relations-node {
   position: absolute; display: grid; justify-items: center; align-content: start; gap: 8px;
   top: 0; left: 0; width: 156px; padding: 0; border: 0; background: transparent; color: var(--ink);
@@ -27,7 +38,16 @@
   border-radius: 50%; background: var(--genre-soft, var(--accent-soft));
 }
 .relations-node:hover .relations-avatar { border-color: var(--genre-ink, var(--accent)); }
+.relations-node[data-life-state=dead] .relations-avatar { filter: grayscale(1); }
+.relations-node[data-life-state=missing] .relations-avatar { background: #dce0e3; border-color: #a4aab0; }
+.relations-node[data-life-state=missing] .relations-avatar > svg { filter: brightness(0); }
+.relations-node > .relations-life-mark { position: absolute; top: -5px; left: calc(50% + 15px); z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #c5c7ca; border-radius: 50%; background: #f9f9fa; color: #15161a; }
+.relations-life-mark svg { width: 20px; height: 20px; }
+.relations-node > .relations-life-label { margin-top: -5px; max-width: 156px; color: var(--muted); background: var(--paper); padding-inline: 4px; font: 500 10px/1.35 var(--sans); }
 .relations-node-name { max-width: 156px; padding: 2px 5px; border-radius: 4px; background: var(--paper); overflow-wrap: anywhere; }
+.relations-node.is-family-reference .relations-avatar { border-color: var(--genre-ink, var(--accent)); }
+.relations-node > .relations-node-kinship { pointer-events: none; width: max-content; max-width: 190px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--genre-ink, var(--accent)); background: var(--paper); font: 600 11px/1.35 var(--sans); }
+.relations-family-help { display: block; margin-top: 4px; }
 .relations-link {
   position: absolute; top: 0; left: 0; width: max-content; max-width: 180px;
   padding: 3px 8px; border: 1px solid var(--relationship-color); border-radius: 20px;
@@ -35,6 +55,14 @@
 }
 .relations-link::before, .relations-legend li::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-inline-end: 5px; border-radius: 50%; background: var(--relationship-color); }
 .relations-link:hover { box-shadow: 0 0 0 2px var(--relationship-color); }
+.relations-couple-link { display: flex; align-items: center; gap: 5px; }
+.relations-couple-link::before { display: none; }
+.relations-couple-link svg { width: 17px; height: 17px; color: var(--relationship-color); }
+.relations-couple-field { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; min-width: 0; margin: 7px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.relations-couple-field legend { padding-inline: 4px; color: var(--muted); font: 600 11px var(--sans); }
+.relations-dialog .relations-couple-field label { display: flex; align-items: center; gap: 7px; margin: 0; }
+.relations-couple-field input { width: 16px; height: 16px; margin: 0; accent-color: var(--genre-ink, var(--accent)); }
+.relations-couple-field p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 11px; }
 .relations-empty { position: absolute; inset: 44% 24px auto; margin: 0; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none; }
 .relations-foot { display: flex; align-items: start; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 10px 60px 10px 28px; border-top: 1px solid var(--line); color: var(--muted); background: var(--surface-alt); }
 .relations-foot p { max-width: 300px; margin: 0; font-size: 11px; line-height: 1.5; }
