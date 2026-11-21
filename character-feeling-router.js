@@ -42,7 +42,7 @@
     for (const [id, at] of positions) {
       result.push({ id, kind: 'avatar', left: at.x - 57, right: at.x + 57, top: at.y - 56, bottom: at.y + 43 });
       result.push({ id, kind: 'name', left: at.x - 88, right: at.x + 88, top: at.y + 42, bottom: at.y + 126 });
-      result.push({ id, kind: 'control', left: at.x - 20, right: at.x + 20, top: at.y - 83, bottom: at.y - 46 });
+      result.push({ id, kind: 'control', left: at.x + 34, right: at.x + 64, top: at.y - 70, bottom: at.y - 40 });
     }
     return result;
   }
@@ -107,7 +107,7 @@
             if (through(p, q, box)) score += 12000;
           }
           for (const box of labels) if (through(p, q, box)) score += 5000;
-          for (const segment of segments) score += overlapCost(p, q, segment.a, segment.b);
+          for (const segment of segments) score += overlapCost(p, q, segment.a, segment.b) * (segment.formal ? .4 : 1);
         }
         score += length + Math.max(0, length - distance(a, b) * 1.6) * 2;
         if (best && score >= best.score) return;
@@ -135,7 +135,9 @@
         const spread = (index % 5) * 28;
         const xs = new Set([(s.x + t.x) / 2, Math.min(s.x, t.x) - 36 - spread, Math.max(s.x, t.x) + 36 + spread, left - spread, right + spread]);
         const ys = new Set([(s.y + t.y) / 2, Math.min(s.y, t.y) - 56 - spread, Math.max(s.y, t.y) + 56 + spread,
-          Math.min(a.y, b.y) - 96 - spread, Math.max(a.y, b.y) + 150 + spread, top - spread, bottom + spread]);
+          Math.min(a.y, b.y) - 96 - spread, Math.max(a.y, b.y) + 150 + spread,
+          Math.min(a.y, b.y) - 136 - spread, Math.min(a.y, b.y) - 176 - spread,
+          Math.max(a.y, b.y) + 176 + spread, top - spread, bottom + spread]);
         const candidates = [[start, s, t, end], [start, s, { x: t.x, y: s.y }, t, end], [start, s, { x: s.x, y: t.y }, t, end]];
         for (const x of xs) candidates.push([start, s, { x, y: s.y }, { x, y: t.y }, t, end]);
         for (const y of ys) candidates.push([start, s, { x: s.x, y }, { x: t.x, y }, t, end]);

@@ -1,5 +1,6 @@
 {
   "entries": [
+    {"id": "family-grid-layout", "category": "improved", "text": "Árbol organizado en una cuadrícula con franjas de edad fijas. Familias separadas, amistades cercanas fuera de las ramas y conectores genealógicos con barras compartidas. Sentimientos más transparentes.", "topic": "writing", "order": 47},
     {"id": "browser-section-history", "category": "new", "text": "Atrás y Adelante recorren proyectos, editores, personajes y cuenta. Cada sección tiene un enlace propio que funciona al recargar en GitHub Pages.", "topic": "interface", "order": 0},
     {"id": "screenplay-writer", "category": "new", "text": "Nuevo redactor para escribir guiones desde cero.", "topic": "writing", "order": 0},
     {"id": "screenplay-title-authors", "category": "new", "text": "Portada independiente con título, autores y datos de contacto.", "topic": "writing", "order": 10},

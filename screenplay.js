@@ -145,7 +145,7 @@
    if(avatar)profile.avatar=avatar;
    const position=item.relationshipPosition;
    if(position&&Number.isFinite(position.x)&&Number.isFinite(position.y)&&Math.abs(position.x)<=20000&&Math.abs(position.y)<=20000){
-    profile.relationshipPosition={x:Math.round(position.x),y:Math.round(position.y)};
+    profile.relationshipPosition={x:Math.round(position.x),y:Math.round(position.y),...(position.grid===1?{grid:1}:{})};
    }
    // Conserva el dato anterior donde no se puede traducir a una identidad de género.
    if(legacySex==='Intersexual')profile.sex=legacySex;

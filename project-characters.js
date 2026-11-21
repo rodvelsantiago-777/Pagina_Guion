@@ -131,7 +131,7 @@
     if (change.position) {
       const profile = ensureProfile(change.position.key);
       profiles = profiles.map(item => item.id === profile.id
-        ? { ...item, relationshipPosition: { x: change.position.x, y: change.position.y } } : item);
+        ? { ...item, relationshipPosition: { x: change.position.x, y: change.position.y, grid: 1 } } : item);
     }
     if (change.relationship) {
       const { source, target, type, previousType, remove, parent, married, broken } = change.relationship;
@@ -157,6 +157,7 @@
       relationships.push({ targetId: child.id, type: 'Familia', parentId: parent.id });
       profiles = Details.updateRelationships(profiles, { ...parent, details: { ...parent.details, relationships } });
     }
+    if (change.relationship) profiles = root.PlanoCharacterFamily.resetChangedPositions(active.profiles, profiles);
     profiles = S.validateProfiles(profiles);
     saving = true;
     add.disabled = true;
@@ -510,7 +511,7 @@
         if (target && !target.profile && !related.has(targetId)) related.set(targetId, emptyProfile(target.name, target.id));
       }
       const current = Details.updateRelationships(active.profiles, profile);
-      const profiles = S.validateProfiles([...current, ...related.values()]);
+      const profiles = S.validateProfiles(root.PlanoCharacterFamily.resetChangedPositions(active.profiles, [...current, ...related.values()]));
       saving = true;
       form.setAttribute('aria-busy', 'true');
       disabledForSave.push(...[...fields].filter(control => !control.disabled));

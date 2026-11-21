@@ -117,13 +117,15 @@ const out = path.join(__dirname, '.output');
     assert.equal(await graph.locator('.relations-link').count(), 3);
     await add.getByRole('button', { name: 'Cancelar', exact: true }).click();
     await page.screenshot({ path: path.join(out, 'arbol-relaciones.png') });
+    const arrangedPosition = await nodes.filter({ hasText: 'Anita' }).getAttribute('style');
     await page.getByRole('tab', { name: 'Personajes', exact: true }).click();
     await page.screenshot({ path: path.join(out, 'personajes-seccion-completa.png') });
     await page.locator('.character-card').filter({ hasText: 'VECINA' }).click();
     await page.getByRole('dialog', { name: 'VECINA', exact: true }).getByText('Ana Suárez · Conocidos', { exact: true }).waitFor();
     await page.getByRole('dialog', { name: 'VECINA', exact: true }).getByRole('button', { name: 'Cerrar ficha' }).click();
     await page.getByRole('tab', { name: 'Árbol de relaciones' }).click();
-    assert.deepEqual(await page.evaluate(() => state.characterProfiles.find(profile => profile.id === 'ana').relationshipPosition), savedPosition);
+    assert.equal(await page.evaluate(() => state.characterProfiles.find(profile => profile.id === 'ana').relationshipPosition), undefined);
+    assert.equal(await nodes.filter({ hasText: 'Anita' }).getAttribute('style'), arrangedPosition, 'Cambiar de pestaña conserva la organización automática');
     await page.setViewportSize({ width: 390, height: 844 });
     await fullPageSection();
     await graph.getByRole('button', { name: 'Ajustar', exact: true }).click();
@@ -138,7 +140,7 @@ const out = path.join(__dirname, '.output');
     const exported = await page.evaluate(() => PlanoProjectArchive.stringify({
       name: 'Las visitas', documentName: 'Las visitas.plano', payload: { version: 1, screenplay: state.screenplay, characterProfiles: state.characterProfiles, annotations: [], corrections: [], crew: {} },
     }));
-    assert.deepEqual(Archive.parse(exported).payload.characterProfiles.find(profile => profile.id === 'ana').relationshipPosition, savedPosition);
+    assert.equal(Archive.parse(exported).payload.characterProfiles.find(profile => profile.id === 'ana').relationshipPosition, undefined, 'Cambiar vínculos devuelve el bloque afectado a la distribución automática');
     const bad = S.validateProfiles([{ ...profiles[0], details: undefined, relationshipPosition: { x: Infinity, y: 0 } }])[0];
     assert.equal(bad.relationshipPosition, undefined);
     await page.setViewportSize({ width: 1280, height: 960 });

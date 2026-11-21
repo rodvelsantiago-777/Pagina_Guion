@@ -134,7 +134,7 @@
     }
     function draw(positions, context = {}) {
       for (const [key, button] of buttons) {
-        const at = positions.get(key); if (at) button.style.transform = 'translate(' + (at.x - 11) + 'px,' + (at.y - 69) + 'px)';
+        const at = positions.get(key); if (at) button.style.transform = 'translate(' + (at.x + 38) + 'px,' + (at.y - 65) + 'px)';
       }
       if (!edges.length) return;
       const signature = [...positions].map(([id, at]) => id + ':' + at.x + ',' + at.y).join('|');

@@ -11,7 +11,7 @@ const fixture = [
   { key: 'mayor', age: '62' }, { key: 'adulto', age: '35 años' }, { key: 'peque', age: '10' },
   { key: 'par', age: '14' }, { key: 'joven', age: '15' }, { key: 'antiguo', age: '1200' },
   { key: 'incierto', age: 'Entre 20 y 30' }, { key: 'sin-edad', age: '' },
-  { key: 'manual', age: '60', position: { x: 720, y: 1000 } },
+  { key: 'manual', age: '60', position: { x: 720, y: 960, grid: 1 } },
 ];
 const layout = Family.layoutByAge(fixture);
 assert.equal(layout.get('peque').y, layout.get('par').y);
@@ -20,11 +20,12 @@ assert(layout.get('adulto').y < layout.get('joven').y);
 assert(layout.get('joven').y < layout.get('peque').y);
 assert.equal(layout.get('incierto').y, layout.get('sin-edad').y);
 assert(layout.get('sin-edad').y > layout.get('peque').y);
-assert.deepEqual(layout.get('manual'), fixture[8].position);
-assert(layout.get('mayor').y < 500, 'Una edad de 1200 años no crea cientos de filas vacías');
-const collision = Family.layoutByAge([{ key: 'fijo', age: '10', position: { x: 120, y: 0 } }, { key: 'auto', age: '10' }]);
-assert(Math.abs(collision.get('auto').x - 120) >= 170);
-assert.equal(collision.get('auto').y, 0);
+assert.deepEqual(layout.get('manual'), { x: 720, y: 960 });
+assert.equal(layout.get('adulto').y - layout.get('joven').y, -4 * Family.step, 'Las franjas vacías siguen existiendo');
+assert(Math.abs(layout.get('antiguo').y) < 5000, 'Las edades fantásticas usan franjas más amplias');
+const collision = Family.layoutByAge([{ key: 'fijo', age: '10', position: { x: 160, y: -160, grid: 1 } }, { key: 'auto', age: '10' }]);
+assert(Math.abs(collision.get('auto').x - 160) >= 170);
+assert.equal(collision.get('auto').y, -160);
 const profiles = S.validateProfiles(fixture.map(item => ({ id: item.key, givenNames: item.key, surnames: '', age: item.age,
   gender: '', role: '', aliases: [], ...(item.position ? { relationshipPosition: item.position } : {}),
   ...(item.key === 'adulto' ? { details: { relationships: [{ targetId: 'peque', type: 'Familia' }] } } : {}),
@@ -57,7 +58,7 @@ const packed = Archive.stringify({ name: 'Edades', documentName: 'Edades.plano',
       return { x: matrix.m41 + 78, y: matrix.m42 + 40 };
     });
     assert.equal((await at('peque')).y, (await at('par')).y);
-    assert.deepEqual(await at('manual'), fixture[8].position);
+    assert.deepEqual(await at('manual'), { x: 720, y: 960 });
     assert.equal(await page.evaluate(() => state.characterProfiles.find(profile => profile.id === 'adulto').details.relationships[0].parentId), undefined, 'La colocación automática por edad conserva el parentesco existente');
     await page.screenshot({ path: path.join(__dirname, '.output/relaciones-edades.png') });
     const editAge = async (id, age) => {
@@ -86,7 +87,7 @@ const packed = Archive.stringify({ name: 'Edades', documentName: 'Edades.plano',
     await page.locator('#characters-back').click();
     await openTree();
     assert.deepEqual(await at('mayor'), manual, 'Reabrir conserva la distribución manual');
-    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem(state.key)).characterProfiles.find(profile => profile.id === 'mayor').relationshipPosition), manual);
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem(state.key)).characterProfiles.find(profile => profile.id === 'mayor').relationshipPosition), { ...manual, grid: 1 });
     assert.deepEqual(errors, []);
     console.log('OK: franjas de edad, edades enormes, datos desconocidos, posiciones manuales, edición de edad, reapertura y parentescos conservados.');
   } finally { await browser.close(); }

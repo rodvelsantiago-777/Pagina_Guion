@@ -9,7 +9,8 @@
 .relations-zoom output { min-width: 44px; text-align: center; color: var(--muted); font-size: 12px; }
 .relations-canvas {
   position: relative; min-height: 0; overflow: hidden; isolation: isolate;
-  background: var(--paper);
+  background-color: var(--paper);
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px);
   cursor: grab; touch-action: none; user-select: none;
 }
 .relations-canvas.is-dragging, .relations-canvas.is-dragging .relations-node { cursor: grabbing; }
@@ -20,6 +21,11 @@
 .relations-lines > path, .relations-feeling-path, .relations-feeling-halo { vector-effect: non-scaling-stroke; }
 .relations-feeling-halo { stroke: var(--paper); stroke-width: 5px; stroke-linecap: round; stroke-linejoin: round; }
 .relations-feeling-path { stroke-linecap: round; stroke-linejoin: round; }
+.relations-feeling-path, .relations-feeling-arrow, .relations-feeling-origin, .relations-feeling-leader { opacity: .42; }
+.relations-feeling-halo { opacity: .5; }
+.relations-feeling-link { opacity: .72; }
+.relations-social-path { stroke-width: 1.8px; }
+.is-tracing-feeling :is(.relations-feeling-path,.relations-feeling-arrow,.relations-feeling-origin,.relations-feeling-leader,.relations-feeling-halo,.relations-feeling-link).is-traced { opacity: 1; }
 .relations-feeling-leader { stroke-width: .8px; vector-effect: non-scaling-stroke; }
 .relations-feeling-hit, .relations-connection-hit { pointer-events: stroke; cursor: pointer; vector-effect: non-scaling-stroke; }
 .relations-connection-hits { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }

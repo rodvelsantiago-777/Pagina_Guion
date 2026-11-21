@@ -92,7 +92,7 @@
     const formError = form.querySelector('[role="alert"]'), remove = form.querySelector('[data-remove]');
     const positions = new Map(), nodeElements = new Map(), edgeElements = [], familyElements = [];
     let items = [], profiles = [], links = [], camera = { x: 0, y: 0, zoom: 1 }, gesture, frame = 0;
-    let initialized = false, busy = false, currentLink = null, epoch = 0, lastOpener, kinshipKey = null;
+    let initialized = false, busy = false, currentLink = null, epoch = 0, lastOpener, kinshipKey = null, treeSignature = '', treeGeometry, structureSignature = '', movingSave = false, deferredFit = false;
     const hover = root.PlanoConnectionHover.create(canvas);
     const relationHits = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     relationHits.classList.add('relations-connection-hits'); relationHits.setAttribute('aria-hidden', 'true');
@@ -106,12 +106,12 @@
     });
     function traceRelation(selected) {
       canvas.classList.toggle('is-tracing-relation', Boolean(selected));
-      const related = selected?.parents ? [...selected.parents, selected.child] : selected ? [selected.link.source, selected.link.target] : [];
+      const related = selected?.parents ? [...selected.parents, ...selected.children] : selected ? [selected.link.source, selected.link.target] : [];
       for (const edge of edgeElements) {
         const traced = edge === selected || Boolean(selected?.parents && selected.parents.includes(edge.link.source) && selected.parents.includes(edge.link.target) && !edge.link.parentId);
         edge.path.classList.toggle('is-traced', traced); edge.button.classList.toggle('is-traced', traced);
       }
-      for (const branch of familyElements) for (const element of [branch.path, branch.joint, branch.button]) element.classList.toggle('is-traced', branch === selected);
+      for (const branch of familyElements) for (const element of [branch.path, branch.joint, branch.button]) element.classList.toggle('is-traced', branch === selected || Boolean(selected?.parents && JSON.stringify(selected.parents) === JSON.stringify(branch.parents)));
       for (const [id, node] of nodeElements) node.classList.toggle('is-relation-endpoint', related.includes(id));
     }
     function bindRelation(edge, onClick) {
@@ -160,11 +160,11 @@
       const segments = [], labels = [];
       for (const edge of [...edgeElements, ...familyElements]) {
         if (edge.button.hidden || edge.path.style.display === 'none') continue;
-        const length = edge.path.getTotalLength(), count = Math.max(1, Math.min(48, Math.ceil(length / 32)));
-        let previous = edge.path.getPointAtLength(0);
-        for (let i = 1; i <= count; i++) {
-          const point = edge.path.getPointAtLength(length * i / count);
-          segments.push({ a: { x: previous.x, y: previous.y }, b: { x: point.x, y: point.y } }); previous = point;
+        let previous;
+        for (const match of edge.path.getAttribute('d').matchAll(/([ML])(-?[\d.]+) (-?[\d.]+)/g)) {
+          const point = { x: Number(match[2]), y: Number(match[3]) };
+          if (match[1] === 'L' && previous) segments.push({ a: previous, b: point, formal: true });
+          previous = point;
         }
         const at = edge.labelPosition, width = edge.button.offsetWidth / 2 + 7, height = edge.button.offsetHeight / 2 + 6;
         labels.push({ left: at.x - width, right: at.x + width, top: at.y - height, bottom: at.y + height });
@@ -181,36 +181,31 @@
       }
       guide.setAttribute('d', gesture?.key && gesture.moved ? 'M' + gesture.original.x + ' ' + gesture.original.y +
         'L' + positions.get(gesture.key).x + ' ' + positions.get(gesture.key).y : '');
-      for (const edge of edgeElements) {
-        const a = positions.get(edge.link.source), b = positions.get(edge.link.target);
-        if (edge.link.parentId) {
-          const p = edge.link.parentId === edge.link.source ? a : b, c = p === a ? b : a;
-          const y = (p.y + c.y) / 2;
-          edge.path.setAttribute('d', 'M' + p.x + ' ' + (p.y + 40) + 'V' + y + 'H' + c.x + 'V' + (c.y - 40));
-          edge.hit.setAttribute('d', edge.path.getAttribute('d'));
-          edge.button.style.transform = 'translate(' + ((p.x + c.x) / 2) + 'px,' + y + 'px) translate(-50%,-50%)';
-          edge.labelPosition = { x: (p.x + c.x) / 2, y };
-          continue;
-        }
-        const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy) || 1;
-        const curve = edge.offset * 52, cx = (a.x + b.x) / 2 - dy / length * curve;
-        const cy = (a.y + b.y) / 2 + dx / length * curve;
-        edge.path.setAttribute('d', 'M' + a.x + ' ' + a.y + 'Q' + cx + ' ' + cy + ' ' + b.x + ' ' + b.y);
-        edge.hit.setAttribute('d', edge.path.getAttribute('d'));
-        edge.button.style.transform = 'translate(' + ((a.x + 2 * cx + b.x) / 4) + 'px,' +
-          ((a.y + 2 * cy + b.y) / 4) + 'px) translate(-50%,-50%)';
-        edge.labelPosition = { x: (a.x + 2 * cx + b.x) / 4, y: (a.y + 2 * cy + b.y) / 4 };
+      canvas.style.backgroundSize = (Family.step * camera.zoom) + 'px ' + (Family.step * camera.zoom) + 'px';
+      canvas.style.backgroundPosition = (camera.x - Family.step / 2 * camera.zoom) + 'px ' + (camera.y - Family.step / 2 * camera.zoom) + 'px';
+      const preview = movingSave || Boolean(gesture?.moved && gesture.key);
+      const signature = [...positions].map(([key, at]) => key + ':' + at.x + ',' + at.y).join('|') + ':' + preview;
+      if (signature !== treeSignature || !treeGeometry) {
+        treeSignature = signature;
+        treeGeometry = root.PlanoTreeRouter.layout(edgeElements.map((edge, index) => ({ ...edge, index,
+          hidden: edge.button.hidden, size: { width: edge.button.offsetWidth, height: edge.button.offsetHeight } })),
+          familyElements.map((branch, index) => ({ ...branch, index, size: { width: branch.button.offsetWidth, height: branch.button.offsetHeight } })), positions, { preview });
       }
-      for (const branch of familyElements) {
-        const { x, y } = Family.middleFor(branch.parents, positions, links), c = positions.get(branch.child);
-        const elbow = (y + c.y) / 2;
-        branch.path.setAttribute('d', 'M' + x + ' ' + y + 'V' + elbow + 'H' + c.x + 'V' + (c.y - 40));
-        branch.hit.setAttribute('d', branch.path.getAttribute('d'));
-        branch.joint.setAttribute('cx', x); branch.joint.setAttribute('cy', y);
-        branch.button.style.transform = 'translate(' + c.x + 'px,' + elbow + 'px) translate(-50%,-50%)';
-        branch.labelPosition = { x: c.x, y: elbow };
+      for (const [index, edge] of edgeElements.entries()) {
+        const shape = treeGeometry.edges[index];
+        edge.path.setAttribute('d', shape.path); edge.hit.setAttribute('d', shape.path);
+        edge.labelPosition = shape.labelPosition;
+        edge.button.style.transform = 'translate(' + shape.labelPosition.x + 'px,' + shape.labelPosition.y + 'px) translate(-50%,-50%)';
       }
-      feelings.draw(positions, { zoom: camera.zoom, dragging: Boolean(gesture?.moved && gesture.key), obstacles: feelingObstacles });
+      for (const [index, branch] of familyElements.entries()) {
+        const shape = treeGeometry.branches[index];
+        branch.path.setAttribute('d', shape.path); branch.hit.setAttribute('d', shape.path);
+        branch.joint.setAttribute('cx', shape.joint.x); branch.joint.setAttribute('cy', shape.joint.y);
+        branch.joint.style.display = shape.first ? '' : 'none';
+        branch.labelPosition = shape.labelPosition;
+        branch.button.style.transform = 'translate(' + shape.labelPosition.x + 'px,' + shape.labelPosition.y + 'px) translate(-50%,-50%)';
+      }
+      feelings.draw(positions, { zoom: camera.zoom, dragging: movingSave || Boolean(gesture?.moved && gesture.key), obstacles: feelingObstacles });
     }
     function schedule() {
       if (!frame) frame = requestAnimationFrame(draw);
@@ -305,8 +300,10 @@
       items = characters;
       profiles = roster;
       links = linksFor(profiles);
+      const structure = JSON.stringify([items.map(item => [characterKey(item), item.profile?.age]), links.map(link => [link.source, link.target, link.type, link.parentId])]);
+      const reorganized = structure !== structureSignature; structureSignature = structure;
       const layout = Family.layoutByAge(items.map(item => ({ key: characterKey(item), age: item.profile?.age,
-        position: item.profile?.relationshipPosition })));
+        position: item.profile?.relationshipPosition })), links);
       positions.clear();
       for (const [key, at] of layout) positions.set(key, at);
       nodes.replaceChildren();
@@ -354,7 +351,7 @@
           if (!busy) hooks.open(item, node);
         });
         node.addEventListener('keydown', event => {
-          const steps = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] };
+          const steps = { ArrowLeft: [-Family.step, 0], ArrowRight: [Family.step, 0], ArrowUp: [0, -Family.step], ArrowDown: [0, Family.step] };
           if (!event.shiftKey || !steps[event.key] || busy) return;
           event.preventDefault();
           const [x, y] = steps[event.key], previous = positions.get(key);
@@ -364,6 +361,7 @@
         nodeElements.set(key, node);
         nodes.append(node);
       }
+      treeSignature = ''; treeGeometry = null;
       lines.replaceChildren();
       relationHits.replaceChildren();
       edgeLabels.replaceChildren();
@@ -382,6 +380,7 @@
         path.setAttribute('stroke', colorFor(link.type));
         path.setAttribute('fill', 'none');
         path.setAttribute('stroke-width', '2.3');
+        if (!['Familia', 'Romance'].includes(link.type)) { path.classList.add('relations-social-path'); path.setAttribute('stroke-dasharray', '6 5'); }
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'relations-link';
@@ -440,11 +439,13 @@
       empty.hidden = Boolean(items.length);
       feelings.render(items, profiles, links);
       setBusy(busy);
-      if (!initialized && items.length) { initialized = true; fit(); }
+      if (movingSave && reorganized) { deferredFit = true; draw(); }
+      else if ((!initialized || reorganized) && items.length) { initialized = true; fit(); }
       else draw();
     }
     async function moveNode(key, next, previous, join) {
-      next = { x: Math.max(-20000, Math.min(20000, Math.round(next.x))), y: Math.max(-20000, Math.min(20000, Math.round(next.y))) };
+      next = { x: Family.snap(next.x), y: Family.snap(next.y) };
+      movingSave = true;
       positions.set(key, next);
       draw();
       const token = epoch;
@@ -461,7 +462,10 @@
           message(error, reason.message || 'No se pudo guardar la posición.');
         }
       } finally {
-        if (token === epoch) setBusy(false);
+        if (token === epoch) {
+          movingSave = false; setBusy(false);
+          if (deferredFit) { deferredFit = false; fit(); } else draw();
+        }
       }
     }
     canvas.addEventListener('pointerdown', event => {
@@ -554,7 +558,7 @@
         if (frame) cancelAnimationFrame(frame);
         frame = 0; initialized = false; busy = false; kinshipKey = null;
         positions.clear(); nodeElements.clear(); edgeElements.length = 0; familyElements.length = 0;
-        items = []; profiles = []; links = [];
+        items = []; profiles = []; links = []; treeSignature = ''; treeGeometry = null; structureSignature = ''; movingSave = false; deferredFit = false;
         nodes.replaceChildren(); lines.replaceChildren(); edgeLabels.replaceChildren();
         relationHits.replaceChildren();
         message(error);

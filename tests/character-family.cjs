@@ -7,10 +7,10 @@ const { chromium } = require('./runtime-deps.cjs').load('playwright');
 const { launch } = require('./editor-auth-fixture.cjs');
 const base = { surnames: '', age: '', role: '', aliases: [] };
 const profiles = S.validateProfiles([
-  { ...base, id: 'ana', givenNames: 'Ana', gender: 'Mujer', relationshipPosition: { x: 0, y: 0 },
+  { ...base, id: 'ana', givenNames: 'Ana', gender: 'Mujer', relationshipPosition: { x: 0, y: 0, grid: 1 },
     details: { relationships: [{ targetId: 'beto', type: 'Romance' }, { targetId: 'clara', type: 'Familia' }] } },
-  { ...base, id: 'beto', givenNames: 'Beto', gender: 'Hombre', relationshipPosition: { x: 480, y: 0 } },
-  { ...base, id: 'clara', givenNames: 'Clara', gender: 'Mujer', relationshipPosition: { x: 0, y: 240 } },
+  { ...base, id: 'beto', givenNames: 'Beto', gender: 'Hombre', relationshipPosition: { x: 480, y: 0, grid: 1 } },
+  { ...base, id: 'clara', givenNames: 'Clara', gender: 'Mujer', relationshipPosition: { x: 0, y: 240, grid: 1 } },
 ]);
 let family = Details.updateRelationships(profiles, { ...profiles[0], details: { relationships: [
   profiles[0].details.relationships[0], { targetId: 'clara', type: 'Familia', parentId: 'ana' },
@@ -35,7 +35,7 @@ for (const [dx, dy] of [[82, 14], [-31, 94], [88, 64], [-67, -89], [8, -140], [1
 }
 const diagonalLinks = [{ source: 'ana', target: 'beto', type: 'Romance' }, { source: 'ana', target: 'clara', type: 'Familia', parentId: 'ana' }];
 const diagonalPositions = new Map([['ana', { x: 0, y: 0 }], ['beto', { x: 240, y: 240 }], ['clara', { x: 0, y: 480 }]]);
-assert.deepEqual(Family.joinFor('clara', { x: 120, y: 120 }, diagonalPositions, diagonalLinks).parents, ['ana', 'beto'], 'También se puede soltar sobre una relación diagonal');
+assert.deepEqual(Family.joinFor('clara', { x: 120, y: 240 }, diagonalPositions, diagonalLinks).parents, ['ana', 'beto'], 'También se puede soltar sobre una relación diagonal');
 const packed = Archive.stringify({ name: 'La familia', documentName: 'La familia.plano', payload: {
   version: 1, screenplay: S.create('La familia'), characterProfiles: profiles, annotations: [], corrections: [], crew: {},
   proofreading: { enabled: false, dictionary: '', ignored: [] },
@@ -73,9 +73,9 @@ const packed = Archive.stringify({ name: 'La familia', documentName: 'La familia
       await page.waitForFunction(() => document.querySelector('.relations-canvas').getAttribute('aria-busy') === 'false');
     };
     await drag('clara', 82, 14);
-    assert.deepEqual(await position('clara'), { x: 72, y: 240 }, 'El arrastre se mantiene horizontal');
-    await drag('clara', -72, 72);
-    assert.deepEqual(await position('clara'), { x: 0, y: 312 });
+    assert.deepEqual(await position('clara'), { x: 80, y: 240, grid: 1 }, 'El arrastre se mantiene horizontal y se ajusta a la cuadrícula');
+    await drag('clara', -80, 80);
+    assert.deepEqual(await position('clara'), { x: 0, y: 320, grid: 1 });
     await page.waitForFunction(() => PlanoCharacterDetails.relationshipsFor(state.characterProfiles, 'clara')[0]?.parentId === 'ana');
     await node('clara').click();
     let card = page.getByRole('dialog', { name: 'Clara', exact: true });
@@ -93,7 +93,7 @@ const packed = Archive.stringify({ name: 'La familia', documentName: 'La familia
     await page.screenshot({ path: path.join(__dirname, '.output/familia-soltar-en-relacion.png') });
     await page.mouse.up();
     await page.waitForFunction(() => PlanoCharacterDetails.relationshipsFor(state.characterProfiles, 'clara').filter(entry => entry.parentId).length === 2);
-    assert.deepEqual(await position('clara'), { x: 240, y: 240 });
+    assert.deepEqual(await position('clara'), { x: 240, y: 240, grid: 1 });
     assert.equal(await graph.locator('.relations-family-branch').count(), 1);
     await page.screenshot({ path: path.join(__dirname, '.output/familia-dos-progenitores.png') });
     await graph.getByRole('button', { name: /^Ver progenitores de Clara/ }).click();
